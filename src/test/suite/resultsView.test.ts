@@ -9,32 +9,41 @@ describe('ResultsViewProvider Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Create a mock webview view that includes the mock webview panel
     mockWebviewView = {
       webview: mockWebviewPanel.webview,
       show: jest.fn(),
       onDidDispose: jest.fn(),
     };
 
-    // Create with extension Uri
     const mockContext = {
       extensionUri: vscode.Uri.file('/mock/extension/path'),
       globalStorageUri: vscode.Uri.file('/mock/storage/path'),
+      workspaceState: {
+        get: jest.fn().mockReturnValue(undefined),
+        update: jest.fn(),
+      },
       subscriptions: [],
     } as any;
+    const mockQueryExecutor = {
+      executeQuery: jest.fn(),
+      cancelQuery: jest.fn(),
+    } as any;
+
     resultsViewProvider = new ResultsViewProvider(
       vscode.Uri.file('/mock/extension/path'),
-      mockContext
+      mockContext,
+      mockQueryExecutor
     );
 
-    // Manually trigger the resolveWebviewView to set up the internal _view
     resultsViewProvider.resolveWebviewView(mockWebviewView);
   });
 
   test('should show results with truncation warning when results exceed maxRowsToDisplay', async () => {
-    // Mock data
+    const tabId = 'tab-1';
+    resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
+
     const columns = [{ name: 'col1', type: 'varchar' }];
-    const rows = Array(600).fill(['value']); // More than default maxRowsToDisplay
+    const rows = Array(600).fill(['value']);
     const data = {
       columns,
       rows,
@@ -45,20 +54,22 @@ describe('ResultsViewProvider Tests', () => {
       nextUri: 'http://localhost:8080/v1/query/123/next',
     };
 
-    // Show results
     resultsViewProvider.showResults(data);
 
-    // Verify webview was updated
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'resultData',
+      tabId,
+      title: 'Test Tab',
       data,
     });
   });
 
   test('should show results without truncation warning when results within limit', async () => {
-    // Mock data
+    const tabId = 'tab-1';
+    resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
+
     const columns = [{ name: 'col1', type: 'varchar' }];
-    const rows = Array(300).fill(['value']); // Less than default maxRowsToDisplay
+    const rows = Array(300).fill(['value']);
     const data = {
       columns,
       rows,
@@ -66,22 +77,22 @@ describe('ResultsViewProvider Tests', () => {
       wasTruncated: false,
       totalRowsInFirstBatch: 300,
       queryId: 'query_123',
-      // nextUri is undefined by default
     };
 
-    // Show results
     resultsViewProvider.showResults(data);
 
-    // Verify webview was updated
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'resultData',
+      tabId,
+      title: 'Test Tab',
       data,
     });
   });
 
   test('should show results for specific tab', async () => {
-    // Mock data
     const tabId = 'tab-123';
+    resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Query Results');
+
     const columns = [{ name: 'col1', type: 'varchar' }];
     const rows = [['value']];
     const data = {
@@ -93,20 +104,20 @@ describe('ResultsViewProvider Tests', () => {
       queryId: 'query_123',
     };
 
-    // Show results for tab
     resultsViewProvider.showResultsForTab(tabId, data);
 
-    // Verify webview was updated with correct structure
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'resultData',
       tabId,
-      data,
       title: 'Query Results',
+      data,
     });
   });
 
   test('should handle empty results', async () => {
-    // Mock data
+    const tabId = 'tab-1';
+    resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
+
     const columns = [{ name: 'col1', type: 'varchar' }];
     const rows: any[][] = [];
     const data = {
@@ -116,29 +127,33 @@ describe('ResultsViewProvider Tests', () => {
       wasTruncated: false,
       totalRowsInFirstBatch: 0,
       queryId: 'query_123',
-      // nextUri is undefined by default
     };
 
-    // Show results
     resultsViewProvider.showResults(data);
 
-    // Verify webview was updated
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'resultData',
+      tabId,
+      title: 'Test Tab',
       data,
     });
   });
 
   test('should handle error messages', async () => {
+    const tabId = 'tab-1';
+    resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
+
     const errorMessage = 'Query failed: syntax error';
     const errorDetails = 'line 1:10: Table not found';
 
-    // Show error
+    // Pass query and title specifically to match expectations
     resultsViewProvider.showError(errorMessage, errorDetails);
 
-    // Verify webview was updated
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'queryError',
+      tabId,
+      title: undefined,
+      query: undefined,
       error: {
         message: errorMessage,
         details: errorDetails,
@@ -147,22 +162,24 @@ describe('ResultsViewProvider Tests', () => {
   });
 
   test('should show loading state', async () => {
-    // Show loading
+    const tabId = 'tab-1';
+    resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
+
     resultsViewProvider.showLoading();
 
-    // Verify webview was updated
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'showLoading',
+      tabId,
+      title: 'Test Tab',
+      query: 'SELECT 1',
     });
   });
 
   test('should show status messages', async () => {
     const message = 'Query completed successfully';
 
-    // Show status
     resultsViewProvider.showStatusMessage(message);
 
-    // Verify webview was updated
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
       type: 'statusMessage',
       message,
@@ -175,11 +192,14 @@ describe('ResultsViewProvider Tests', () => {
 
     resultsViewProvider.createTab(query, title);
 
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
-      type: 'createTab',
-      query,
-      title,
-    });
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: 'createTab',
+        query,
+        title,
+        sourceFileUri: undefined,
+      })
+    );
   });
 
   test('should create a new tab with specific ID', async () => {
@@ -189,11 +209,12 @@ describe('ResultsViewProvider Tests', () => {
 
     resultsViewProvider.createTabWithId(tabId, query, title);
 
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'createTab',
       tabId,
       query,
       title,
+      sourceFileUri: undefined,
     });
   });
 
@@ -201,14 +222,11 @@ describe('ResultsViewProvider Tests', () => {
     const query = 'SELECT * FROM active_tab';
     const title = 'Active Tab';
 
-    // Scenario 1: No active tab exists -> Should create new tab
     const tabId = resultsViewProvider.getOrCreateActiveTabId(query, title);
 
-    expect(tabId).not.toBe('active-tab-placeholder');
     expect(tabId).toMatch(/^tab-/);
 
-    // Should call createTabWithId internally, which sends createTab message
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
         type: 'createTab',
         tabId: tabId,
@@ -217,14 +235,13 @@ describe('ResultsViewProvider Tests', () => {
       })
     );
 
-    // Scenario 2: Active tab exists -> Should reuse it
     const reusedTabId = resultsViewProvider.getOrCreateActiveTabId(
       'SELECT * FROM reused',
       'Reused Tab'
     );
     expect(reusedTabId).toBe(tabId);
 
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
         type: 'reuseOrCreateActiveTab',
         query: 'SELECT * FROM reused',
@@ -234,17 +251,25 @@ describe('ResultsViewProvider Tests', () => {
   });
 
   test('should close active tab', async () => {
+    const tabId = 'tab-1';
+    resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
+
     resultsViewProvider.closeActiveTab();
 
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
-      type: 'closeActiveTab',
+    // closeActiveTab sends closeTab with the active ID
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
+      type: 'closeTab',
+      tabId: 'tab-1',
     });
   });
 
   test('should close other tabs', async () => {
+    resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'Test Tab');
+    // tab-1 is active
+
     resultsViewProvider.closeOtherTabs();
 
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'closeOtherTabs',
     });
   });
@@ -262,7 +287,7 @@ describe('ResultsViewProvider Tests', () => {
 
     resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'Preview', sourceUri);
 
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
         type: 'createTab',
         tabId: 'tab-1',
@@ -272,13 +297,14 @@ describe('ResultsViewProvider Tests', () => {
   });
 
   test('should filter tabs when active editor changes', () => {
-    // Since we mocked window.onDidChangeActiveTextEditor, we can't easily trigger the real event.
-    // However, we can call the private method _filterTabsByFile via casting.
     (resultsViewProvider as any)._filterTabsByFile('file:///path/to/script.sql');
 
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+    // This updates the view, but might not change active tab if there isn't one.
+    // However, it sends filterTabs message.
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'filterTabs',
       fileUri: 'file:///path/to/script.sql',
+      fileName: 'script.sql',
     });
   });
 });

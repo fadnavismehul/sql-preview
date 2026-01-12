@@ -20,6 +20,10 @@ describe('Tab Management Tests', () => {
         store: sinon.stub(),
         delete: sinon.stub(),
       },
+      workspaceState: {
+        get: sinon.stub(),
+        update: sinon.stub(),
+      },
       subscriptions: [],
     } as any;
 
@@ -42,7 +46,16 @@ describe('Tab Management Tests', () => {
     } as any;
 
     // Create results view provider
-    resultsViewProvider = new ResultsViewProvider(mockContext.extensionUri, mockContext);
+    const mockQueryExecutor = {
+      executeQuery: sinon.stub(),
+      cancelQuery: sinon.stub(),
+      runQuery: sinon.stub(),
+    } as any;
+    resultsViewProvider = new ResultsViewProvider(
+      mockContext.extensionUri,
+      mockContext,
+      mockQueryExecutor
+    );
     resultsViewProvider.resolveWebviewView(mockWebviewView);
   });
 
@@ -86,19 +99,26 @@ describe('Tab Management Tests', () => {
     });
 
     test('closeActiveTab should send closeActiveTab message', () => {
+      resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'SELECT 1');
       resultsViewProvider.closeActiveTab();
 
-      assert.ok(postMessageStub.calledOnce);
-      const message = postMessageStub.firstCall.args[0];
-      assert.strictEqual(message.type, 'closeActiveTab');
+      // First call is from creation, second from closing. Actually check calls.
+      const calls = postMessageStub.getCalls();
+      const closeMsg = calls.find((c: any) => c.args[0].type === 'closeTab');
+
+      assert.ok(closeMsg, 'Should send closeTab message');
+      assert.strictEqual(closeMsg.args[0].tabId, 'tab-1');
     });
 
     test('closeOtherTabs should send closeOtherTabs message', () => {
+      resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'SELECT 1');
+      resultsViewProvider.createTabWithId('tab-2', 'SELECT 2', 'SELECT 2');
       resultsViewProvider.closeOtherTabs();
 
-      assert.ok(postMessageStub.calledOnce);
-      const message = postMessageStub.firstCall.args[0];
-      assert.strictEqual(message.type, 'closeOtherTabs');
+      const calls = postMessageStub.getCalls();
+      const closeMsg = calls.find((c: any) => c.args[0].type === 'closeOtherTabs');
+
+      assert.ok(closeMsg, 'Should send closeOtherTabs message');
     });
 
     test('closeAllTabs should send closeAllTabs message', () => {
@@ -173,7 +193,15 @@ describe('Tab Management Tests', () => {
 
   describe('Webview Interaction', () => {
     test('should handle tab creation without webview gracefully', () => {
-      const providerWithoutWebview = new ResultsViewProvider(mockContext.extensionUri, mockContext);
+      const mockQueryExecutor = {
+        executeQuery: sinon.stub(),
+        cancelQuery: sinon.stub(),
+      } as any;
+      const providerWithoutWebview = new ResultsViewProvider(
+        mockContext.extensionUri,
+        mockContext,
+        mockQueryExecutor
+      );
 
       // Should not throw
       assert.doesNotThrow(() => {
@@ -185,7 +213,15 @@ describe('Tab Management Tests', () => {
     });
 
     test('getOrCreateActiveTabId should return valid tab ID even without webview', () => {
-      const providerWithoutWebview = new ResultsViewProvider(mockContext.extensionUri, mockContext);
+      const mockQueryExecutor = {
+        executeQuery: sinon.stub(),
+        cancelQuery: sinon.stub(),
+      } as any;
+      const providerWithoutWebview = new ResultsViewProvider(
+        mockContext.extensionUri,
+        mockContext,
+        mockQueryExecutor
+      );
 
       const tabId = providerWithoutWebview.getOrCreateActiveTabId('SELECT 1', 'Test');
 

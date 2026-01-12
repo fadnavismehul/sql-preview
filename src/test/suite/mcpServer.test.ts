@@ -11,6 +11,7 @@ describe('MCP Server Test Suite', () => {
   let sandbox: sinon.SinonSandbox;
   let mockResultsProvider: sinon.SinonStubbedInstance<ResultsViewProvider>;
   let mcpServer: SqlPreviewMcpServer;
+  let clock: sinon.SinonFakeTimers;
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
@@ -21,6 +22,7 @@ describe('MCP Server Test Suite', () => {
 
     // Create instance of McpServer
     mcpServer = new SqlPreviewMcpServer(mockResultsProvider as unknown as ResultsViewProvider);
+    clock = sandbox.useFakeTimers();
   });
 
   afterEach(() => {
@@ -95,25 +97,30 @@ describe('MCP Server Test Suite', () => {
       on: (event: string, callback: (err: Error) => void) => {
         if (event === 'error') {
           // Execute callback asynchronously to simulate real server behavior
-          setTimeout(() => callback(error), 0);
+          setTimeout(() => callback(error), 10);
         }
       },
       close: sandbox.stub(),
     };
     appListenStub.returns(mockServer as any);
 
-    const showErrorMessageStub = sandbox.stub(vscode.window, 'showErrorMessage');
+    sandbox.stub(vscode.window, 'showErrorMessage');
+
+    const startPromise = mcpServer.start();
+    // Prevent unhandled rejection warning
+    startPromise.catch(() => undefined);
+
+    // Fast-forward time to exhaust retries (60 * 500ms = 30000ms)
+    // We tick in increments to allow the retry loop to process
+    await clock.tickAsync(35000);
 
     try {
-      await mcpServer.start();
+      await startPromise;
       assert.fail('Should have thrown error');
     } catch (e) {
       // The error is now a custom error message
       assert.ok(e instanceof Error);
-      assert.ok((e as Error).message.includes('MCP Server failed to start after 10 attempts'));
-      assert.ok(
-        showErrorMessageStub.calledWith(sinon.match(/MCP Server failed to start after 10 attempts/))
-      );
+      assert.ok((e as Error).message.includes('Could not bind to port'));
     }
   });
 
@@ -137,7 +144,7 @@ describe('MCP Server Test Suite', () => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       on: (_event: string, callback: (err: Error) => void) => {
         if (_event === 'error') {
-          setTimeout(() => callback(error), 0);
+          setTimeout(() => callback(error), 10);
         }
       },
       close: sandbox.stub(),
@@ -152,24 +159,34 @@ describe('MCP Server Test Suite', () => {
       close: sandbox.stub(),
     };
 
-    // Mock implementation for failure (port 3000)
-    appListenStub.withArgs(3000, sinon.match.any).returns(failedServer as any);
+    // Mock implementation
+    let attempts = 0;
+    appListenStub.callsFake((_port: any, _host: any, callback: any) => {
+      attempts++;
+      // Handle optional callback if host is omitted (though code passes it)
+      const cb = typeof _host === 'function' ? _host : callback;
 
-    // Mock implementation for success (port 3001) - MUST call the callback!
-    appListenStub.withArgs(3001, sinon.match.any).callsFake((_port, callback) => {
-      if (callback) {
-        setTimeout(() => callback(), 0);
+      if (attempts === 1) {
+        return failedServer as any;
+      } else {
+        if (cb) {
+          setTimeout(() => cb(), 10);
+        }
+        return successServer as any;
       }
-      return successServer as any;
     });
 
-    const showInfoMessageStub = sandbox.stub(vscode.window, 'showInformationMessage');
+    sandbox.stub(vscode.window, 'showInformationMessage'); // It's actually console.log now, but keeping for compatibility if logging changed
 
-    await mcpServer.start();
+    const startPromise = mcpServer.start();
+    await clock.tickAsync(1000); // Allow retry
+    await startPromise;
 
     assert.ok(appListenStub.calledTwice, 'Should have attempted to listen twice');
     assert.ok(appListenStub.firstCall.calledWith(3000), 'First attempt should be on port 3000');
-    assert.ok(appListenStub.secondCall.calledWith(3001), 'Second attempt should be on port 3001');
-    assert.ok(showInfoMessageStub.calledWith(sinon.match(/running on port 3001/)));
+    assert.ok(
+      appListenStub.secondCall.calledWith(3000),
+      'Second attempt should be on port 3000 (same port retry)'
+    );
   });
 });

@@ -17,6 +17,10 @@ describe('Command Tests', () => {
         store: sinon.stub(),
         delete: sinon.stub(),
       },
+      workspaceState: {
+        get: sinon.stub(),
+        update: sinon.stub(),
+      },
       subscriptions: [],
     } as any;
 

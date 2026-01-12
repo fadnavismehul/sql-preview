@@ -1,224 +1,321 @@
-import * as vscode from 'vscode';
-import { Server } from 'http';
+import {
+  CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+/* eslint-disable no-console */
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import express from 'express';
 import cors from 'cors';
-import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import * as vscode from 'vscode';
 import { ResultsViewProvider } from './resultsViewProvider';
-import { z } from 'zod';
 
 export class SqlPreviewMcpServer {
-  private app: express.Application;
-  private server: Server | undefined;
-  private mcp: McpServer;
-  private transport: SSEServerTransport | undefined;
+  private server: Server;
+  private app: express.Express;
+  private httpServer: any; // Store http server instance to close it later
 
-  constructor(private readonly resultsProvider: ResultsViewProvider) {
+  constructor(private resultsProvider: ResultsViewProvider) {
+    this.server = new Server(
+      {
+        name: 'sql-preview-mcp',
+        version: '0.1.0',
+      },
+      {
+        capabilities: {
+          resources: {},
+          tools: {},
+        },
+      }
+    );
+
+    this.setupHandlers();
     this.app = express();
-    this.app.use(cors());
-
-    // Initialize MCP Server
-    this.mcp = new McpServer({
-      name: 'SQL Preview Extension',
-      version: '1.0.0',
-    });
-
-    this.setupResources();
-    this.setupTools();
   }
 
-  private setupResources() {
-    // Resource: List of all tabs
-    this.mcp.resource('active-tabs', 'sql-preview://tabs', async uri => {
+  private setupHandlers() {
+    // List available resources (active tabs)
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
       const tabs = this.resultsProvider.getTabs();
       return {
-        contents: [
-          {
-            uri: uri.href,
-            text: JSON.stringify(tabs, null, 2),
-            mimeType: 'application/json',
-          },
-        ],
+        resources: tabs.map(tab => ({
+          uri: `sql-preview://tabs/${tab.id}`,
+          name: tab.title || `Tab ${tab.id}`,
+          mimeType: 'application/json',
+          description: `SQL Query Results for: ${tab.query}`,
+        })),
       };
     });
 
-    // Resource: Active tab data
-    this.mcp.resource('active-tab-data', 'sql-preview://active-tab', async uri => {
-      const activeId = this.resultsProvider.getActiveTabId();
-      if (!activeId) {
-        throw new Error('No active tab selected');
+    // Read a specific resource (tab data)
+    this.server.setRequestHandler(ReadResourceRequestSchema, async request => {
+      const uri = request.params.uri;
+      const tabId = uri.split('/').pop();
+      if (!tabId) {
+        throw new Error('Invalid resource URI');
       }
-      const data = this.resultsProvider.getTabData(activeId);
+
+      const tabData = this.resultsProvider.getTabData(tabId);
+      if (!tabData) {
+        throw new Error(`Tab not found: ${tabId}`);
+      }
+
       return {
         contents: [
           {
-            uri: uri.href,
-            text: JSON.stringify(data, null, 2),
+            uri: uri,
             mimeType: 'application/json',
+            text: JSON.stringify(
+              tabData,
+              (_key, value) => {
+                // Basic BigInt handling if any slipped through
+                return typeof value === 'bigint' ? value.toString() : value;
+              },
+              2
+            ),
           },
         ],
       };
     });
 
-    // Resource: Specific tab data
-    this.mcp.resource(
-      'tab-data',
-      new ResourceTemplate('sql-preview://tabs/{tabId}/rows', { list: undefined }),
-      async (uri, { tabId }) => {
-        const data = this.resultsProvider.getTabData(tabId as string);
-        if (!data) {
-          throw new Error(`Tab not found: ${tabId}`);
-        }
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              text: JSON.stringify(data, null, 2),
-              mimeType: 'application/json',
+    // List available tools
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      return {
+        tools: [
+          {
+            name: 'run_query',
+            description:
+              'Execute a SQL query and show results in a new tab. Note: This tool initiates execution but does not return rows directly. Use get_active_tab_info to view results.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                sql: { type: 'string', description: 'The SQL query to execute' },
+                newTab: {
+                  type: 'boolean',
+                  description: 'Whether to open in a new tab (default: true)',
+                },
+              },
+              required: ['sql'],
             },
-          ],
-        };
-      }
-    );
-  }
-
-  private setupTools() {
-    // Tool: Run Query
-    this.mcp.tool(
-      'run_query',
-      {
-        query: z.string().describe('The SQL query to execute'),
-        newTab: z.boolean().default(true).describe('Whether to open results in a new tab'),
-      },
-      async ({ query, newTab }) => {
-        // Execute the command in VS Code
-        // We need to pass the query to the command.
-        // The existing command might expect a selection or CodeLens,
-        // so we might need to update extension.ts to accept a query string argument.
-        // Assuming we updated extension.ts or will update it:
-        if (newTab) {
-          await vscode.commands.executeCommand('sql.runQueryNewTab', query);
-        } else {
-          await vscode.commands.executeCommand('sql.runQuery', query);
-        }
-
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Query execution initiated. Check VS Code for results.`,
-            },
-          ],
-        };
-      }
-    );
-
-    // Tool: Get Active Tab Info
-    this.mcp.tool('get_active_tab_info', {}, async () => {
-      this.resultsProvider.log('Tool get_active_tab_info called');
-      const activeId = this.resultsProvider.getActiveTabId();
-      this.resultsProvider.log(`Tool retrieved activeId: ${activeId}`);
-      if (!activeId) {
-        return {
-          content: [{ type: 'text', text: 'No active tab.' }],
-        };
-      }
-      const data = this.resultsProvider.getTabData(activeId);
-      this.resultsProvider.log(
-        `Tool retrieved data for ${activeId}: ${data ? 'Found' : 'Not Found'}`
-      );
-
-      try {
-        const jsonString = JSON.stringify(
-          data,
-          (_key, value) => {
-            if (typeof value === 'bigint') {
-              return value.toString();
-            }
-            return value;
           },
-          2
-        );
+          {
+            name: 'get_active_tab_info',
+            description: 'Get information about the currently active result tab',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+            },
+          },
+        ],
+      };
+    });
 
-        return {
-          content: [{ type: 'text', text: jsonString }],
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.resultsProvider.log(`Error serializing tab data: ${errorMessage}`);
-        return {
-          content: [{ type: 'text', text: `Error retrieving tab data: ${errorMessage}` }],
-          isError: true,
-        };
+    // Handle tool execution
+    this.server.setRequestHandler(CallToolRequestSchema, async request => {
+      switch (request.params.name) {
+        case 'run_query': {
+          try {
+            const args = request.params.arguments as any;
+            const sql = args?.sql as string;
+            const newTab = args?.newTab !== false; // Default to true
+
+            if (!sql) {
+              throw new Error('SQL query is required');
+            }
+
+            // Fire and forget
+            const commandPromise = newTab
+              ? vscode.commands.executeCommand('sql.runQueryNewTab', sql)
+              : vscode.commands.executeCommand('sql.runQuery', sql);
+
+            commandPromise.then(
+              () => void 0,
+              (err: any) => {
+                console.error('Failed to trigger query command:', err);
+              }
+            );
+
+            const activeEditor = vscode.window.activeTextEditor;
+            const contextFile = activeEditor
+              ? activeEditor.document.uri.fsPath.split('/').pop()
+              : 'Scratchpad';
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `Query submitted for execution. Context: ${contextFile}. Results are loading in the SQL Preview panel. Use 'get_active_tab_info' to monitor progress and view results.`,
+                },
+              ],
+            };
+          } catch (error: any) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Error running query: ${error.message}` }],
+            };
+          }
+        }
+        case 'get_active_tab_info': {
+          try {
+            const activeTabId = this.resultsProvider.getActiveTabId();
+            if (!activeTabId) {
+              return {
+                content: [{ type: 'text', text: 'No active tab found.' }],
+              };
+            }
+            const tabData = this.resultsProvider.getTabData(activeTabId);
+            if (!tabData) {
+              return {
+                content: [{ type: 'text', text: 'Active tab data not found.' }],
+              };
+            }
+            // Add sourceFileUri to the response as requested
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(
+                    {
+                      id: tabData.id,
+                      title: tabData.title,
+                      query: tabData.query,
+                      status: tabData.status,
+                      rowCount: tabData.rows?.length,
+                      columns: tabData.columns,
+                      sourceFile: tabData.sourceFileUri,
+                    },
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
+          } catch (error: any) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Error getting active tab info: ${error.message}` }],
+            };
+          }
+        }
+        default:
+          throw new Error('Unknown tool');
       }
     });
   }
 
-  public async start() {
+  async start() {
     const config = vscode.workspace.getConfiguration('sqlPreview');
     const startPort = config.get<number>('mcpPort', 3000);
-    const maxRetries = 10;
 
-    // SSE Endpoint
+    // Track active transports by session ID
+    const transports = new Map<string, SSEServerTransport>();
+
+    // DO NOT use global bodyParser.json() if it interferes with SSE stream reading.
+    // Instead, we can apply it only to routes that need it, or let the SDK handle it.
+    // The MCP SSEServerTransport.handlePostMessage reads the raw request stream.
+
+    this.app.use(cors());
+
+    // Health check / info
+    this.app.get('/', (_req, res) => {
+      res.send('SQL Preview MCP Server is running.');
+    });
+
     this.app.get('/sse', async (_req, res) => {
-      this.transport = new SSEServerTransport('/messages', res);
-      await this.mcp.connect(this.transport);
+      console.log('New SSE connection request');
+      const transport = new SSEServerTransport('/messages', res);
+
+      // Store transport by sessionId (exposed in newer SDKs, or we can use the ref)
+      // Actually, we can just use the transport's own internal session management
+      // but we need to find it again in the POST handler.
+      const sessionId = (transport as any)['sessionId'];
+      transports.set(sessionId, transport);
+
+      console.log(`SSE session established: ${sessionId}`);
+
+      res.on('close', () => {
+        console.log(`SSE session closed: ${sessionId}`);
+        transports.delete(sessionId);
+      });
+
+      await this.server.connect(transport);
     });
 
-    // Message Endpoint
-    this.app.post('/messages', async (req, res) => {
-      if (this.transport) {
-        await this.transport.handlePostMessage(req, res);
-      } else {
-        res.status(500).send('Transport not initialized');
+    const handleMessage = async (req: express.Request, res: express.Response) => {
+      const sessionId = req.query['sessionId'] as string;
+      if (!sessionId) {
+        res.status(400).send('Session ID required');
+        return;
       }
-    });
 
-    return new Promise<void>((resolve, reject) => {
-      let currentPort = startPort;
-      let attempt = 0;
+      const transport = transports.get(sessionId);
+      if (!transport) {
+        console.warn(`Message received for unknown session: ${sessionId}`);
+        res.status(404).send('Session not found');
+        return;
+      }
 
-      const tryListen = () => {
-        if (attempt > maxRetries) {
-          const msg = `MCP Server failed to start after ${maxRetries} attempts. Ports ${startPort}-${currentPort - 1} are in use.`;
-          vscode.window.showErrorMessage(msg);
-          this.resultsProvider.log(msg);
-          reject(new Error(msg));
-          return;
-        }
+      try {
+        await transport.handlePostMessage(req, res);
+      } catch (err: any) {
+        console.error(`Error handling message for session ${sessionId}:`, err);
+        res.status(500).send(err.message);
+      }
+    };
 
-        this.resultsProvider.log(`Attempting to start MCP Server on port ${currentPort}...`);
+    // Main message endpoint
+    this.app.post('/messages', handleMessage);
 
-        const server = this.app.listen(currentPort, () => {
-          this.server = server;
-          this.resultsProvider.log(`MCP Server listening on port ${currentPort}`);
-          vscode.window.showInformationMessage(
-            `SQL Preview MCP Server running on port ${currentPort}`
-          );
-          resolve();
-        });
+    // Fallback/Redundant endpoint if client is confused (e.g. Cursor POSTing to /sse)
+    this.app.post('/sse', handleMessage);
 
-        server.on('error', (err: Error & { code?: string }) => {
-          if (err.code === 'EADDRINUSE') {
-            this.resultsProvider.log(`Port ${currentPort} is in use, trying next port...`);
-            currentPort++;
-            attempt++;
-            server.close(); // Ensure the failed server instance is closed
-            tryListen();
-          } else {
-            vscode.window.showErrorMessage(`MCP Server failed to start: ${err.message}`);
+    // Attempt to listen, retrying same port if busy (to allow handover from other window)
+    // Retry for up to 30 seconds to handle TIME_WAIT or slow window switching
+    let retries = 60;
+    while (retries > 0) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          this.httpServer = this.app.listen(startPort, '0.0.0.0', () => {
+            console.log(`MCP Server listening on port ${startPort} (0.0.0.0)`);
+            resolve();
+          });
+          this.httpServer.on('error', (err: any) => {
             reject(err);
-          }
+          });
         });
-      };
+        break;
+      } catch (err: any) {
+        if (err.code === 'EADDRINUSE') {
+          // Port busy, wait and retry SAME port to allow other window to release it
+          console.log(`Port ${startPort} busy, retrying... (${retries})`);
+          await new Promise(r => setTimeout(r, 500));
+          retries--;
+        } else {
+          throw err;
+        }
+      }
+    }
 
-      tryListen();
-    });
+    if (retries === 0) {
+      throw new Error(`Could not bind to port ${startPort} after multiple attempts.`);
+    }
   }
 
-  public stop() {
-    if (this.server) {
-      this.server.close();
+  async stop() {
+    if (this.httpServer) {
+      await new Promise<void>((resolve, reject) => {
+        this.httpServer?.close((err: any) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+      this.httpServer = null;
+      console.log('MCP Server stopped.');
     }
   }
 }
