@@ -1,17 +1,16 @@
 import * as vscode from 'vscode';
-// Use NAMED import for Trino and BasicAuth
-import { Trino, BasicAuth } from 'trino-client';
-import { PrestoCodeLensProvider } from './PrestoCodeLensProvider'; // Corrected filename casing
 import { ResultsViewProvider } from './resultsViewProvider';
 import { SqlPreviewMcpServer } from './mcpServer';
-import axios from 'axios'; // Import axios
-import * as https from 'https'; // Import https for custom agent
-import * as fs from 'fs'; // Import fs for file operations
-import * as path from 'path'; // Import path for cross-platform path handling
-import { splitSqlQueries } from './utils/querySplitter';
+import { PrestoCodeLensProvider } from './PrestoCodeLensProvider';
+import { getQueryAtOffset } from './utils/querySplitter';
+import { AuthManager } from './services/AuthManager';
+import { QueryExecutor } from './services/QueryExecutor';
+import { QueryResults } from './common/types';
 
 let resultsViewProvider: ResultsViewProvider | undefined;
 let mcpServer: SqlPreviewMcpServer | undefined;
+let authManager: AuthManager | undefined;
+let queryExecutor: QueryExecutor | undefined;
 
 // Create output channel for logging
 const outputChannel = vscode.window.createOutputChannel('SQL Preview');
@@ -19,154 +18,40 @@ const outputChannel = vscode.window.createOutputChannel('SQL Preview');
 // Status Bar Item
 let mcpStatusBarItem: vscode.StatusBarItem;
 
-// Secret storage key for database password
-const PASSWORD_SECRET_KEY = 'sqlPreview.database.password';
-
-// Type definitions for Trino/Presto responses
-interface TrinoQueryResponse {
-  error?: {
-    message?: string;
-    errorName?: string;
-    stack?: string;
-    errorCode?: string;
-  };
-  stats?: {
-    state?: string;
-  };
-  columns?: Array<{ name: string; type: string }>;
-  data?: unknown[][];
-  id?: string;
-  nextUri?: string;
-  infoUri?: string;
-}
-
-// --- Module-level state for last query results ---
-// TODO: Store the full first batch and pagination info for potential export
-// interface LastQueryResult {
-//     columns: { name: string; type: string }[];
-//     rows: any[][];
-//     query: string;
-//     nextUri?: string; // URI for the next page, if any
-//     infoUri?: string; // Info URI for the query
-//     id?: string;      // Query ID
-// }
-// TODO: Implement result caching for export functionality
-// let lastSuccessfulQueryResult: LastQueryResult | null = null;
-// --- End state ---
-
-// Create a reusable HTTPS agent for axios requests (important for custom SSL verification)
-const createHttpsAgent = (sslVerify: boolean) => {
-  return new https.Agent({
-    rejectUnauthorized: sslVerify,
-  });
-};
-
-/**
- * Securely retrieves the stored password from VS Code's secret storage
- */
-async function getStoredPassword(context: vscode.ExtensionContext): Promise<string | undefined> {
-  return await context.secrets.get(PASSWORD_SECRET_KEY);
-}
-
-/**
- * Securely stores the password in VS Code's secret storage
- */
-async function setStoredPassword(
-  context: vscode.ExtensionContext,
-  password: string
-): Promise<void> {
-  await context.secrets.store(PASSWORD_SECRET_KEY, password);
-}
-
-/**
- * Clears the stored password from VS Code's secret storage
- */
-async function clearStoredPassword(context: vscode.ExtensionContext): Promise<void> {
-  await context.secrets.delete(PASSWORD_SECRET_KEY);
-}
-
-/**
- * Updates the password status display in settings
- */
-async function updatePasswordStatus(context: vscode.ExtensionContext): Promise<void> {
-  const config = vscode.workspace.getConfiguration('sqlPreview');
-  const hasPassword = (await getStoredPassword(context)) !== undefined;
-
-  // Update the display value in settings
-  await config.update(
-    'password',
-    hasPassword ? '[Password Set]' : '',
-    vscode.ConfigurationTarget.Global
-  );
-}
-
-/**
- * This method is called when your extension is activated.
- * Your extension is activated the very first time the command is executed
- * or when a file with the language ID 'sql' is opened.
- */
 export function activate(context: vscode.ExtensionContext) {
-  // console.log('Congratulations, your extension "presto-runner" is now active!');
-
-  // Validate extension context and URI
+  // Validate extension context
   if (!context || !context.extensionUri) {
     outputChannel.appendLine('ERROR: Invalid extension context or URI during activation');
-    vscode.window.showErrorMessage('SQL Preview: Extension failed to activate - invalid context');
+    vscode.window.showErrorMessage('SQL Preview: Extension failed to activate.');
     return;
-  }
-
-  // Validate extension path on Windows and other platforms
-  const extensionPath = context.extensionUri.fsPath;
-  if (!extensionPath || extensionPath.trim() === '') {
-    outputChannel.appendLine('ERROR: Extension path is empty or invalid');
-    vscode.window.showErrorMessage('SQL Preview: Extension failed to activate - invalid path');
-    return;
-  }
-
-  // Normalize the path to handle Windows/Unix path differences
-  const normalizedPath = path.normalize(extensionPath);
-  if (!normalizedPath || normalizedPath.trim() === '') {
-    outputChannel.appendLine('ERROR: Normalized extension path is empty');
-    vscode.window.showErrorMessage(
-      'SQL Preview: Extension failed to activate - path normalization failed'
-    );
-    return;
-  }
-
-  // Check if the extension directory exists (additional safety check)
-  try {
-    if (!fs.existsSync(normalizedPath)) {
-      outputChannel.appendLine(`ERROR: Extension directory does not exist: ${normalizedPath}`);
-      vscode.window.showErrorMessage('SQL Preview: Extension directory not found');
-      return;
-    }
-  } catch (error) {
-    outputChannel.appendLine(`ERROR: Error checking extension directory: ${error}`);
-    // Continue anyway as this might be a permissions issue
   }
 
   try {
-    // Register the Results Webview View Provider with enhanced error handling
-    resultsViewProvider = new ResultsViewProvider(context.extensionUri, context);
+    // Initialize Services
+    authManager = new AuthManager(context);
+    queryExecutor = new QueryExecutor(authManager);
+    resultsViewProvider = new ResultsViewProvider(context.extensionUri, context, queryExecutor);
 
-    // Attempt to register the webview provider with additional validation
-    const webviewRegistration = vscode.window.registerWebviewViewProvider(
-      ResultsViewProvider.viewType,
-      resultsViewProvider
+    // Register Webview Provider
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(ResultsViewProvider.viewType, resultsViewProvider)
     );
 
-    context.subscriptions.push(webviewRegistration);
-    outputChannel.appendLine('Successfully registered webview view provider');
+    // Register CodeLens Provider
+    context.subscriptions.push(
+      vscode.languages.registerCodeLensProvider(
+        { language: 'sql', scheme: 'file' },
+        new PrestoCodeLensProvider()
+      )
+    );
+
+    outputChannel.appendLine(
+      'Successfully registered services, webview provider, and codelens provider'
+    );
   } catch (error) {
-    outputChannel.appendLine(`ERROR: Error registering webview provider: ${error}`);
-
-    // Instead of completely failing, show warning and continue with reduced functionality
-    vscode.window.showWarningMessage(
-      `SQL Preview: Webview provider registration failed (${error}). Some features may not work properly. Please check the SQL Preview output channel for details.`
-    );
-
-    // Continue execution to at least enable other features like CodeLens
-    outputChannel.appendLine('Continuing extension activation with reduced functionality...');
+    outputChannel.appendLine(`ERROR: Service initialization failed: ${error}`);
+    vscode.window.showErrorMessage(`SQL Preview: Initialization failed (${error})`);
+    return;
   }
 
   // Initialize Status Bar Item
@@ -177,922 +62,259 @@ export function activate(context: vscode.ExtensionContext) {
   // Helper to start MCP Server
   const startMcpServer = async () => {
     if (!resultsViewProvider) {
-      outputChannel.appendLine(
-        'WARNING: resultsViewProvider is undefined, skipping MCP Server initialization.'
-      );
       return;
     }
 
     const config = vscode.workspace.getConfiguration('sqlPreview');
-    const mcpEnabled = config.get<boolean>('mcpEnabled', false);
-
-    if (!mcpEnabled) {
-      outputChannel.appendLine('MCP Server is disabled in settings.');
-      if (mcpStatusBarItem) {
-        mcpStatusBarItem.hide();
-      }
+    if (!config.get<boolean>('mcpEnabled', false)) {
+      mcpStatusBarItem.hide();
       return;
     }
 
     if (mcpServer) {
-      outputChannel.appendLine('MCP Server is already running.');
-      return;
+      await mcpServer.stop();
+      mcpServer = undefined;
     }
 
     outputChannel.appendLine('Initializing MCP Server...');
     try {
       mcpServer = new SqlPreviewMcpServer(resultsViewProvider);
-      outputChannel.appendLine('MCP Server instance created. Starting...');
       await mcpServer.start();
-
-      // Update status bar with actual port (it might have changed due to auto-selection)
-      // We need to expose the port from McpServer or just read the config if we assume it updates it?
-      // Actually, McpServer logs the port but doesn't expose it easily yet.
-      // For now, we'll just show "MCP: On" or similar, or we can update McpServer to expose the port.
-      // Let's assume the user checks the logs or the info command for the exact port if it auto-incremented.
-      // Better: Update McpServer to return the port from start().
-
-      // Since I didn't update start() return type yet, let's just show a generic message or read config
-      // (though config might be stale if auto-increment happened without updating config).
-      // Wait, I didn't update config in McpServer, I just incremented a local variable.
-      // So reading config here will show the *configured* port, not necessarily the *actual* port.
-      // This is a minor UX issue. For now, let's just show "MCP Active".
-
       mcpStatusBarItem.text = `$(server) MCP Active`;
-      mcpStatusBarItem.tooltip = `SQL Preview MCP Server is running`;
       mcpStatusBarItem.show();
     } catch (err) {
+      // If start failed (e.g. port still busy after retries), we notify user
       outputChannel.appendLine(`ERROR: Failed to start MCP Server: ${err}`);
-      mcpStatusBarItem.text = `$(error) MCP Failed`;
-      mcpStatusBarItem.tooltip = `Failed to start MCP Server: ${err}`;
+      mcpStatusBarItem.text = `$(error) MCP Port Busy`;
       mcpStatusBarItem.show();
-      mcpServer = undefined; // Reset on failure
-    }
-  };
-
-  // Helper to stop MCP Server
-  const stopMcpServer = () => {
-    if (mcpServer) {
-      outputChannel.appendLine('Stopping MCP Server...');
-      mcpServer.stop();
       mcpServer = undefined;
-      outputChannel.appendLine('MCP Server stopped.');
-    }
-    if (mcpStatusBarItem) {
-      mcpStatusBarItem.hide();
+
+      vscode.window
+        .showErrorMessage(
+          'SQL Preview MCP Server could not bind to port 3000. Do you have the production extension running? Please disable it.',
+          'Retry'
+        )
+        .then(sel => {
+          if (sel === 'Retry') {
+            startMcpServer();
+          }
+        });
     }
   };
 
-  // Initialize and start MCP Server if enabled
-  startMcpServer();
+  const stopMcpServer = async () => {
+    if (mcpServer) {
+      await mcpServer.stop();
+      mcpServer = undefined;
+    }
+    mcpStatusBarItem.hide();
+  };
 
-  // Command to show MCP Info
-  const showMcpInfoCommand = vscode.commands.registerCommand('sql.showMcpInfo', () => {
-    const config = vscode.workspace.getConfiguration('sqlPreview');
-    const port = config.get<number>('mcpPort', 3000);
-    vscode.window
-      .showInformationMessage(
-        `MCP Server is running on port ${port}. Endpoint: http://localhost:${port}/sse`,
-        'Copy Endpoint'
-      )
-      .then(selection => {
-        if (selection === 'Copy Endpoint') {
-          vscode.env.clipboard.writeText(`http://localhost:${port}/sse`);
-        }
-      });
-  });
-  context.subscriptions.push(showMcpInfoCommand);
-
-  // Register the CodeLens provider for SQL files
-  const codeLensProvider = vscode.languages.registerCodeLensProvider(
-    { language: 'sql' },
-    new PrestoCodeLensProvider()
+  // Manual Toggle Commands for Reliable Handover
+  context.subscriptions.push(
+    vscode.commands.registerCommand('sql.showMcpInfo', () => {
+      vscode.commands.executeCommand('sql.mcp.toggle');
+    }),
+    vscode.commands.registerCommand('sql.mcp.toggle', async () => {
+      if (mcpServer) {
+        await stopMcpServer();
+        vscode.window.showInformationMessage('MCP Server Stopped (Port Released).');
+        mcpStatusBarItem.text = '$(circle-slash) MCP Inactive';
+        mcpStatusBarItem.tooltip = 'Click to Start MCP Server';
+        mcpStatusBarItem.show();
+      } else {
+        await startMcpServer();
+      }
+    }),
+    vscode.commands.registerCommand('sql.mcp.start', async () => {
+      await startMcpServer();
+    }),
+    vscode.commands.registerCommand('sql.mcp.stop', async () => {
+      await stopMcpServer();
+    })
   );
 
-  // Update password status on activation
-  updatePasswordStatus(context);
+  startMcpServer();
 
-  // Register the command to set database password securely
-  const setPasswordCommand = vscode.commands.registerCommand('sql.setPassword', async () => {
-    const password = await vscode.window.showInputBox({
-      prompt: 'Enter database password',
-      password: true, // This hides the input
-      placeHolder: 'Database password',
-    });
+  // SQL Execution Commands
+  context.subscriptions.push(
+    vscode.commands.registerCommand('sql.runQuery', (sql?: string) =>
+      handleQueryCommand(sql, false)
+    ),
+    vscode.commands.registerCommand('sql.runQueryNewTab', (sql?: string) =>
+      handleQueryCommand(sql, true)
+    ),
+    vscode.commands.registerCommand('sql.runCursorQuery', (sql?: string) =>
+      handleQueryCommand(sql, false)
+    )
+  );
 
-    if (password !== undefined) {
-      if (password.trim() === '') {
-        await clearStoredPassword(context);
-        await updatePasswordStatus(context);
-        vscode.window.showInformationMessage('Database password cleared.');
+  // Tab Management Commands
+  context.subscriptions.push(
+    vscode.commands.registerCommand('sql.closeTab', (tabId?: string) => {
+      if (tabId) {
+        resultsViewProvider?.closeTab(tabId);
       } else {
-        await setStoredPassword(context, password);
-        await updatePasswordStatus(context);
-        vscode.window.showInformationMessage('Database password stored securely.');
+        resultsViewProvider?.closeActiveTab();
       }
-    }
-  });
+    }),
+    vscode.commands.registerCommand('sql.exportFullResults', () => {
+      resultsViewProvider?.exportFullResults();
+    }),
+    vscode.commands.registerCommand('sql.closeOtherTabs', () => {
+      resultsViewProvider?.closeOtherTabs();
+    }),
+    vscode.commands.registerCommand('sql.closeAllTabs', () => {
+      resultsViewProvider?.closeAllTabs();
+    })
+  );
 
-  // Register the command for setting password from settings page
-  const setPasswordFromSettingsCommand = vscode.commands.registerCommand(
-    'sql.setPasswordFromSettings',
-    async () => {
+  // Auth/Password Commands
+  context.subscriptions.push(
+    vscode.commands.registerCommand('sql.setPassword', async () => {
       const password = await vscode.window.showInputBox({
-        prompt: 'Enter database password (securely stored using VS Code SecretStorage)',
+        prompt: 'Enter your database password',
         password: true,
-        placeHolder: 'Database password',
-        title: 'SQL Preview - Set Database Password',
       });
-
       if (password !== undefined) {
-        if (password.trim() === '') {
-          await clearStoredPassword(context);
-          await updatePasswordStatus(context);
+        if (password === '') {
+          await authManager?.clearPassword();
           vscode.window.showInformationMessage('Database password cleared.');
         } else {
-          await setStoredPassword(context, password);
-          await updatePasswordStatus(context);
+          await authManager?.setPassword(password);
           vscode.window.showInformationMessage('Database password stored securely.');
         }
       }
-    }
+    }),
+    vscode.commands.registerCommand('sql.clearPassword', async () => {
+      await authManager?.clearPassword();
+      vscode.window.showInformationMessage('Database password cleared.');
+    }),
+    vscode.commands.registerCommand('sql.setPasswordFromSettings', async () => {
+      const password = await vscode.window.showInputBox({
+        prompt: 'Enter your database password',
+        password: true,
+      });
+      if (password !== undefined) {
+        await authManager?.setPassword(password);
+        vscode.window.showInformationMessage('Database password stored securely.');
+      }
+    })
   );
 
-  // Register the command to clear stored password
-  const clearPasswordCommand = vscode.commands.registerCommand('sql.clearPassword', async () => {
-    await clearStoredPassword(context);
-    await updatePasswordStatus(context);
-    vscode.window.showInformationMessage('Database password cleared.');
-  });
-
-  // Listen for configuration changes
-  const configListener = vscode.workspace.onDidChangeConfiguration(async e => {
-    // Handle password protection
-    if (e.affectsConfiguration('sqlPreview.password')) {
-      // If someone tries to directly edit the password field, reset it and show instruction
+  // Focus-Based Handover Listener
+  // When we gain focus, we aggressively try to take the port.
+  // We NEVER stop on blur.
+  context.subscriptions.push(
+    vscode.window.onDidChangeWindowState(async state => {
       const config = vscode.workspace.getConfiguration('sqlPreview');
-      const passwordValue = config.get<string>('password', '');
+      const autoHandover = config.get<boolean>('mcpAutoHandover', true);
+      const enabled = config.get<boolean>('mcpEnabled', false);
 
-      if (passwordValue && passwordValue !== '[Password Set]') {
-        // Reset the field and show message
-        await updatePasswordStatus(context);
-        vscode.window
-          .showWarningMessage(
-            'Please use "Set Password" command for secure password storage. Direct editing is not allowed.',
-            'Set Password'
-          )
-          .then(selection => {
-            if (selection === 'Set Password') {
-              vscode.commands.executeCommand('sql.setPasswordFromSettings');
-            }
-          });
+      if (enabled && autoHandover && state.focused) {
+        // Focus Gained: Request Port ownership
+        await startMcpServer();
       }
-    }
+    })
+  );
+}
 
-    // Handle MCP Server toggle
-    if (e.affectsConfiguration('sqlPreview.mcpEnabled')) {
-      const config = vscode.workspace.getConfiguration('sqlPreview');
-      const mcpEnabled = config.get<boolean>('mcpEnabled', false);
+async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: boolean) {
+  if (!resultsViewProvider || !queryExecutor) {
+    vscode.window.showErrorMessage('SQL Preview services not initialized.');
+    return;
+  }
 
-      if (mcpEnabled) {
-        startMcpServer();
-      } else {
-        stopMcpServer();
-      }
-    }
-  });
-
-  // Map to track result counts per file
-  const fileResultCounters = new Map<string, number>();
-
-  // Helper function for executing queries with different tab behaviors
-  async function executeQuery(sqlFromCodeLens?: string, createNewTab = true) {
-    if (!resultsViewProvider) {
-      vscode.window.showErrorMessage(
-        'SQL Preview: Results view is not available. The webview provider failed to initialize, possibly due to path issues on Windows. Please check the SQL Preview output channel for details.'
-      );
-      outputChannel.appendLine(
-        'ERROR: Query execution attempted but resultsViewProvider is not available'
-      );
+  let sql = sqlFromCodeLens;
+  if (!sql) {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showErrorMessage('No active SQL editor.');
       return;
     }
-
-    let sql: string;
-
-    if (sqlFromCodeLens) {
-      // Called from CodeLens with SQL provided
-      sql = sqlFromCodeLens.trim().replace(/;$/, '').trim();
+    const selection = editor.selection;
+    if (!selection.isEmpty) {
+      sql = editor.document.getText(selection);
     } else {
-      // Called from keyboard shortcut - need to get SQL from editor
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showErrorMessage('No active SQL editor found.');
+      // Find query at cursor
+      const text = editor.document.getText();
+      const offset = editor.document.offsetAt(selection.active);
+      const found = getQueryAtOffset(text, offset);
+      if (found) {
+        sql = found;
+      } else {
+        vscode.window.showInformationMessage('No SQL query found at cursor.');
         return;
       }
-
-      // Check if there's a selection
-      const selection = editor.selection;
-      if (!selection.isEmpty) {
-        // Use selected text
-        sql = editor.document.getText(selection).trim().replace(/;$/, '').trim();
-      } else {
-        // No selection, find the query under cursor using similar logic to CodeLens
-        const document = editor.document;
-        const cursorPosition = editor.selection.active;
-        const text = document.getText();
-
-        // Split by semicolons (same logic as CodeLens provider)
-        // Use robust splitter
-        const queries = splitSqlQueries(text);
-
-        let foundQuery = '';
-        let currentOffset = 0;
-
-        for (const query of queries) {
-          const trimmedQuery = query.trim();
-          if (trimmedQuery.length === 0) {
-            continue;
-          }
-
-          const startOffset = text.indexOf(trimmedQuery, currentOffset);
-          if (startOffset === -1) {
-            currentOffset += query.length;
-            continue;
-          }
-          const endOffset = startOffset + trimmedQuery.length;
-
-          const startPos = document.positionAt(startOffset);
-          const endPos = document.positionAt(endOffset);
-
-          // Check if cursor is within this query
-          if (cursorPosition.isAfterOrEqual(startPos) && cursorPosition.isBeforeOrEqual(endPos)) {
-            foundQuery = trimmedQuery;
-            break;
-          }
-
-          currentOffset = endOffset;
-        }
-
-        if (!foundQuery) {
-          vscode.window.showInformationMessage(
-            'No SQL query found under cursor. Place cursor within a query or select text to run.'
-          );
-          return;
-        }
-
-        sql = foundQuery.trim().replace(/;$/, '').trim();
-      }
-    }
-
-    if (!sql) {
-      vscode.window.showInformationMessage('No SQL query found to run.');
-      return;
-    }
-
-    // Handle tab creation based on the createNewTab parameter
-    let tabId: string;
-    const activeEditor = vscode.window.activeTextEditor;
-    const sourceFileUri = activeEditor ? activeEditor.document.uri.toString() : undefined;
-    const config = vscode.workspace.getConfiguration('sqlPreview');
-
-    // Generate a descriptive title based on configuration
-    const tabNaming = config.get<string>('tabNaming', 'file-sequential');
-    let tabTitle = 'Result';
-
-    if (tabNaming === 'query-snippet') {
-      // Use query snippet logic
-      const cleanSql = sql.replace(/[\n\r\t]+/g, ' ').trim();
-      tabTitle = cleanSql.length > 20 ? cleanSql.substring(0, 20) + '...' : cleanSql;
-    } else {
-      // Default: file-sequential
-      if (activeEditor && sourceFileUri) {
-        const fileName = sourceFileUri;
-        let count = fileResultCounters.get(fileName);
-
-        // Initialize counter if not present
-        if (count === undefined) {
-          count = resultsViewProvider ? resultsViewProvider.getMaxResultCountForFile(fileName) : 0;
-        }
-
-        count++;
-        fileResultCounters.set(fileName, count);
-        tabTitle = `Result ${count}`;
-      } else {
-        // Fallback if no active editor
-        tabTitle = `Result ${Date.now()}`;
-      }
-    }
-
-    // const queryPreview = querySnippet; // No longer needed as title
-
-    if (createNewTab) {
-      // Generate a unique tab ID for this query
-      tabId = `tab-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      resultsViewProvider.createTabWithId(tabId, sql, tabTitle, sourceFileUri);
-      resultsViewProvider.showLoadingForTab(tabId, sql, tabTitle);
-    } else {
-      // Use existing active tab or create a new one if none exists
-      tabId = resultsViewProvider.getOrCreateActiveTabId(sql, tabTitle, sourceFileUri);
-      // Note: getOrCreateActiveTabId doesn't support updating sourceFileUri yet,
-      // but if it creates a new tab internally (via webview message), we might miss it.
-      // However, for now, let's assume createNewTab=true is the main path for new queries.
-      resultsViewProvider.showLoadingForTab(tabId, sql, tabTitle);
-    }
-
-    const host = config.get<string>('host', 'localhost');
-    const port = config.get<number>('port', 8080);
-    const user = config.get<string>('user', 'user');
-    const catalog = config.get<string>('catalog') || undefined;
-    const schema = config.get<string>('schema') || undefined;
-    const ssl = config.get<boolean>('ssl', false);
-    const sslVerify = config.get<boolean>('sslVerify', true);
-    const maxRows = config.get<number>('maxRowsToDisplay', 500);
-
-    // Get password securely from secret storage
-    const password = await getStoredPassword(context);
-
-    // --- Setup Authentication ---
-    let basicAuthHeader: string | undefined;
-    if (password) {
-      basicAuthHeader = 'Basic ' + Buffer.from(`${user}:${password}`).toString('base64');
-    }
-    // TODO: Handle other auth methods if needed
-
-    // --- Setup Client Options (excluding auth for create) ---
-    const clientOptions: {
-      server: string;
-      user: string;
-      catalog: string;
-      schema: string;
-      ssl?: { rejectUnauthorized: boolean };
-      auth?: BasicAuth;
-    } = {
-      server: `${ssl ? 'https' : 'http'}://${host}:${port}`,
-      user: user,
-      catalog: catalog || 'hive',
-      schema: schema || 'default',
-      ...(ssl ? { ssl: { rejectUnauthorized: sslVerify } } : {}),
-      // Pass custom agent ONLY if using SSL and custom verification needed
-      // httpsAgent: ssl ? createHttpsAgent(sslVerify) : undefined
-      // NOTE: trino-client might not support custom httpsAgent directly in options.
-      // We will handle SSL verification in direct axios calls.
-    };
-    // Add auth separately if supported by create method in this version
-    if (password) {
-      clientOptions.auth = new BasicAuth(user, password);
-    }
-
-    const client = Trino.create(clientOptions);
-
-    try {
-      // Log the query being executed for debugging
-      outputChannel.appendLine(`[SQL Preview] Executing query: ${sql}`);
-      // console.log(`Executing query: ${sql.substring(0, 100)}...`);
-
-      const results: unknown[][] = [];
-      let columns: { name: string; type: string }[] | null = null;
-      let rawResultObject: TrinoQueryResponse | null = null;
-      let nextUriFromResponse: string | undefined = undefined;
-      let infoUriFromResponse: string | undefined = undefined;
-      let queryIdFromResponse: string | undefined = undefined;
-      // let wasTruncated = false; // Currently unused, may be needed for future pagination logic
-      let totalRowsFetched = 0;
-      let currentPageUri: string | undefined = undefined; // Declare higher scope
-
-      // --- Execute Query (Direct HTTP path to support Porta/Proxies) ---
-      try {
-        outputChannel.appendLine('[SQL Preview] Executing via direct HTTP POST /v1/statement');
-        const statementUrl = `${ssl ? 'https' : 'http'}://${host}:${port}/v1/statement`;
-        const httpsAgent = ssl ? createHttpsAgent(sslVerify) : undefined;
-        const headers: Record<string, string> = {
-          'Content-Type': 'text/plain',
-          'X-Trino-User': user,
-          'X-Trino-Catalog': catalog || 'hive',
-          'X-Trino-Schema': schema || 'default',
-          'X-Trino-Source': 'sql-preview',
-          // Presto headers for compatibility
-          'X-Presto-User': user,
-          'X-Presto-Catalog': catalog || 'hive',
-          'X-Presto-Schema': schema || 'default',
-          'X-Presto-Source': 'sql-preview',
-        };
-        if (basicAuthHeader) {
-          headers['Authorization'] = basicAuthHeader;
-        }
-
-        const directResp = await axios.post(statementUrl, sql, {
-          headers,
-          ...(httpsAgent ? { httpsAgent } : {}),
-        });
-        rawResultObject = directResp.data as TrinoQueryResponse;
-      } catch (directError) {
-        // Fall back to the client if direct HTTP path fails for reasons unrelated
-        // to the original issue (e.g., network hiccup). This keeps behavior robust.
-        outputChannel.appendLine('[SQL Preview] Direct POST failed, falling back to trino-client');
-        const queryIter = await client.query(sql);
-        const firstIteration = await queryIter.next();
-        rawResultObject = firstIteration.value;
-      }
-
-      // Log the raw response for debugging
-      // console.log('Raw response structure:', {
-      //   hasValue: !!rawResultObject,
-      //   hasError: !!rawResultObject?.error,
-      //   hasStats: !!rawResultObject?.stats,
-      //   state: rawResultObject?.stats?.state,
-      //   hasColumns: !!rawResultObject?.columns,
-      //   hasData: !!rawResultObject?.data,
-      //   queryId: rawResultObject?.id,
-      // });
-
-      if (rawResultObject) {
-        // console.log('Raw FIRST queryResult value received.'); // No need to log full object now
-
-        // Check for error conditions in the response
-        if (rawResultObject.error) {
-          // Handle Presto/Trino error response
-          const errorMessage =
-            rawResultObject.error.message ||
-            rawResultObject.error.errorName ||
-            'Unknown query error';
-          const errorDetails =
-            rawResultObject.error.stack || rawResultObject.error.errorCode || undefined;
-          // console.error('Presto Query Error from response:', rawResultObject.error);
-          resultsViewProvider?.showErrorForTab(tabId, errorMessage, errorDetails, sql, tabTitle);
-          return;
-        }
-
-        // Check for failed query state
-        if (rawResultObject.stats && rawResultObject.stats.state === 'FAILED') {
-          const errorMessage = 'Query execution failed';
-          const errorDetails = rawResultObject.stats.state;
-          // console.error('Presto Query Failed:', rawResultObject);
-          resultsViewProvider?.showErrorForTab(tabId, errorMessage, errorDetails, sql, tabTitle);
-          return;
-        }
-
-        if (rawResultObject.columns && Array.isArray(rawResultObject.columns)) {
-          columns = rawResultObject.columns.map((col: { name: string; type: string }) => ({
-            name: col.name,
-            type: col.type,
-          }));
-        }
-        if (rawResultObject.data && Array.isArray(rawResultObject.data)) {
-          results.push(...rawResultObject.data);
-          totalRowsFetched += rawResultObject.data.length;
-        }
-        nextUriFromResponse = rawResultObject.nextUri;
-        infoUriFromResponse = rawResultObject.infoUri;
-        queryIdFromResponse = rawResultObject.id;
-      }
-
-      // --- Fetch subsequent pages if needed ---
-      currentPageUri = nextUriFromResponse; // Initialize before loop
-      if (currentPageUri || (columns && columns.length > 0)) {
-        let pageCount = 1;
-        const httpsAgent = createHttpsAgent(sslVerify);
-
-        while (currentPageUri && totalRowsFetched < maxRows) {
-          pageCount++;
-          // console.log(
-          //   `Fetching page ${pageCount} (total rows so far: ${totalRowsFetched})... URI: ${currentPageUri}`
-          // );
-
-          try {
-            // Cast the config to bypass type checking for Node.js specific options
-            const config: {
-              headers?: Record<string, string>;
-              httpsAgent?: https.Agent;
-            } = {};
-
-            if (basicAuthHeader) {
-              config.headers = { Authorization: basicAuthHeader };
-            }
-            if (httpsAgent) {
-              config.httpsAgent = httpsAgent;
-            }
-            const response = await axios.get(currentPageUri, config);
-
-            const pageData = response.data as TrinoQueryResponse;
-
-            // Check for error conditions in pagination response
-            if (pageData?.error) {
-              const errorMessage =
-                pageData.error.message || pageData.error.errorName || 'Error in paginated results';
-              const errorDetails = pageData.error.stack || pageData.error.errorCode || undefined;
-              // console.error('Presto Query Error in pagination:', pageData.error);
-              resultsViewProvider?.showErrorForTab(
-                tabId,
-                errorMessage,
-                errorDetails,
-                sql,
-                tabTitle
-              );
-              return;
-            }
-
-            if (!columns && pageData?.columns && Array.isArray(pageData.columns)) {
-              columns = pageData.columns.map(col => ({ name: col.name, type: col.type }));
-            }
-            if (pageData?.data && Array.isArray(pageData.data)) {
-              results.push(...pageData.data);
-              totalRowsFetched += pageData.data.length;
-              // console.log(
-              //   `Fetched ${pageData.data.length} rows from page ${pageCount}. New total: ${totalRowsFetched}`
-              // );
-            }
-            currentPageUri = pageData?.nextUri;
-            if (!currentPageUri) {
-              // console.log(
-              //   'No nextUri found in page',
-              //   pageCount,
-              //   'response. Pagination complete.'
-              // );
-            }
-          } catch (pageError: unknown) {
-            // console.error(
-            //   `Error fetching page ${pageCount} from ${currentPageUri}:`,
-            //   pageError instanceof Error ? pageError.message : 'Unknown error'
-            // );
-            vscode.window.showWarningMessage(
-              `Failed to fetch all results page ${pageCount}: ${pageError instanceof Error ? pageError.message : 'Unknown error'}`
-            );
-            currentPageUri = undefined; // Stop pagination on error
-          }
-        }
-
-        // Check if truncated after pagination attempt
-        if (currentPageUri || totalRowsFetched > maxRows) {
-          // wasTruncated = true; // Currently unused
-          // console.log('Results potentially truncated after pagination.');
-        }
-      }
-
-      // console.log(
-      //   `Query finished processing. Total rows fetched: ${totalRowsFetched}. Columns: ${columns?.length ?? 0}`
-      // );
-
-      // --- Store result state and limit rows for display ---
-      // TODO: Re-enable result caching when export feature is implemented
-      // lastSuccessfulQueryResult = null;
-      // let displayRows = [...results]; // Use potentially paginated results
-      // const finalTotalRows = totalRowsFetched;
-
-      // Store the potentially paginated results (up to maxRows or full set)
-      if (columns && columns.length > 0) {
-        // TODO: Re-enable result caching when export feature is implemented
-        // const resultToStore: LastQueryResult = {
-        //     columns: columns,
-        //     rows: results,
-        //     query: sql,
-        //     ...(nextUriFromResponse && { nextUri: nextUriFromResponse }),
-        //     ...(infoUriFromResponse && { infoUri: infoUriFromResponse }),
-        //     ...(queryIdFromResponse && { id: queryIdFromResponse })
-        // };
-        // lastSuccessfulQueryResult = resultToStore;
-
-        // Slice for display if needed
-        if (results.length > maxRows) {
-          // console.log(`Limiting display rows from ${totalRowsFetched} to ${maxRows}`);
-          // displayRows = results.slice(0, maxRows); // Currently unused
-          // wasTruncated = true; // Currently unused
-        }
-
-        // Update truncation flag if pagination stopped due to hitting maxRows
-        if (!currentPageUri && totalRowsFetched >= maxRows) {
-          // We might have fetched exactly maxRows but there could have been more
-          // Or we fetched > maxRows and sliced. Either way, consider truncated.
-          // Exception: If the very last page happened to bring us exactly to maxRows and had no nextUri.
-          // It's safer to assume truncation if we hit the limit.
-          // wasTruncated = true; // Currently unused
-        }
-
-        // Send display results to view provider for the specific tab
-        const displayData: {
-          columns: Array<{ name: string; type: string }>;
-          rows: unknown[][];
-          query: string;
-          wasTruncated: boolean;
-          totalRowsInFirstBatch: number;
-          queryId?: string;
-          infoUri?: string;
-          nextUri?: string;
-        } = {
-          columns,
-          rows: results.slice(0, maxRows),
-          query: sql,
-          wasTruncated: results.length > maxRows || !!currentPageUri,
-          totalRowsInFirstBatch: results.length,
-        };
-
-        // Only add optional properties if they have defined values
-        if (queryIdFromResponse) {
-          displayData.queryId = queryIdFromResponse;
-        }
-        if (infoUriFromResponse) {
-          displayData.infoUri = infoUriFromResponse;
-        }
-        if (currentPageUri) {
-          displayData.nextUri = currentPageUri;
-        }
-
-        resultsViewProvider.showResultsForTab(tabId, displayData);
-      } else {
-        // No columns found - this could be a DDL/DML statement or an error condition
-        // console.warn('Could not determine columns or no columns returned...');
-
-        // If we got a queryId, it likely executed successfully (DDL/DML)
-        if (queryIdFromResponse) {
-          resultsViewProvider.showStatusMessage(
-            `Query executed successfully (Query ID: ${queryIdFromResponse}). No data returned - this is normal for DDL/DML operations.`
-          );
-        } else {
-          // No queryId might indicate an issue - provide more guidance
-          resultsViewProvider.showStatusMessage(
-            'Query completed but returned no data. Check for syntax errors or verify the query produces results.'
-          );
-        }
-      }
-    } catch (error: unknown) {
-      // console.error('Trino Query Error:', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error during query execution.';
-      vscode.window.showErrorMessage(`Trino Query Failed: ${errorMessage}`);
-      resultsViewProvider?.showErrorForTab(
-        tabId,
-        errorMessage,
-        error instanceof Error ? error.stack : undefined,
-        sql,
-        tabTitle
-      );
     }
   }
 
-  // Register the command to run query in the same tab
-  const runQueryCommand = vscode.commands.registerCommand(
-    'sql.runQuery',
-    async (sqlFromCodeLens?: string) => {
-      await executeQuery(sqlFromCodeLens, false); // Don't create new tab
-    }
-  );
+  if (!sql || !sql.trim()) {
+    return;
+  }
 
-  // Register the command to run query in a new tab
-  const runQueryNewTabCommand = vscode.commands.registerCommand(
-    'sql.runQueryNewTab',
-    async (sqlFromCodeLens?: string) => {
-      await executeQuery(sqlFromCodeLens, true); // Create new tab
-    }
-  );
+  sql = sql.trim().replace(/;$/, '');
 
-  // Register the legacy command for backward compatibility
-  const runCursorQueryCommand = vscode.commands.registerCommand(
-    'sql.runCursorQuery',
-    async (sqlFromCodeLens?: string) => {
-      await executeQuery(sqlFromCodeLens, true); // Default to creating new tab for backward compatibility
-    }
-  );
+  // Determine target Tab ID
+  const activeEditor = vscode.window.activeTextEditor;
+  let sourceUri: string | undefined;
 
-  // Register the command to export full results
-  const exportFullResultsCommand = vscode.commands.registerCommand(
-    'sql.exportFullResults',
-    async (options: { query: string; filePath: string; tabId: string }) => {
-      await executeFullExport(context, options.query, options.filePath);
-    }
-  );
+  // 1. If active editor is a SQL file, attach results to it.
+  if (activeEditor && activeEditor.document.languageId === 'sql') {
+    sourceUri = activeEditor.document.uri.toString();
+  } else {
+    // 2. If non-SQL (Markdown, etc) or no editor, use the Scratchpad.
+    // This prevents polluting non-SQL files with results.
+    sourceUri = 'sql-preview:scratchpad';
+  }
 
-  // Register tab management commands
-  const closeTabCommand = vscode.commands.registerCommand('sql.closeTab', () => {
-    if (resultsViewProvider) {
-      resultsViewProvider.closeActiveTab();
-    }
-  });
+  // Simple title generation
+  const title = sourceUri
+    ? `Result ${resultsViewProvider.getMaxResultCountForFile(sourceUri) + 1}`
+    : 'Result';
 
-  const closeOtherTabsCommand = vscode.commands.registerCommand('sql.closeOtherTabs', () => {
-    if (resultsViewProvider) {
-      resultsViewProvider.closeOtherTabs();
-    }
-  });
+  let tabId: string;
+  if (newTab) {
+    tabId = `tab-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    resultsViewProvider.createTabWithId(tabId, sql, title, sourceUri);
+  } else {
+    tabId = resultsViewProvider.getOrCreateActiveTabId(sql, title, sourceUri);
+  }
 
-  const closeAllTabsCommand = vscode.commands.registerCommand('sql.closeAllTabs', () => {
-    if (resultsViewProvider) {
-      resultsViewProvider.closeAllTabs();
-    }
-  });
+  resultsViewProvider.showLoadingForTab(tabId, sql, title);
 
-  context.subscriptions.push(
-    codeLensProvider,
-    runQueryCommand,
-    runQueryNewTabCommand,
-    runCursorQueryCommand,
-    closeTabCommand,
-    closeOtherTabsCommand,
-    closeAllTabsCommand,
-    setPasswordCommand,
-    setPasswordFromSettingsCommand,
-    clearPasswordCommand,
-    exportFullResultsCommand,
-    configListener
-  );
-}
-
-/**
- * Executes a query to get full results and exports them to CSV
- */
-async function executeFullExport(
-  context: vscode.ExtensionContext,
-  query: string,
-  filePath: string
-): Promise<void> {
   try {
-    // Show progress indicator
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Notification,
-        title: 'Exporting full query results...',
-        cancellable: false,
-      },
-      async progress => {
-        progress.report({ increment: 0, message: 'Setting up connection...' });
+    const generator = queryExecutor.execute(sql);
+    let totalRows = 0;
+    let columns: any[] = [];
+    const allRows: any[] = [];
 
-        // Get configuration
-        const config = vscode.workspace.getConfiguration('sqlPreview');
-        const host = config.get<string>('host', 'localhost');
-        const port = config.get<number>('port', 8080);
-        const user = config.get<string>('user', 'user');
-        const catalog = config.get<string>('catalog') || undefined;
-        const schema = config.get<string>('schema') || undefined;
-        const ssl = config.get<boolean>('ssl', false);
-        const sslVerify = config.get<boolean>('sslVerify', true);
-
-        // Get password securely from secret storage
-        const password = await getStoredPassword(context);
-
-        // Setup Authentication
-        let basicAuthHeader: string | undefined;
-        if (password) {
-          basicAuthHeader = 'Basic ' + Buffer.from(`${user}:${password}`).toString('base64');
-        }
-
-        // Setup Client Options
-        const clientOptions: {
-          server: string;
-          user: string;
-          catalog: string;
-          schema: string;
-          ssl?: { rejectUnauthorized: boolean };
-          auth?: BasicAuth;
-        } = {
-          server: `${ssl ? 'https' : 'http'}://${host}:${port}`,
-          user: user,
-          catalog: catalog || 'hive',
-          schema: schema || 'default',
-          ...(ssl ? { ssl: { rejectUnauthorized: sslVerify } } : {}),
-        };
-
-        if (password) {
-          clientOptions.auth = new BasicAuth(user, password);
-        }
-
-        progress.report({ increment: 20, message: 'Executing query...' });
-
-        // Execute first page via direct POST (matches runtime path)
-        const statementUrl = `${ssl ? 'https' : 'http'}://${host}:${port}/v1/statement`;
-        const httpsAgent = ssl ? createHttpsAgent(sslVerify) : undefined;
-        const headers: Record<string, string> = {
-          'Content-Type': 'text/plain',
-          'X-Trino-User': user,
-          'X-Trino-Catalog': catalog || 'hive',
-          'X-Trino-Schema': schema || 'default',
-          'X-Trino-Source': 'sql-preview',
-          'X-Presto-User': user,
-          'X-Presto-Catalog': catalog || 'hive',
-          'X-Presto-Schema': schema || 'default',
-          'X-Presto-Source': 'sql-preview',
-        };
-        if (basicAuthHeader) {
-          headers['Authorization'] = basicAuthHeader;
-        }
-
-        const initialResp = await axios.post(statementUrl, query, {
-          headers,
-          ...(httpsAgent ? { httpsAgent } : {}),
-        });
-
-        const allRows: unknown[][] = [];
-        let columns: Array<{ name: string; type: string }> | undefined;
-        let rawResultObject: TrinoQueryResponse = initialResp.data as TrinoQueryResponse;
-
-        if (rawResultObject.error) {
-          throw new Error(`Query failed: ${rawResultObject.error.message || 'Unknown error'}`);
-        }
-
-        if (rawResultObject.columns) {
-          columns = rawResultObject.columns;
-        }
-
-        if (rawResultObject.data) {
-          allRows.push(...rawResultObject.data);
-        }
-
-        // Fetch additional pages if they exist
-        while (rawResultObject.nextUri) {
-          progress.report({
-            increment: Math.min(60, 20 + (allRows.length / 1000) * 20),
-            message: `Fetching results... (${allRows.length} rows)`,
-          });
-
-          try {
-            const nextPageResponse = await axios.get(rawResultObject.nextUri, {
-              headers: basicAuthHeader ? { Authorization: basicAuthHeader } : {},
-              ...(ssl ? { httpsAgent: createHttpsAgent(sslVerify) } : {}),
-            });
-
-            rawResultObject = nextPageResponse.data as TrinoQueryResponse;
-
-            if (rawResultObject.error) {
-              throw new Error(
-                `Query failed on pagination: ${rawResultObject.error.message || 'Unknown error'}`
-              );
-            }
-
-            if (rawResultObject.data) {
-              allRows.push(...rawResultObject.data);
-            }
-
-            // Fix: Check for columns if they weren't in the first response
-            if (!columns && rawResultObject.columns) {
-              columns = rawResultObject.columns;
-            }
-          } catch (error: unknown) {
-            if (error instanceof Error) {
-              throw new Error(`Pagination request failed: ${error.message}`);
-            }
-            throw error;
-          }
-        }
-
-        progress.report({ increment: 60, message: 'Generating CSV...' });
-
-        if (!columns) {
-          throw new Error('No columns returned from query');
-        }
-
-        // Generate CSV content
-        const csvContent = generateCSV(columns, allRows);
-
-        progress.report({ increment: 80, message: 'Writing file...' });
-
-        // Write to file
-        fs.writeFileSync(filePath, csvContent, 'utf8');
-
-        progress.report({ increment: 100, message: 'Export complete!' });
+    for await (const page of generator) {
+      if (page.columns) {
+        columns = page.columns;
       }
-    );
+      if (page.data) {
+        allRows.push(...page.data);
+        totalRows += page.data.length;
+      }
+    }
 
-    vscode.window.showInformationMessage(
-      `Successfully exported ${query.length > 50 ? query.substring(0, 50) + '...' : query} results to ${filePath}`
-    );
-  } catch (error) {
-    vscode.window.showErrorMessage(`Failed to export full results: ${error}`);
+    const results: QueryResults = {
+      columns: columns,
+      rows: allRows,
+      query: sql,
+      wasTruncated: false,
+      totalRowsInFirstBatch: totalRows,
+    };
+
+    resultsViewProvider.showResultsForTab(tabId, results);
+  } catch (error: any) {
+    resultsViewProvider.showErrorForTab(tabId, error.message, error.stack, sql, title);
   }
 }
 
-/**
- * Generates CSV content from columns and rows
- */
-function generateCSV(columns: Array<{ name: string; type: string }>, rows: unknown[][]): string {
-  let csvContent = '';
-
-  // Add headers
-  const headers = columns.map(col => col.name);
-  csvContent += headers.map(header => `"${String(header).replace(/"/g, '""')}"`).join(',') + '\r\n';
-
-  // Add data rows
-  for (const row of rows) {
-    const csvRow = row.map(value => {
-      if (value === null || typeof value === 'undefined') {
-        return '';
-      }
-      // Escape double quotes and ensure value is stringified
-      return `"${String(value).replace(/"/g, '""')}"`;
-    });
-    csvContent += csvRow.join(',') + '\r\n';
-  }
-
-  return csvContent;
-}
-
-/**
- * This method is called when your extension is deactivated.
- */
 export function deactivate() {
-  // console.log('Extension "presto-runner" is now deactivated.');
-  // Cleanup resources if needed
   if (mcpServer) {
     mcpServer.stop();
-  }
-  if (mcpStatusBarItem) {
-    mcpStatusBarItem.hide();
-    mcpStatusBarItem.dispose();
   }
 }

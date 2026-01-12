@@ -12,12 +12,15 @@ body {
     font-size: var(--sql-preview-font-size, var(--vscode-editor-font-size, var(--vscode-font-size)));
     color: var(--vscode-editor-foreground);
     background-color: var(--vscode-editor-background);
-    padding: 0; /* Remove body padding, let elements manage their own */
+    padding: 0;
+    /* Remove body padding, let elements manage their own */
     margin: 0;
-    overflow: hidden; /* Prevent body scrollbars, let AG Grid handle scrolling */
+    overflow: hidden;
+    /* Prevent body scrollbars, let AG Grid handle scrolling */
     display: flex;
     flex-direction: column;
-    height: 100vh; /* Full viewport height */
+    height: 100vh;
+    /* Full viewport height */
 }
 
 /* Tab System Styles */
@@ -31,6 +34,25 @@ body {
     min-height: 32px;
 }
 
+.active-file-indicator {
+    padding: 2px 10px;
+    background-color: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
+    color: var(--vscode-button-secondaryForeground, var(--vscode-descriptionForeground));
+    font-size: calc(var(--sql-preview-font-size, var(--vscode-editor-font-size, var(--vscode-font-size))) * 0.82);
+    border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-editorWidget-border));
+    border-radius: 12px;
+    margin: 4px 12px;
+    flex-shrink: 0;
+    font-weight: 600;
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.active-file-indicator.persisted {
+    opacity: 0.7;
+    border-style: dashed;
+}
+
 .tab-list {
     display: flex;
     flex: 1;
@@ -38,7 +60,8 @@ body {
     overflow-y: hidden;
     /* Hide scrollbar for Firefox */
     scrollbar-width: none;
-    -ms-overflow-style: none; /* IE/Edge */
+    -ms-overflow-style: none;
+    /* IE/Edge */
 }
 
 /* Hide scrollbar for Chrome/Safari/Opera */
@@ -72,7 +95,7 @@ body {
     border-bottom: 2px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
 }
 
-.tab-title {
+.tab-label {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -157,19 +180,23 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-shrink: 0; /* Prevent shrinking */
-    gap: 15px; /* Add gap between left/right sections */
+    flex-shrink: 0;
+    /* Prevent shrinking */
+    gap: 15px;
+    /* Add gap between left/right sections */
 }
 
-.controls > div { /* Target direct children divs for flex alignment */
+.controls>div {
+    /* Target direct children divs for flex alignment */
     display: flex;
     align-items: center;
-    gap: 8px; /* Spacing within left/right sections */
+    gap: 8px;
+    /* Spacing within left/right sections */
 }
 
 #status-message {
     font-weight: 600;
-    color: var(--vscode-editor-foreground); 
+    color: var(--vscode-editor-foreground);
 }
 
 /* #row-count-info inherits color from .controls */
@@ -179,7 +206,10 @@ body {
 }
 
 /* Copy and Export Button Styles */
-.copy-button, .copy-all-button, .export-button, .export-full-button {
+.copy-button,
+.copy-all-button,
+.export-button,
+.export-full-button {
     background-color: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
     border: 1px solid var(--vscode-button-border, transparent);
@@ -194,21 +224,31 @@ body {
 }
 
 /* Copy buttons have a slightly different style to distinguish them */
-.copy-button, .copy-all-button {
+.copy-button,
+.copy-all-button {
     background-color: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
     border: 1px solid var(--vscode-contrastBorder, var(--vscode-button-border, transparent));
 }
 
-.copy-button:hover, .copy-all-button:hover, .export-button:hover, .export-full-button:hover {
+.copy-button:hover,
+.copy-all-button:hover,
+.export-button:hover,
+.export-full-button:hover {
     background-color: var(--vscode-button-hoverBackground);
 }
 
-.copy-button:focus, .copy-all-button:focus, .export-button:focus, .export-full-button:focus {
+.copy-button:focus,
+.copy-all-button:focus,
+.export-button:focus,
+.export-full-button:focus {
     outline: 1px solid var(--vscode-focusBorder);
     outline-offset: 2px;
 }
 
-.copy-button:active, .copy-all-button:active, .export-button:active, .export-full-button:active {
+.copy-button:active,
+.copy-all-button:active,
+.export-button:active,
+.export-full-button:active {
     background-color: var(--vscode-button-secondaryBackground, var(--vscode-button-hoverBackground));
 }
 
@@ -222,7 +262,7 @@ body {
     padding: 20px;
     font-size: var(--sql-preview-font-size, var(--vscode-editor-font-size, var(--vscode-font-size)));
     color: var(--vscode-descriptionForeground);
-    flex-grow: 1; 
+    flex-grow: 1;
 }
 
 .spinner {
@@ -236,8 +276,52 @@ body {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px 20px;
+    color: var(--vscode-descriptionForeground);
+    text-align: center;
+}
+
+.loading-text {
+    margin-bottom: 20px;
+    font-size: 1.1em;
+    font-weight: 500;
+}
+
+.query-preview {
+    width: 100%;
+    max-width: 800px;
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-editorWidget-border);
+    border-radius: 4px;
+    padding: 12px;
+    overflow: hidden;
+}
+
+.query-preview pre {
+    margin: 0;
+    padding: 0;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 0.9em;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--vscode-editor-foreground);
+    opacity: 0.8;
 }
 
 /* Error Message Styles - Using theme-aware colors like table viewer */
@@ -251,7 +335,7 @@ body {
     /* Use error color for accent, with theme-safe fallback */
     border-left: 4px solid var(--vscode-errorForeground, var(--vscode-editorError-foreground, var(--vscode-editor-foreground)));
     padding: 12px 16px;
-    margin: 10px; 
+    margin: 10px;
     border-radius: 4px;
     white-space: pre-wrap;
     word-wrap: break-word;
@@ -269,7 +353,8 @@ body {
 /* Container for the grid - now within tab content */
 .results-grid {
     width: 100%;
-    flex-grow: 1; /* Allow grid to take remaining vertical space */
+    flex-grow: 1;
+    /* Allow grid to take remaining vertical space */
     /* height: 100%; AG Grid domLayout: 'normal' manages height with its own container */
 }
 
@@ -277,42 +362,55 @@ body {
 .ag-theme-quartz {
     /* Core variables: Pipe VS Code theme into AG Grid variables */
     /* REMOVE --ag-font-family from here. It will be defined in theme-specific blocks. */
-    --ag-font-size: var(--sql-preview-font-size, var(--vscode-editor-font-size, var(--vscode-font-size))); /* Use custom font size with VSCode fallback */
-    
+    --ag-font-size: var(--sql-preview-font-size, var(--vscode-editor-font-size, var(--vscode-font-size)));
+    /* Use custom font size with VSCode fallback */
+
     /* Default background colors - will be overridden by theme specific rules */
     /* These might also be better scoped inside theme blocks if issues persist, but let's focus on font first. */
     --ag-background-color: var(--vscode-editor-background);
-    --ag-foreground-color: var(--vscode-editor-foreground); /* General text color for grid content */
-    --ag-secondary-foreground-color: var(--vscode-descriptionForeground); /* For less prominent text */
-    
+    --ag-foreground-color: var(--vscode-editor-foreground);
+    /* General text color for grid content */
+    --ag-secondary-foreground-color: var(--vscode-descriptionForeground);
+    /* For less prominent text */
+
     /* Borders - Using more specific theme variables */
-    --ag-border-color: var(--vscode-editorWidget-border, var(--vscode-contrastBorder, #454545)); /* General borders */
-    --ag-secondary-border-color: var(--vscode-tree-indentGuidesStroke, var(--vscode-editorGroup-border, #585858)); /* For cell borders, panel separators */
-    --ag-row-border-color: var(--vscode-editorRuler-foreground, var(--vscode-editorWidget-border, #454545)); /* Border between rows */
+    --ag-border-color: var(--vscode-editorWidget-border, var(--vscode-contrastBorder, #454545));
+    /* General borders */
+    --ag-secondary-border-color: var(--vscode-tree-indentGuidesStroke, var(--vscode-editorGroup-border, #585858));
+    /* For cell borders, panel separators */
+    --ag-row-border-color: var(--vscode-editorRuler-foreground, var(--vscode-editorWidget-border, #454545));
+    /* Border between rows */
 
     /* Header - Using standard AG Grid theme parameters only */
     --ag-header-background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background));
     --ag-header-foreground-color: var(--vscode-tab-activeForeground, var(--vscode-editor-foreground));
     --ag-header-text-color: var(--vscode-tab-activeForeground, var(--vscode-editor-foreground));
-    --ag-header-height: 32px; /* Standard AG Grid header height */
+    --ag-header-height: 32px;
+    /* Standard AG Grid header height */
     --ag-header-cell-hover-background-color: var(--vscode-list-hoverBackground);
     --ag-header-cell-moving-background-color: var(--vscode-list-activeSelectionBackground);
-    --ag-header-border-color: var(--ag-border-color); /* Header border using theme parameter */
+    --ag-header-border-color: var(--ag-border-color);
+    /* Header border using theme parameter */
 
     /* Rows */
-    --ag-row-background-color: var(--vscode-editor-background); /* Base for all rows */
+    --ag-row-background-color: var(--vscode-editor-background);
+    /* Base for all rows */
     /* Using editorWidget-background for a potentially more subtle odd row color */
-    --ag-odd-row-background-color: var(--vscode-editorWidget-background, var(--vscode-editorGutter-background, #2c2c2c)); 
-    --ag-row-hover-color: var(--vscode-list-hoverBackground, #2a2d2e); /* Hovered row */
+    --ag-odd-row-background-color: var(--vscode-editorWidget-background, var(--vscode-editorGutter-background, #2c2c2c));
+    --ag-row-hover-color: var(--vscode-list-hoverBackground, #2a2d2e);
+    /* Hovered row */
     /* AG Grid uses '--ag-selected-row-background-color' and '--ag-selected-row-foreground-color' for selected rows */
     --ag-selected-row-background-color: var(--vscode-list-activeSelectionBackground, #094771);
     --ag-selected-row-foreground-color: var(--vscode-list-activeSelectionForeground, #ffffff);
-    --ag-row-height: 16px; /* Reduced row height for thinner rows */
+    --ag-row-height: 16px;
+    /* Reduced row height for thinner rows */
 
     /* Cells */
-    --ag-cell-horizontal-border: 1px solid var(--ag-secondary-border-color); /* Uses the themed secondary border */
-    --ag-cell-data-changed-color: var(--vscode-editorGutter-modifiedBackground, yellow); /* For flashing cells */
-    
+    --ag-cell-horizontal-border: 1px solid var(--ag-secondary-border-color);
+    /* Uses the themed secondary border */
+    --ag-cell-data-changed-color: var(--vscode-editorGutter-modifiedBackground, yellow);
+    /* For flashing cells */
+
     /* Inputs (like filters) - these seem okay, relying on VSCode input variables */
     --ag-input-background-color: var(--vscode-input-background);
     --ag-input-foreground-color: var(--vscode-input-foreground);
@@ -338,7 +436,8 @@ body {
     --ag-scrollbar-thumb-color: var(--vscode-scrollbarSlider-background);
     --ag-scrollbar-thumb-hover-color: var(--vscode-scrollbarSlider-hoverBackground);
     --ag-scrollbar-thumb-active-color: var(--vscode-scrollbarSlider-activeBackground);
-    --ag-scrollbar-track-color: transparent; /* Match editor background */
+    --ag-scrollbar-track-color: transparent;
+    /* Match editor background */
 
     /* Status Bar (if using AG Grid Enterprise status bar) */
     /* --ag-status-bar-background-color: var(--vscode-statusBar-background); */
@@ -347,7 +446,7 @@ body {
     /* Icons - AG Grid theme parameters for icon colors */
     --ag-icon-color: var(--vscode-icon-foreground);
     --ag-icon-disabled-color: var(--vscode-disabledForeground);
-    
+
     /* Header menu button - use AG Grid theme parameters only */
     --ag-header-cell-menu-button-color: var(--vscode-icon-foreground);
     --ag-header-cell-menu-button-hover-color: var(--vscode-icon-foreground);
@@ -358,7 +457,7 @@ body {
     --ag-range-selection-background-color-2: var(--vscode-editor-selectionBackground);
     --ag-range-selection-background-color-3: var(--vscode-editor-selectionBackground);
     --ag-range-selection-background-color-4: var(--vscode-editor-selectionBackground);
-     --ag-range-selection-highlight-color: var(--vscode-peekViewResult-selectionBackground);
+    --ag-range-selection-highlight-color: var(--vscode-peekViewResult-selectionBackground);
 
 }
 
@@ -381,7 +480,8 @@ body.vscode-light .ag-theme-quartz {
     --ag-odd-row-background-color: var(--vscode-editorWidget-background, var(--vscode-editorGutter-background)) !important;
     --ag-header-background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background)) !important;
     --ag-header-foreground-color: var(--vscode-tab-activeForeground, var(--vscode-editor-foreground)) !important;
-    --ag-foreground-color: var(--vscode-editor-foreground) !important; /* This will be used by cells */
+    --ag-foreground-color: var(--vscode-editor-foreground) !important;
+    /* This will be used by cells */
 }
 
 body.vscode-dark .ag-theme-quartz {
@@ -391,31 +491,36 @@ body.vscode-dark .ag-theme-quartz {
     /* Re-assert dark theme background variables for AG Grid */
     --ag-background-color: var(--vscode-editor-background) !important;
     --ag-row-background-color: var(--vscode-editor-background) !important;
-    --ag-odd-row-background-color: var(--vscode-editorGutter-background, var(--vscode-editorWidget-background)) !important; /* Try editorGutter first for dark */
+    --ag-odd-row-background-color: var(--vscode-editorGutter-background, var(--vscode-editorWidget-background)) !important;
+    /* Try editorGutter first for dark */
     --ag-header-background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background)) !important;
     --ag-header-foreground-color: var(--vscode-tab-activeForeground, var(--vscode-editor-foreground)) !important;
-    --ag-foreground-color: var(--vscode-editor-foreground) !important; /* This will be used by cells */
+    --ag-foreground-color: var(--vscode-editor-foreground) !important;
+    /* This will be used by cells */
 }
 
 /* Apply the font and color to cells, using the theme-scoped --ag-font-family and --ag-foreground-color */
 body.vscode-light .ag-theme-quartz .ag-cell,
-body.vscode-light .ag-theme-quartz .ag-cell .ag-cell-value { /* Target inner span directly too */
+body.vscode-light .ag-theme-quartz .ag-cell .ag-cell-value {
+    /* Target inner span directly too */
     font-family: var(--ag-font-family) !important;
-    color: var(--ag-foreground-color) !important; 
+    color: var(--ag-foreground-color) !important;
 }
 
 body.vscode-dark .ag-theme-quartz .ag-cell,
-body.vscode-dark .ag-theme-quartz .ag-cell .ag-cell-value { /* Target inner span directly too */
+body.vscode-dark .ag-theme-quartz .ag-cell .ag-cell-value {
+    /* Target inner span directly too */
     font-family: var(--ag-font-family) !important;
-    color: var(--ag-foreground-color) !important; 
+    color: var(--ag-foreground-color) !important;
 }
 
 /* Styling for the row number column # */
-.ag-theme-quartz .ag-pinned-left-cols-container .ag-cell[col-id="0"] { 
+.ag-theme-quartz .ag-pinned-left-cols-container .ag-cell[col-id="0"] {
     background-color: var(--vscode-editorGutter-background, var(--vscode-editorWidget-background));
-    color: var(--vscode-editorLineNumber-foreground) !important; 
+    color: var(--vscode-editorLineNumber-foreground) !important;
     font-weight: bold;
-    font-family: var(--ag-font-family) !important; /* Ensure row number also uses themed monospace font */
+    font-family: var(--ag-font-family) !important;
+    /* Ensure row number also uses themed monospace font */
 }
 
 /* Ensure selected cells have explicitly set foreground for contrast */
@@ -427,25 +532,32 @@ body.vscode-dark .ag-theme-quartz .ag-cell .ag-cell-value { /* Target inner span
 .ag-theme-quartz .ag-cell.ag-right-aligned-cell {
     text-align: right;
 }
-.ag-theme-quartz .ag-numeric-cell { /* For type: 'numericColumn' */
+
+.ag-theme-quartz .ag-numeric-cell {
+    /* For type: 'numericColumn' */
     text-align: right;
 }
 
 /* Completely removed CSS overrides - let AG Grid theme parameters handle everything */
 
 /* Style the row number column (#) specially if needed */
-.ag-theme-quartz .ag-pinned-left-cols-container .ag-cell[col-id="0"] { /* Assuming row number is first after pinning */
+.ag-theme-quartz .ag-pinned-left-cols-container .ag-cell[col-id="0"] {
+    /* Assuming row number is first after pinning */
     background-color: var(--vscode-editorGutter-background, var(--vscode-editorWidget-background));
-    color: var(--vscode-editorLineNumber-foreground) !important; /* More specific theme variable */
+    color: var(--vscode-editorLineNumber-foreground) !important;
+    /* More specific theme variable */
     font-weight: bold;
-    font-family: var(--ag-font-family) !important; /* Ensure row number also uses themed font */
+    font-family: var(--ag-font-family) !important;
+    /* Ensure row number also uses themed font */
 }
+
 /* Or if using valueGetter: 'node.rowIndex + 1' and it gets an auto colId like 'ag-Grid-AutoColumn-row_index' */
 /* You might need to inspect the generated colId for the row number column */
 
 /* Ensure VSCode theme variables take precedence for specific cases if needed */
 body.vscode-light .ag-theme-quartz {
-    --ag-odd-row-background-color: #f5f5f5; /* Lighter odd row for light themes */
+    --ag-odd-row-background-color: #f5f5f5;
+    /* Lighter odd row for light themes */
 }
 
 body.vscode-dark .ag-theme-quartz {
@@ -453,7 +565,8 @@ body.vscode-dark .ag-theme-quartz {
 }
 
 body.vscode-high-contrast .ag-theme-quartz {
-    --ag-odd-row-background-color: var(--vscode-editor-background); /* No odd/even difference */
+    --ag-odd-row-background-color: var(--vscode-editor-background);
+    /* No odd/even difference */
     --ag-border-color: var(--vscode-contrastBorder);
     --ag-secondary-border-color: var(--vscode-contrastBorder);
     --ag-header-background-color: var(--vscode-editor-background);
@@ -465,6 +578,7 @@ body.vscode-high-contrast .ag-theme-quartz .ag-cell {
     border-right: 1px solid var(--vscode-contrastBorder);
     border-bottom: 1px solid var(--vscode-contrastBorder);
 }
+
 body.vscode-high-contrast .ag-theme-quartz .ag-header-cell {
     border-right: 1px solid var(--vscode-contrastBorder);
 }
@@ -521,7 +635,7 @@ body.vscode-high-contrast .error-message {
 .tab-context-menu-item:hover {
     background-color: var(--vscode-menu-selectionBackground);
     color: var(--vscode-menu-selectionForeground);
-} 
+}
 
 /* JSON modal styles */
 .json-modal-overlay {
@@ -530,11 +644,12 @@ body.vscode-high-contrast .error-message {
     top: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.5);
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 100000; /* above context menus */
+    z-index: 100000;
+    /* above context menus */
 }
 
 .json-modal {
@@ -547,7 +662,7 @@ body.vscode-high-contrast .error-message {
     max-height: 80vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .json-modal-header {

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.4] - 2026-01-12
+
+### Fixed
+
+- **State Persistence**: Resolved persistent test failures and ensured `workspaceState` is correctly managed.
+- **Results Provider**: Fixed memory leaks by cleaning up event listeners on disposal.
+- **Linting**: Addressed numerous code style and type safety issues (removed console logs, fixed strict types).
+
 ## [0.2.2] - 2025-12-08
 
 ### Added

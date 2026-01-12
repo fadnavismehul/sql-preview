@@ -70,6 +70,7 @@ jest.mock('vscode', () => ({
       dispose: jest.fn(),
     })),
     onDidChangeActiveTextEditor: jest.fn(() => ({ dispose: jest.fn() })),
+    onDidChangeWindowState: jest.fn(() => ({ dispose: jest.fn() })),
   },
   languages: {
     registerCodeLensProvider: jest.fn(),

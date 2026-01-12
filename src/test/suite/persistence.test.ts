@@ -19,6 +19,10 @@ describe('ResultsViewProvider Persistence', () => {
       extensionUri: { fsPath: '/mock/extension' },
       globalStorageUri: mockStorageUri,
       subscriptions: [],
+      workspaceState: {
+        get: jest.fn(),
+        update: jest.fn(),
+      },
     };
 
     mockWebview = {
@@ -39,7 +43,12 @@ describe('ResultsViewProvider Persistence', () => {
     (vscode.workspace.fs.readFile as jest.Mock).mockClear();
     (vscode.workspace.fs.createDirectory as jest.Mock).mockClear();
 
-    provider = new ResultsViewProvider(mockContext.extensionUri, mockContext);
+    const mockQueryExecutor = {
+      executeQuery: jest.fn(),
+      cancelQuery: jest.fn(),
+    } as any;
+
+    provider = new ResultsViewProvider(mockContext.extensionUri, mockContext, mockQueryExecutor);
   });
 
   it('should save state when a tab is created', async () => {
@@ -50,16 +59,18 @@ describe('ResultsViewProvider Persistence', () => {
     provider.createTabWithId('tab-1', 'SELECT 1', 'SELECT 1');
 
     // Check if writeFile was called
-    expect(vscode.workspace.fs.writeFile).toHaveBeenCalled();
+    // Check if workspaceState usage
+    expect(mockContext.workspaceState.update).toHaveBeenCalled();
+    const callArgs = mockContext.workspaceState.update.mock.calls[0];
+    const key = callArgs[0];
+    const value = callArgs[1];
 
-    const callArgs = (vscode.workspace.fs.writeFile as jest.Mock).mock.calls[0] as any[];
-    const fileUri = callArgs[0];
-    const content = callArgs[1];
+    expect(key).toBe('sqlPreview.state');
+    expect(value).toBeDefined();
 
-    expect(fileUri.toString()).toContain('tabState.json');
-
-    const savedData = JSON.parse(content.toString());
+    const savedData = value;
     expect(savedData.tabs).toBeDefined();
+    expect(Array.isArray(savedData.tabs)).toBe(true);
     expect(savedData.tabs.length).toBe(1);
     expect(savedData.tabs[0][1].id).toBe('tab-1');
   });
@@ -76,12 +87,14 @@ describe('ResultsViewProvider Persistence', () => {
       resultCounter: 5,
     };
 
-    (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(
-      Buffer.from(JSON.stringify(mockState)) as never
-    );
+    (mockContext.workspaceState.get as jest.Mock).mockReturnValue(mockState);
 
     // Re-initialize provider to trigger loadState
-    provider = new ResultsViewProvider(mockContext.extensionUri, mockContext);
+    const mockQueryExecutor = {
+      executeQuery: jest.fn(),
+      cancelQuery: jest.fn(),
+    } as any;
+    provider = new ResultsViewProvider(mockContext.extensionUri, mockContext, mockQueryExecutor);
 
     // Wait for async loadState
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -107,7 +120,7 @@ describe('ResultsViewProvider Persistence', () => {
     provider.createTabWithId('tab-1', 'SELECT 1', 'SELECT 1');
 
     // Clear previous write calls
-    (vscode.workspace.fs.writeFile as jest.Mock).mockClear();
+    (mockContext.workspaceState.update as jest.Mock).mockClear();
 
     provider.showResultsForTab('tab-1', {
       columns: [{ name: 'id', type: 'integer' }],
@@ -117,11 +130,15 @@ describe('ResultsViewProvider Persistence', () => {
       totalRowsInFirstBatch: 1,
     });
 
-    expect(vscode.workspace.fs.writeFile).toHaveBeenCalled();
-    const content = (vscode.workspace.fs.writeFile as jest.Mock).mock.calls[0]![1] as Buffer;
-    const savedData = JSON.parse(content.toString());
+    expect(mockContext.workspaceState.update).toHaveBeenCalled();
+    const callArgs = (mockContext.workspaceState.update as jest.Mock).mock.calls[0] as any[];
+    const value = callArgs[1] as any;
 
-    const tabData = new Map(savedData.tabs).get('tab-1') as any;
+    expect(value.tabs).toBeDefined();
+    // Implementation detail: we save tab data.
+    // Check if correct tab is updated.
+    const savedTabs = new Map(value.tabs);
+    const tabData = savedTabs.get('tab-1') as any;
     expect(tabData.status).toBe('success');
     expect(tabData.rows.length).toBe(1);
   });
