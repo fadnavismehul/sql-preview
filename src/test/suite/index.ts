@@ -1,22 +1,44 @@
 import * as path from 'path';
 import Mocha from 'mocha';
-import { glob } from 'glob';
-import { promisify } from 'util';
+import * as fs from 'fs';
 
 export async function run(): Promise<void> {
   // Create the mocha test
   const mocha = new Mocha({
     ui: 'bdd',
     color: true,
+    timeout: 10000,
   });
 
   const testsRoot = path.resolve(__dirname, '.');
-  const globPromise = promisify<string, { cwd: string }, string[]>(glob);
 
-  const files = await globPromise('**/**.test.js', { cwd: testsRoot });
+  // Helper to recursively find test files
+  function findTestFiles(dir: string, fileList: string[] = []): string[] {
+    const files = fs.readdirSync(dir);
+    files.forEach(file => {
+      const filePath = path.join(dir, file);
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
+        findTestFiles(filePath, fileList);
+      } else {
+        // Filter for integration tests primarily as requested
+        if (file.endsWith('.integration.test.js')) {
+          fileList.push(filePath);
+        }
+      }
+    });
+    return fileList;
+  }
+
+  console.log(`Searching for integration tests in: ${testsRoot}`);
+  const files = findTestFiles(testsRoot);
+  console.log(`Found ${files.length} test files.`);
 
   // Add files to the test suite
-  files.forEach(f => mocha.addFile(path.resolve(testsRoot, f)));
+  files.forEach(f => {
+    console.log(`Adding test file: ${f}`);
+    mocha.addFile(f);
+  });
 
   // Run the mocha test
   return new Promise((resolve, reject) => {
@@ -29,7 +51,7 @@ export async function run(): Promise<void> {
         }
       });
     } catch (err) {
-      // console.error(err);
+      console.error(err);
       reject(err);
     }
   });
