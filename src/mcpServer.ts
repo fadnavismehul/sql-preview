@@ -102,10 +102,17 @@ export class SqlPreviewMcpServer {
           },
           {
             name: 'get_active_tab_info',
-            description: 'Get information about the currently active result tab',
+            description:
+              'Get information about the currently active result tab. Supports waiting for completion.',
             inputSchema: {
               type: 'object',
-              properties: {},
+              properties: {
+                timeout: {
+                  type: 'number',
+                  description:
+                    'Max seconds to wait for result if status is "loading". Default: 0 (no wait).',
+                },
+              },
             },
           },
         ],
@@ -159,18 +166,57 @@ export class SqlPreviewMcpServer {
         }
         case 'get_active_tab_info': {
           try {
-            const activeTabId = this.resultsProvider.getActiveTabId();
+            const args = request.params.arguments as any;
+            // timeout in seconds, default to 0 for backward compatibility
+            const timeoutSec =
+              typeof args?.timeout === 'number' && args.timeout > 0 ? args.timeout : 0;
+
+            const startTime = Date.now();
+            const timeoutMs = timeoutSec * 1000;
+            const pollInterval = 200; // 200ms
+
+            let activeTabId: string | undefined;
+            let tabData: any;
+
+            // Polling loop
+            let isDone = false;
+            while (!isDone) {
+              activeTabId = this.resultsProvider.getActiveTabId();
+              if (activeTabId) {
+                tabData = this.resultsProvider.getTabData(activeTabId);
+                if (tabData) {
+                  // If status is NOT loading, we are done
+                  if (tabData.status !== 'loading') {
+                    isDone = true;
+                    break;
+                  }
+                }
+              }
+
+              // Check if we should wait
+              const elapsed = Date.now() - startTime;
+              if (elapsed >= timeoutMs) {
+                // Timeout reached, return whatever we have
+                isDone = true;
+                break;
+              }
+
+              // Wait before next check
+              await new Promise(resolve => setTimeout(resolve, pollInterval));
+            }
+
             if (!activeTabId) {
               return {
                 content: [{ type: 'text', text: 'No active tab found.' }],
               };
             }
-            const tabData = this.resultsProvider.getTabData(activeTabId);
+
             if (!tabData) {
               return {
                 content: [{ type: 'text', text: 'Active tab data not found.' }],
               };
             }
+
             // Add sourceFileUri to the response as requested
             return {
               content: [
