@@ -90,7 +90,8 @@
           "id": "sqlResultsView",
           "name": "Results",
           "type": "webview",
-          "contextualTitle": "SQL Preview Results"
+          "contextualTitle": "SQL Preview Results",
+          "icon": "media/table.svg"
         }
       ]
     },
@@ -241,6 +242,15 @@
           "default": true,
           "description": "(Beta) If enabled, MCP server will only execute read-only queries (SELECT, SHOW, DESCRIBE, etc.)",
           "order": 22
+        },
+        "sqlPreview.defaultConnector": {
+          "type": "string",
+          "enum": [
+            "trino"
+          ],
+          "default": "trino",
+          "description": "Database connector to use.",
+          "order": 12
         }
       }
     }

@@ -78,7 +78,8 @@ export type WebviewToExtensionMessage =
       title?: string | undefined;
       query?: string | undefined;
     }
-  | { command: 'tabSelected'; tabId: string };
+  | { command: 'tabSelected'; tabId: string }
+  | { command: 'cancelQuery'; tabId: string };
 
 export type ExtensionToWebviewMessage =
   | {
@@ -110,4 +111,4 @@ export type ExtensionToWebviewMessage =
   | { type: 'closeOtherTabs' }
   | { type: 'closeAllTabs' }
   | { type: 'updateFontSize'; fontSize: string }
-  | { type: 'filterTabs'; fileUri?: string | undefined };
+  | { type: 'filterTabs'; fileUri?: string | undefined; fileName?: string | undefined };

@@ -3,6 +3,7 @@ import { TabData, ExtensionToWebviewMessage, QueryResults } from './common/types
 import { StateManager } from './services/StateManager';
 import { TabManager } from './services/TabManager';
 import { ExportService } from './services/ExportService';
+import { QuerySessionRegistry } from './services/QuerySessionRegistry';
 import { getNonce } from './utils/nonce';
 
 /**
@@ -28,7 +29,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     private readonly _extensionUri: vscode.Uri,
     context: vscode.ExtensionContext,
     private readonly _tabManager: TabManager,
-    private readonly _exportService: ExportService
+    private readonly _exportService: ExportService,
+    private readonly _querySessionRegistry: QuerySessionRegistry
   ) {
     this._outputChannel = vscode.window.createOutputChannel('SQL Preview');
     this._stateManager = new StateManager(context);
@@ -151,6 +153,11 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           if (tab) {
             this._exportService.exportResults(tab);
           }
+          return;
+        }
+        case 'cancelQuery': {
+          this.log(`Cancelling query for tab: ${data.tabId}`);
+          this._querySessionRegistry.cancelSession(data.tabId);
           return;
         }
       }
@@ -550,7 +557,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
       const fileName = fileUri ? fileUri.split('/').pop() : undefined;
       // Note: filterTabs message tells the webview which file is active, webview filters DOM?
       // Assuming existing webview logic for 'filterTabs' works with this message.
-      this._view.webview.postMessage({ type: 'filterTabs', fileUri, fileName } as any);
+      this._view.webview.postMessage({ type: 'filterTabs', fileUri, fileName });
     }
   }
 

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ResultsViewProvider } from '../../resultsViewProvider';
+import { QuerySessionRegistry } from '../../services/QuerySessionRegistry';
 import { TabManager } from '../../services/TabManager';
 import { ExportService } from '../../services/ExportService';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
@@ -52,12 +53,14 @@ describe('ResultsViewProvider Persistence', () => {
 
     const tabManager = new TabManager();
     const exportService = new ExportService(mockQueryExecutor);
+    const querySessionRegistry = new QuerySessionRegistry();
 
     provider = new ResultsViewProvider(
       mockContext.extensionUri,
       mockContext,
       tabManager,
-      exportService
+      exportService,
+      querySessionRegistry
     );
   });
 
@@ -106,12 +109,14 @@ describe('ResultsViewProvider Persistence', () => {
     } as any;
     const tabManager = new TabManager();
     const exportService = new ExportService(mockQueryExecutor);
+    const querySessionRegistry = new QuerySessionRegistry();
 
     provider = new ResultsViewProvider(
       mockContext.extensionUri,
       mockContext,
       tabManager,
-      exportService
+      exportService,
+      querySessionRegistry
     );
 
     // Wait for async loadState

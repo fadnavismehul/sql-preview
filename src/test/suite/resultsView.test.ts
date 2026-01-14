@@ -3,6 +3,7 @@ import { mockWebviewPanel } from '../setup';
 import { ResultsViewProvider } from '../../resultsViewProvider';
 import { TabManager } from '../../services/TabManager';
 import { ExportService } from '../../services/ExportService';
+import { QuerySessionRegistry } from '../../services/QuerySessionRegistry';
 
 describe('ResultsViewProvider Tests', () => {
   let resultsViewProvider: ResultsViewProvider;
@@ -33,12 +34,14 @@ describe('ResultsViewProvider Tests', () => {
 
     const tabManager = new TabManager();
     const exportService = new ExportService(mockQueryExecutor);
+    const querySessionRegistry = new QuerySessionRegistry();
 
     resultsViewProvider = new ResultsViewProvider(
       vscode.Uri.file('/mock/extension/path'),
       mockContext,
       tabManager,
-      exportService
+      exportService,
+      querySessionRegistry
     );
 
     resultsViewProvider.resolveWebviewView(mockWebviewView);

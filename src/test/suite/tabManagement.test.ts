@@ -4,6 +4,7 @@ import * as sinon from 'sinon';
 import { ResultsViewProvider } from '../../resultsViewProvider';
 import { TabManager } from '../../services/TabManager';
 import { ExportService } from '../../services/ExportService';
+import { QuerySessionRegistry } from '../../services/QuerySessionRegistry';
 
 describe('Tab Management Tests', () => {
   let resultsViewProvider: ResultsViewProvider;
@@ -55,12 +56,14 @@ describe('Tab Management Tests', () => {
     } as any;
     const tabManager = new TabManager();
     const exportService = new ExportService(mockQueryExecutor);
+    const querySessionRegistry = new QuerySessionRegistry();
 
     resultsViewProvider = new ResultsViewProvider(
       mockContext.extensionUri,
       mockContext,
       tabManager,
-      exportService
+      exportService,
+      querySessionRegistry
     );
     resultsViewProvider.resolveWebviewView(mockWebviewView);
   });
@@ -207,7 +210,8 @@ describe('Tab Management Tests', () => {
         mockContext.extensionUri,
         mockContext,
         new TabManager(),
-        new ExportService(mockQueryExecutor)
+        new ExportService(mockQueryExecutor),
+        new QuerySessionRegistry()
       );
 
       // Should not throw
@@ -228,7 +232,8 @@ describe('Tab Management Tests', () => {
         mockContext.extensionUri,
         mockContext,
         new TabManager(),
-        new ExportService(mockQueryExecutor)
+        new ExportService(mockQueryExecutor),
+        new QuerySessionRegistry()
       );
 
       const tabId = providerWithoutWebview.getOrCreateActiveTabId('SELECT 1', 'Test');

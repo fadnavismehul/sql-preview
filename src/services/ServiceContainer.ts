@@ -5,6 +5,7 @@ import { TabManager } from './TabManager';
 import { ExportService } from './ExportService';
 import { ConnectorRegistry } from './connectors/ConnectorRegistry';
 import { TrinoConnector } from './connectors/TrinoConnector';
+import { QuerySessionRegistry } from './QuerySessionRegistry';
 import * as vscode from 'vscode';
 
 export class ServiceContainer {
@@ -15,6 +16,7 @@ export class ServiceContainer {
   public readonly queryExecutor: QueryExecutor;
   public readonly tabManager: TabManager;
   public readonly exportService: ExportService;
+  public readonly querySessionRegistry: QuerySessionRegistry;
   public readonly resultsViewProvider: ResultsViewProvider;
 
   private constructor(context: vscode.ExtensionContext) {
@@ -29,11 +31,13 @@ export class ServiceContainer {
     this.tabManager = new TabManager();
     this.exportService = new ExportService(this.queryExecutor);
 
+    this.querySessionRegistry = new QuerySessionRegistry();
     this.resultsViewProvider = new ResultsViewProvider(
       context.extensionUri,
       context,
       this.tabManager,
-      this.exportService
+      this.exportService,
+      this.querySessionRegistry
     );
   }
 

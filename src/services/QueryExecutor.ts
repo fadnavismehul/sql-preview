@@ -11,10 +11,12 @@ export class QueryExecutor {
   ) {}
 
   private getConnector(): IConnector {
-    // For now, default to trino, or read from config if we add multi-db support later
-    const connector = this.connectorRegistry.get('trino');
+    const config = vscode.workspace.getConfiguration('sqlPreview');
+    const connectorName = config.get<string>('defaultConnector', 'trino');
+
+    const connector = this.connectorRegistry.get(connectorName);
     if (!connector) {
-      throw new Error('Trino connector not registered');
+      throw new Error(`Connector '${connectorName}' not registered`);
     }
     return connector;
   }
