@@ -673,7 +673,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         style-src ${webview.cspSource} 'unsafe-inline' https://unpkg.com;
         font-src ${webview.cspSource} https://unpkg.com https: data:;
         img-src ${webview.cspSource} https://unpkg.com https: data:;
-        connect-src https://*.myteksi.net https://sentry.io ${webview.cspSource};
+        connect-src https://sentry.io ${webview.cspSource};
     `;
 
     const scriptUri = webview.asWebviewUri(

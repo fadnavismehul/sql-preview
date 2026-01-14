@@ -140,6 +140,6 @@ describe('ResultsViewProvider Persistence', () => {
     const savedTabs = new Map(value.tabs);
     const tabData = savedTabs.get('tab-1') as any;
     expect(tabData.status).toBe('success');
-    expect(tabData.rows.length).toBe(1);
+    expect(tabData.rows.length).toBe(0); // Rows are cleared for persistence
   });
 });

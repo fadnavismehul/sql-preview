@@ -323,8 +323,8 @@ export class SqlPreviewMcpServer {
     while (retries > 0) {
       try {
         await new Promise<void>((resolve, reject) => {
-          this.httpServer = this.app.listen(startPort, '0.0.0.0', () => {
-            console.log(`MCP Server listening on port ${startPort} (0.0.0.0)`);
+          this.httpServer = this.app.listen(startPort, '127.0.0.1', () => {
+            console.log(`MCP Server listening on port ${startPort} (127.0.0.1)`);
             resolve();
           });
           this.httpServer.on('error', (err: any) => {

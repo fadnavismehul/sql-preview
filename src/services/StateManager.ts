@@ -22,8 +22,17 @@ export class StateManager {
    * Persists the current state of tabs and counters.
    */
   async saveState(tabs: Map<string, TabData>, resultCounter: number): Promise<void> {
+    // Sanitize tabs to remove heavy row data before persistence
+    const sanitizedTabs = Array.from(tabs.entries()).map(([key, tab]) => {
+      // Shallow clone to avoid modifying the in-memory instance
+      const safeTab = { ...tab };
+      // Clear rows to save storage space and improve performance
+      safeTab.rows = [];
+      return [key, safeTab] as [string, TabData];
+    });
+
     const state = {
-      tabs: Array.from(tabs.entries()),
+      tabs: sanitizedTabs,
       resultCounter,
     };
 
