@@ -23,4 +23,5 @@ module.exports = {
     '/out/', // Ignore compiled JavaScript files
     '.*\\.integration\\.test\\.ts$', // Ignore integration tests which require real VS Code
   ],
+  modulePathIgnorePatterns: ['<rootDir>/.vscode-test'],
 };
