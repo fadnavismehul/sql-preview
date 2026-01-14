@@ -563,9 +563,9 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 
   private _getHtmlForWebview(webview: vscode.Webview): string {
     const nonce = getNonce();
-    // Using unpkg for simplicity in this example, but should bundle for production
+    // Using AG Grid Enterprise for advanced features (Range Selection, Set Filters, etc.)
     const agGridScriptUri =
-      'https://unpkg.com/ag-grid-community@31.3.2/dist/ag-grid-community.min.js';
+      'https://unpkg.com/ag-grid-enterprise@31.3.2/dist/ag-grid-enterprise.min.js';
     const agGridStylesUri = 'https://unpkg.com/ag-grid-community@31.3.2/styles/ag-grid.css';
     const agGridThemeStylesUri =
       'https://unpkg.com/ag-grid-community@31.3.2/styles/ag-theme-quartz.css';
