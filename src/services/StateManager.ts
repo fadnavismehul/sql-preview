@@ -27,7 +27,10 @@ export class StateManager {
       // Shallow clone to avoid modifying the in-memory instance
       const safeTab = { ...tab };
       // Clear rows to save storage space and improve performance
-      safeTab.rows = [];
+      if (safeTab.rows && safeTab.rows.length > 0) {
+        safeTab.rows = [];
+        safeTab.wasDataCleared = true;
+      }
       return [key, safeTab] as [string, TabData];
     });
 

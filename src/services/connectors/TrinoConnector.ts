@@ -3,6 +3,7 @@ import * as https from 'https';
 import { IConnector, ConnectorConfig } from './IConnector';
 import { QueryPage } from '../../common/types';
 import { safeJsonParse } from '../../utils/jsonUtils';
+import { ConnectionError, QueryError, AuthenticationError } from '../../common/errors';
 
 interface TrinoResponse {
   id?: string;
@@ -21,7 +22,8 @@ export class TrinoConnector implements IConnector {
   async *runQuery(
     query: string,
     config: ConnectorConfig,
-    authHeader?: string
+    authHeader?: string,
+    abortSignal?: AbortSignal
   ): AsyncGenerator<QueryPage, void, unknown> {
     const protocol = config.ssl ? 'https' : 'http';
     const baseUrl = `${protocol}://${config.host}:${config.port}`;
@@ -53,6 +55,7 @@ export class TrinoConnector implements IConnector {
       headers,
       httpsAgent,
       transformResponse: [(data: any) => safeJsonParse(data)],
+      signal: abortSignal,
     };
 
     // Initial POST
@@ -63,7 +66,11 @@ export class TrinoConnector implements IConnector {
       const result = response.data;
 
       if (result.error) {
-        throw new Error(result.error.message || 'Trino query error');
+        throw new QueryError(
+          result.error.message || 'Trino query error',
+          query,
+          JSON.stringify(result.error)
+        );
       }
 
       nextUri = result.nextUri;
@@ -78,19 +85,28 @@ export class TrinoConnector implements IConnector {
         stats: result.stats || undefined,
       };
     } catch (error: any) {
-      // Enhance error message
-      const msg = error.response?.data?.error?.message || error.message;
-      throw new Error(`Query failed: ${msg}`);
+      if ((axios as any).isCancel(error)) {
+        return; // Stopped by user
+      }
+      this.handleError(error, query);
     }
 
     // Pagination loop
     while (nextUri) {
+      if (abortSignal?.aborted) {
+        return;
+      }
+
       try {
         const response = await axios.get<TrinoResponse>(nextUri, axiosConfig as any);
         const result = response.data;
 
         if (result.error) {
-          throw new Error(result.error.message || 'Trino pagination error');
+          throw new QueryError(
+            result.error.message || 'Trino pagination error',
+            query,
+            JSON.stringify(result.error)
+          );
         }
 
         nextUri = result.nextUri;
@@ -106,9 +122,28 @@ export class TrinoConnector implements IConnector {
           };
         }
       } catch (error: any) {
-        const msg = error.response?.data?.error?.message || error.message;
-        throw new Error(`Pagination failed: ${msg}`);
+        if ((axios as any).isCancel(error)) {
+          return;
+        }
+        this.handleError(error, query);
       }
     }
+  }
+
+  private handleError(error: any, query: string): never {
+    if (error instanceof QueryError) {
+      throw error;
+    }
+    const msg = error.response?.data?.error?.message || error.message;
+
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      throw new AuthenticationError(`Authentication failed: ${msg}`);
+    }
+
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      throw new ConnectionError(`Connection failed: ${msg}`, error.code);
+    }
+
+    throw new QueryError(`Query failed: ${msg}`, query);
   }
 }

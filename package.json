@@ -235,6 +235,12 @@
           "minimum": 1024,
           "maximum": 65535,
           "order": 21
+        },
+        "sqlPreview.mcpSafeMode": {
+          "type": "boolean",
+          "default": true,
+          "description": "(Beta) If enabled, MCP server will only execute read-only queries (SELECT, SHOW, DESCRIBE, etc.)",
+          "order": 22
         }
       }
     }

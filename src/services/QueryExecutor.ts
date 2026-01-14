@@ -1,15 +1,22 @@
 import * as vscode from 'vscode';
 import { AuthManager } from './AuthManager';
 import { IConnector, ConnectorConfig } from './connectors/IConnector';
-import { TrinoConnector } from './connectors/TrinoConnector';
+import { ConnectorRegistry } from './connectors/ConnectorRegistry';
 import { QueryPage } from '../common/types';
 
 export class QueryExecutor {
-  private connector: IConnector;
+  constructor(
+    private readonly authManager: AuthManager,
+    private readonly connectorRegistry: ConnectorRegistry
+  ) {}
 
-  constructor(private readonly authManager: AuthManager) {
-    // Factory logic could go here, for now default to Trino
-    this.connector = new TrinoConnector();
+  private getConnector(): IConnector {
+    // For now, default to trino, or read from config if we add multi-db support later
+    const connector = this.connectorRegistry.get('trino');
+    if (!connector) {
+      throw new Error('Trino connector not registered');
+    }
+    return connector;
   }
 
   /**
@@ -18,7 +25,10 @@ export class QueryExecutor {
    * 2. Gets credentials
    * 3. Delegates to connector
    */
-  async *execute(query: string): AsyncGenerator<QueryPage, void, unknown> {
+  async *execute(
+    query: string,
+    abortSignal?: AbortSignal
+  ): AsyncGenerator<QueryPage, void, unknown> {
     const config = vscode.workspace.getConfiguration('sqlPreview');
 
     // Explicitly handle potentially undefined values
@@ -38,7 +48,8 @@ export class QueryExecutor {
 
     const authHeader = await this.authManager.getBasicAuthHeader(connectorConfig.user);
 
-    // Removed useless try/catch
-    yield* this.connector.runQuery(query, connectorConfig, authHeader);
+    // Get connector instance
+    const connector = this.getConnector();
+    yield* connector.runQuery(query, connectorConfig, authHeader, abortSignal);
   }
 }

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { mockWebviewPanel } from '../setup';
 import { ResultsViewProvider } from '../../resultsViewProvider';
+import { TabManager } from '../../services/TabManager';
+import { ExportService } from '../../services/ExportService';
 
 describe('ResultsViewProvider Tests', () => {
   let resultsViewProvider: ResultsViewProvider;
@@ -29,10 +31,14 @@ describe('ResultsViewProvider Tests', () => {
       cancelQuery: jest.fn(),
     } as any;
 
+    const tabManager = new TabManager();
+    const exportService = new ExportService(mockQueryExecutor);
+
     resultsViewProvider = new ResultsViewProvider(
       vscode.Uri.file('/mock/extension/path'),
       mockContext,
-      mockQueryExecutor
+      tabManager,
+      exportService
     );
 
     resultsViewProvider.resolveWebviewView(mockWebviewView);

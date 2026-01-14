@@ -7,6 +7,7 @@ export interface IConnector {
   runQuery(
     query: string,
     config: ConnectorConfig,
-    authHeader?: string
+    authHeader?: string,
+    abortSignal?: AbortSignal
   ): AsyncGenerator<QueryPage, void, unknown>;
 }

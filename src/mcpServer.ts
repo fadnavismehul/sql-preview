@@ -125,11 +125,24 @@ export class SqlPreviewMcpServer {
         case 'run_query': {
           try {
             const args = request.params.arguments as any;
-            const sql = args?.sql as string;
+            const sql = (args?.sql as string)?.trim();
             const newTab = args?.newTab !== false; // Default to true
 
             if (!sql) {
               throw new Error('SQL query is required');
+            }
+
+            // Safe Mode Check
+            const config = vscode.workspace.getConfiguration('sqlPreview');
+            const safeMode = config.get<boolean>('mcpSafeMode', true);
+
+            if (safeMode) {
+              const safePattern = /^\s*(SELECT|SHOW|DESCRIBE|EXPLAIN|WITH|VALUES)\b/i;
+              if (!safePattern.test(sql)) {
+                throw new Error(
+                  'MCP Safe Mode is enabled. Only SELECT, SHOW, DESCRIBE, EXPLAIN, WITH, and VALUES queries are allowed. Disable "sqlPreview.mcpSafeMode" in settings to run other queries.'
+                );
+              }
             }
 
             // Fire and forget
@@ -137,6 +150,7 @@ export class SqlPreviewMcpServer {
               ? vscode.commands.executeCommand('sql.runQueryNewTab', sql)
               : vscode.commands.executeCommand('sql.runQuery', sql);
 
+            // ... (rest is same)
             commandPromise.then(
               () => void 0,
               (err: any) => {

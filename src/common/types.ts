@@ -44,6 +44,7 @@ export interface TabData {
   infoUri?: string | undefined;
   nextUri?: string | undefined;
   sourceFileUri?: string | undefined;
+  wasDataCleared?: boolean | undefined;
 }
 
 /**

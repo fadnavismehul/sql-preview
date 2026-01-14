@@ -3,20 +3,18 @@ import { ResultsViewProvider } from './resultsViewProvider';
 import { SqlPreviewMcpServer } from './mcpServer';
 import { PrestoCodeLensProvider } from './PrestoCodeLensProvider';
 import { getQueryAtOffset } from './utils/querySplitter';
-import { AuthManager } from './services/AuthManager';
-import { QueryExecutor } from './services/QueryExecutor';
+import { ServiceContainer } from './services/ServiceContainer';
 import { QueryResults } from './common/types';
 
-let resultsViewProvider: ResultsViewProvider | undefined;
+// Global instance to allow access in tests/commands if strictly necessary,
+// but preferred to access via ServiceContainer unless legacy.
+let serviceContainer: ServiceContainer;
 let mcpServer: SqlPreviewMcpServer | undefined;
-let authManager: AuthManager | undefined;
-let queryExecutor: QueryExecutor | undefined;
+// Status Bar Item
+let mcpStatusBarItem: vscode.StatusBarItem;
 
 // Create output channel for logging
 const outputChannel = vscode.window.createOutputChannel('SQL Preview');
-
-// Status Bar Item
-let mcpStatusBarItem: vscode.StatusBarItem;
 
 export function activate(context: vscode.ExtensionContext) {
   // Validate extension context
@@ -27,14 +25,15 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   try {
-    // Initialize Services
-    authManager = new AuthManager(context);
-    queryExecutor = new QueryExecutor(authManager);
-    resultsViewProvider = new ResultsViewProvider(context.extensionUri, context, queryExecutor);
+    // Initialize Services via ServiceContainer
+    serviceContainer = ServiceContainer.initialize(context);
 
     // Register Webview Provider
     context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider(ResultsViewProvider.viewType, resultsViewProvider)
+      vscode.window.registerWebviewViewProvider(
+        ResultsViewProvider.viewType,
+        serviceContainer.resultsViewProvider
+      )
     );
 
     // Register CodeLens Provider
@@ -61,7 +60,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Helper to start MCP Server
   const startMcpServer = async () => {
-    if (!resultsViewProvider) {
+    // We access dependencies through the container
+    const provider = serviceContainer.resultsViewProvider;
+    if (!provider) {
       return;
     }
 
@@ -78,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     outputChannel.appendLine('Initializing MCP Server...');
     try {
-      mcpServer = new SqlPreviewMcpServer(resultsViewProvider);
+      mcpServer = new SqlPreviewMcpServer(provider);
       await mcpServer.start();
       mcpStatusBarItem.text = `$(server) MCP Active`;
       mcpStatusBarItem.show();
@@ -153,19 +154,19 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('sql.closeTab', (tabId?: string) => {
       if (tabId) {
-        resultsViewProvider?.closeTab(tabId);
+        serviceContainer.resultsViewProvider.closeTab(tabId);
       } else {
-        resultsViewProvider?.closeActiveTab();
+        serviceContainer.resultsViewProvider.closeActiveTab();
       }
     }),
     vscode.commands.registerCommand('sql.exportFullResults', () => {
-      resultsViewProvider?.exportFullResults();
+      serviceContainer.resultsViewProvider.exportFullResults();
     }),
     vscode.commands.registerCommand('sql.closeOtherTabs', () => {
-      resultsViewProvider?.closeOtherTabs();
+      serviceContainer.resultsViewProvider.closeOtherTabs();
     }),
     vscode.commands.registerCommand('sql.closeAllTabs', () => {
-      resultsViewProvider?.closeAllTabs();
+      serviceContainer.resultsViewProvider.closeAllTabs();
     })
   );
 
@@ -178,16 +179,16 @@ export function activate(context: vscode.ExtensionContext) {
       });
       if (password !== undefined) {
         if (password === '') {
-          await authManager?.clearPassword();
+          await serviceContainer.authManager.clearPassword();
           vscode.window.showInformationMessage('Database password cleared.');
         } else {
-          await authManager?.setPassword(password);
+          await serviceContainer.authManager.setPassword(password);
           vscode.window.showInformationMessage('Database password stored securely.');
         }
       }
     }),
     vscode.commands.registerCommand('sql.clearPassword', async () => {
-      await authManager?.clearPassword();
+      await serviceContainer.authManager.clearPassword();
       vscode.window.showInformationMessage('Database password cleared.');
     }),
     vscode.commands.registerCommand('sql.setPasswordFromSettings', async () => {
@@ -196,7 +197,7 @@ export function activate(context: vscode.ExtensionContext) {
         password: true,
       });
       if (password !== undefined) {
-        await authManager?.setPassword(password);
+        await serviceContainer.authManager.setPassword(password);
         vscode.window.showInformationMessage('Database password stored securely.');
       }
     })
@@ -220,10 +221,13 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: boolean) {
-  if (!resultsViewProvider || !queryExecutor) {
+  if (!serviceContainer) {
     vscode.window.showErrorMessage('SQL Preview services not initialized.');
     return;
   }
+
+  const resultsViewProvider = serviceContainer.resultsViewProvider;
+  const queryExecutor = serviceContainer.queryExecutor;
 
   let sql = sqlFromCodeLens;
   if (!sql) {
@@ -278,6 +282,7 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     tabId = `tab-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     resultsViewProvider.createTabWithId(tabId, sql, title, sourceUri);
   } else {
+    // This calls getOrCreateActiveTabId, which now uses TabManager internally
     tabId = resultsViewProvider.getOrCreateActiveTabId(sql, title, sourceUri);
   }
 
@@ -289,6 +294,10 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     let columns: any[] = [];
     const allRows: any[] = [];
 
+    const config = vscode.workspace.getConfiguration('sqlPreview');
+    const maxRows = config.get<number>('maxRowsToDisplay', 1000);
+    let wasTruncated = false;
+
     for await (const page of generator) {
       if (page.columns) {
         columns = page.columns;
@@ -297,13 +306,20 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
         allRows.push(...page.data);
         totalRows += page.data.length;
       }
+
+      if (allRows.length >= maxRows) {
+        // Truncate to exact limit if needed, though pushing page chunks is slightly more efficient
+        // We'll just stop here.
+        wasTruncated = true;
+        break; // Stop fetching
+      }
     }
 
     const results: QueryResults = {
       columns: columns,
       rows: allRows,
       query: sql,
-      wasTruncated: false,
+      wasTruncated: wasTruncated,
       totalRowsInFirstBatch: totalRows,
     };
 

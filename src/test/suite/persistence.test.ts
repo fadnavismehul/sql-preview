@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { ResultsViewProvider } from '../../resultsViewProvider';
+import { TabManager } from '../../services/TabManager';
+import { ExportService } from '../../services/ExportService';
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import '../setup';
 
@@ -48,7 +50,15 @@ describe('ResultsViewProvider Persistence', () => {
       cancelQuery: jest.fn(),
     } as any;
 
-    provider = new ResultsViewProvider(mockContext.extensionUri, mockContext, mockQueryExecutor);
+    const tabManager = new TabManager();
+    const exportService = new ExportService(mockQueryExecutor);
+
+    provider = new ResultsViewProvider(
+      mockContext.extensionUri,
+      mockContext,
+      tabManager,
+      exportService
+    );
   });
 
   it('should save state when a tab is created', async () => {
@@ -94,7 +104,15 @@ describe('ResultsViewProvider Persistence', () => {
       executeQuery: jest.fn(),
       cancelQuery: jest.fn(),
     } as any;
-    provider = new ResultsViewProvider(mockContext.extensionUri, mockContext, mockQueryExecutor);
+    const tabManager = new TabManager();
+    const exportService = new ExportService(mockQueryExecutor);
+
+    provider = new ResultsViewProvider(
+      mockContext.extensionUri,
+      mockContext,
+      tabManager,
+      exportService
+    );
 
     // Wait for async loadState
     await new Promise(resolve => setTimeout(resolve, 100));

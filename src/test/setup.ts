@@ -1,5 +1,4 @@
 // import * as vscode from 'vscode'; // Currently unused in this file
-import { EventEmitter } from 'events';
 
 // Mock VS Code API
 const mockWebviewPanel = {
@@ -85,7 +84,22 @@ jest.mock('vscode', () => ({
       readFile: jest.fn().mockResolvedValue(Buffer.from('{}') as never),
     },
   },
-  EventEmitter: EventEmitter,
+  EventEmitter: class {
+    private _listeners: Array<(e: any) => any> = [];
+    get event() {
+      return (listener: (e: any) => any) => {
+        this._listeners.push(listener);
+        return {
+          dispose: () => {
+            /* no-op */
+          },
+        };
+      };
+    }
+    fire(data: any) {
+      this._listeners.forEach(l => l(data));
+    }
+  },
   Uri: {
     file: jest.fn(path => ({ fsPath: path, path })),
     parse: jest.fn(),

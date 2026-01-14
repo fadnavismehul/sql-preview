@@ -2,6 +2,8 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
 import { ResultsViewProvider } from '../../resultsViewProvider';
+import { TabManager } from '../../services/TabManager';
+import { ExportService } from '../../services/ExportService';
 
 describe('Tab Management Tests', () => {
   let resultsViewProvider: ResultsViewProvider;
@@ -51,10 +53,14 @@ describe('Tab Management Tests', () => {
       cancelQuery: sinon.stub(),
       runQuery: sinon.stub(),
     } as any;
+    const tabManager = new TabManager();
+    const exportService = new ExportService(mockQueryExecutor);
+
     resultsViewProvider = new ResultsViewProvider(
       mockContext.extensionUri,
       mockContext,
-      mockQueryExecutor
+      tabManager,
+      exportService
     );
     resultsViewProvider.resolveWebviewView(mockWebviewView);
   });
@@ -200,7 +206,8 @@ describe('Tab Management Tests', () => {
       const providerWithoutWebview = new ResultsViewProvider(
         mockContext.extensionUri,
         mockContext,
-        mockQueryExecutor
+        new TabManager(),
+        new ExportService(mockQueryExecutor)
       );
 
       // Should not throw
@@ -220,7 +227,8 @@ describe('Tab Management Tests', () => {
       const providerWithoutWebview = new ResultsViewProvider(
         mockContext.extensionUri,
         mockContext,
-        mockQueryExecutor
+        new TabManager(),
+        new ExportService(mockQueryExecutor)
       );
 
       const tabId = providerWithoutWebview.getOrCreateActiveTabId('SELECT 1', 'Test');
