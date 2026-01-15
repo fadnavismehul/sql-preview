@@ -458,12 +458,17 @@ function updateTabWithResults(tabId, data, title) {
         const type = col.type.toLowerCase();
         const isJson = type.includes('json') || type.includes('array') || type.includes('map') || type.includes('struct');
 
+        // Calculate standard width based on header length
+        // Approx 9px per char + padding. Max 300px, Min 100px.
+        const width = Math.min(Math.max(col.name.length * 9 + 40, 100), 250);
+
         return {
             field: col.name,
             headerName: col.name,
             sortable: true,
             filter: CustomSetFilter, // Use Custom Set Filter (Community)
             resizable: true,
+            width: width, // Manual width calculation
             headerTooltip: col.type,
             cellRenderer: isJson ? JsonCellRenderer : undefined,
             // filterParams removed (Set Filter not supported)
@@ -491,7 +496,7 @@ function updateTabWithResults(tabId, data, title) {
 
         defaultColDef: {
             minWidth: 100,
-            flex: 1, // Occupy width
+            // flex: 1, // Removed forced flex to respect calculated widths
             filter: CustomSetFilter,
             floatingFilter: false, // User requested removal of "bottom filter"
         },
@@ -502,7 +507,8 @@ function updateTabWithResults(tabId, data, title) {
         icons: {
             // Use the Funnel icon for the 'menu' (hamburger) to make it intuitive
             menu: FILTER_ICON_SVG,
-            filter: FILTER_ICON_SVG
+            // Hide the secondary filter icon by making it empty (fixes double icon issue)
+            filter: ' ',
         }
     };
 
@@ -824,15 +830,15 @@ function escapeHtml(unsafe) {
 vscode.postMessage({ command: 'webviewLoaded' });
 function updateGridDensity(density) {
     currentRowHeightDensity = density || 'normal';
-    let rowH = 25;
-    let headH = 32;
+    let rowH = 35;
+    let headH = 42;
 
     if (currentRowHeightDensity === 'compact') {
-        rowH = 20;
-        headH = 26;
+        rowH = 28;
+        headH = 36;
     } else if (currentRowHeightDensity === 'comfortable') {
-        rowH = 35;
-        headH = 40;
+        rowH = 45;
+        headH = 52;
     }
 
     for (const tab of tabs.values()) {
