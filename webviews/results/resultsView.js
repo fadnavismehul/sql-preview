@@ -660,7 +660,12 @@ function updateTabWithResults(tabId, data, title) {
             // Start Drag
             if (params.event.button !== 0) return;
             // Ignore if clicking row selector
-            if (params.column.getColId() === '_rowSelector') return;
+            if (params.column.getColId() === '_rowSelector') {
+                // Clear any existing range selection to avoid interfering with row copy
+                rangeSelection.clear();
+                params.api.refreshCells({ force: true });
+                return;
+            }
 
             const allCols = params.api.getAllDisplayedColumns();
             const colIdx = allCols.indexOf(params.column);
