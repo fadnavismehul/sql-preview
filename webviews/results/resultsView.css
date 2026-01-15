@@ -289,9 +289,11 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    /* Top align */
     height: 100%;
-    padding: 40px 20px;
+    padding: 10vh 20px 20px;
+    /* Push down a bit from top */
     color: var(--vscode-descriptionForeground);
     text-align: center;
 }
@@ -303,13 +305,16 @@ body {
 }
 
 .query-preview {
-    width: 100%;
-    max-width: 800px;
+    width: 90%;
+    /* Flexible width */
+    max-width: 1200px;
+    /* Increased max width */
     background-color: var(--vscode-editor-background);
     border: 1px solid var(--vscode-editorWidget-border);
     border-radius: 4px;
     padding: 12px;
-    overflow: hidden;
+    overflow: auto;
+    /* Allow scroll if needed */
 }
 
 .query-preview pre {
@@ -933,4 +938,45 @@ body.vscode-high-contrast .error-message {
     align-items: flex-start !important;
     padding-top: 4px;
     /* Slight padding for aesthetics */
+}
+
+/* --- Row Selector Column Styles --- */
+
+/* Hide the checkbox in the selector column (both header and body) to create "blank" look */
+.row-selector-cell .ag-selection-checkbox,
+.row-selector-cell .ag-checkbox-input-wrapper {
+    display: none !important;
+}
+
+/* Hide header checkbox for the selector column (if present) */
+.ag-header-cell .ag-header-select-all {
+    display: none !important;
+}
+
+/* Style the selector cell to look clickable and distinct */
+.row-selector-cell {
+    cursor: pointer;
+    background-color: var(--vscode-sideBar-background, #f3f3f3);
+    /* Slightly different background */
+    border-right: 1px solid var(--vscode-editorWidget-border);
+    display: flex;
+    /* Ensure it fills */
+    justify-content: center;
+    align-items: center;
+}
+
+/* Hover effect for the selector cell */
+.row-selector-cell:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Selected Row Styles */
+.ag-row-selected {
+    background-color: var(--vscode-list-activeSelectionBackground) !important;
+    color: var(--vscode-list-activeSelectionForeground) !important;
+}
+
+/* Ensure text color in selected row is readable */
+.ag-row-selected .ag-cell {
+    color: inherit !important;
 }

@@ -454,7 +454,33 @@ function updateTabWithResults(tabId, data, title) {
     tab.content.innerHTML = '';
 
     // Determine Columns and Renderers
-    const columnDefs = data.columns.map(col => {
+    // Determine Columns and Renderers
+    const columnDefs = [];
+
+    // 1. Add Row Selector Column (Blank)
+    columnDefs.push({
+        headerName: '',
+        field: '_rowSelector',
+        width: 40,
+        minWidth: 40,
+        maxWidth: 40,
+        pinned: 'left',
+        resizable: false,
+        sortable: false,
+        filter: false,
+        suppressMenu: true,
+        cellClass: 'row-selector-cell',
+        cellRenderer: () => '', // Ensure it is blank
+        onCellClicked: (params) => {
+            // Toggle selection on click
+            if (params.node) {
+                params.node.setSelected(!params.node.isSelected());
+            }
+        }
+    });
+
+    // 2. Add Data Columns
+    data.columns.forEach(col => {
         const type = col.type.toLowerCase();
         const isJson = type.includes('json') || type.includes('array') || type.includes('map') || type.includes('struct');
 
@@ -462,7 +488,7 @@ function updateTabWithResults(tabId, data, title) {
         // Approx 9px per char + padding. Max 300px, Min 100px.
         const width = Math.min(Math.max(col.name.length * 9 + 40, 100), 250);
 
-        return {
+        columnDefs.push({
             field: col.name,
             headerName: col.name,
             sortable: true,
@@ -471,8 +497,7 @@ function updateTabWithResults(tabId, data, title) {
             width: width, // Manual width calculation
             headerTooltip: col.type,
             cellRenderer: isJson ? JsonCellRenderer : undefined,
-            // filterParams removed (Set Filter not supported)
-        };
+        });
     });
 
     // Setup AG Grid
@@ -489,8 +514,12 @@ function updateTabWithResults(tabId, data, title) {
         pagination: true,
         paginationPageSize: 100,
 
+        // Selection Features
+        rowSelection: 'multiple',
+        suppressRowClickSelection: true,
+
         // Community Features
-        enableCellTextSelection: true,
+        enableCellTextSelection: false, // Changed to false to allow proper selection behavior
         ensureDomOrder: true,
         suppressMenuHide: true,
 
