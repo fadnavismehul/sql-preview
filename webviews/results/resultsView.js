@@ -274,28 +274,28 @@ class CustomSetFilter {
             // Handle null/undef/objects
             let valStr = '(Blanks)';
             if (value !== null && value !== undefined) {
-                 valStr = String(value);
+                valStr = String(value);
             }
             this.uniqueValues.add(valStr);
         });
-        
+
         // Convert to array and sort
         this.sortedValues = Array.from(this.uniqueValues).sort();
-        
+
         // State: filtering selected values
         this.selectedValues = new Set(this.sortedValues);
-        
+
         this.renderList();
 
         // Event Listeners
         this.eFilterText.addEventListener('input', this.onSearchInput.bind(this));
-        
+
         this.btnApply.addEventListener('click', () => {
             if (this.params.filterChangedCallback) {
                 this.params.filterChangedCallback();
             }
         });
-        
+
         this.btnClear.addEventListener('click', () => {
             // Select all
             this.sortedValues.forEach(v => this.selectedValues.add(v));
@@ -350,7 +350,15 @@ class CustomSetFilter {
     }
 
     doesFilterPass(params) {
-        const value = this.params.valueGetter(params.node);
+        // Robust value extraction: Try valueGetter, then field access
+        let value = null;
+        if (this.params.valueGetter) {
+            value = this.params.valueGetter(params.node);
+        }
+        if ((value === null || value === undefined) && params.node.data && this.params.colDef.field) {
+            value = params.node.data[this.params.colDef.field];
+        }
+
         const valStr = (value === null || value === undefined) ? '(Blanks)' : String(value);
         return this.selectedValues.has(valStr);
     }
