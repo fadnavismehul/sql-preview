@@ -910,25 +910,27 @@ body.vscode-high-contrast .error-message {
     display: none !important;
 }
 
-/* AG Grid filtered header cell class - Color the funnel with export button color */
-.ag-header-cell-filtered .ag-icon-menu {
-    color: var(--vscode-button-background);
-    /* Highlight color (same as export button) */
-    font-weight: bold;
+/* AG Grid filtered header cell class - Background highlight */
+.ag-header-cell-filtered {
+    background-color: var(--vscode-button-background) !important;
+    transition: background-color 0.2s;
 }
 
-/* Also add a dot for extra visibility, slightly larger and matching color */
+/* Update text and icon color to match button foreground (usually white) */
+.ag-header-cell-filtered .ag-header-cell-text,
+.ag-header-cell-filtered .ag-icon-menu,
+.ag-header-cell-filtered .ag-sort-indicator-icon {
+    color: var(--vscode-button-foreground) !important;
+}
+
+/* Remove the dot (replaced by background color) */
 .ag-header-cell-filtered .ag-header-cell-menu-button::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    width: 8px;
-    /* Bigger dot */
-    height: 8px;
-    background-color: var(--vscode-button-background);
-    /* Highlight color */
-    border-radius: 50%;
-    border: 1px solid var(--vscode-editorWidget-background);
-    pointer-events: none;
+    display: none;
+}
+
+/* Top Align Code in Cells */
+.ag-theme-quartz .ag-cell-value {
+    align-items: flex-start !important;
+    padding-top: 4px;
+    /* Slight padding for aesthetics */
 }

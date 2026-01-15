@@ -491,6 +491,7 @@ function updateTabWithResults(tabId, data, title) {
 
         defaultColDef: {
             minWidth: 100,
+            flex: 1, // Occupy width
             filter: CustomSetFilter,
             floatingFilter: false, // User requested removal of "bottom filter"
         },
@@ -517,8 +518,11 @@ function updateTabWithResults(tabId, data, title) {
     tab.content.appendChild(gridDiv);
 
     if (typeof agGrid !== 'undefined') {
-        agGrid.createGrid(gridDiv, gridOptions);
+        // Capture API (Works for v31+)
+        const api = agGrid.createGrid(gridDiv, gridOptions);
         tab.gridOptions = gridOptions;
+        // If createGrid returns undefined (older versions), fall back to gridOptions.api
+        tab.api = api || gridOptions.api;
     } else {
         tab.content.innerHTML = '<div class="error-message">Error: AG Grid library not loaded.</div>';
     }
@@ -832,24 +836,28 @@ function updateGridDensity(density) {
     }
 
     for (const tab of tabs.values()) {
-        if (tab.gridOptions && tab.gridOptions.api) {
-            // Update properties
-            tab.gridOptions.rowHeight = rowH;
-            tab.gridOptions.headerHeight = headH;
-
-            // Use API methods to enforce changes
-            if (typeof tab.gridOptions.api.setGridOption === 'function') {
-                tab.gridOptions.api.setGridOption('rowHeight', rowH);
-                tab.gridOptions.api.setGridOption('headerHeight', headH);
+        const api = tab.api || (tab.gridOptions && tab.gridOptions.api); // Use stored API or fallback
+        if (api) {
+            // Update properties on gridOptions primarily for reference
+            if (tab.gridOptions) {
+                tab.gridOptions.rowHeight = rowH;
+                tab.gridOptions.headerHeight = headH;
             }
 
-            // Explicitly reset row heights
-            tab.gridOptions.api.resetRowHeights();
-
-            // Explicitly set header height (API method takes precedence)
-            if (typeof tab.gridOptions.api.setHeaderHeight === 'function') {
-                tab.gridOptions.api.setHeaderHeight(headH);
+            // Use API methods to enforce changes
+            // Try setGridOption (v31+)
+            if (typeof api.setGridOption === 'function') {
+                api.setGridOption('rowHeight', rowH);
+                api.setGridOption('headerHeight', headH);
+            }
+            // Fallback or explicit methods
+            if (typeof api.resetRowHeights === 'function') {
+                api.resetRowHeights();
+            }
+            if (typeof api.setHeaderHeight === 'function') {
+                api.setHeaderHeight(headH);
             }
         }
     }
 }
+
