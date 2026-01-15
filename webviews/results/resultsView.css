@@ -796,3 +796,75 @@ body.vscode-high-contrast .error-message {
 .json-modal-overlay {
     backdrop-filter: blur(2px);
 }
+
+/* --- Custom Set Filter Styles --- */
+.custom-set-filter {
+    background-color: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-editorWidget-border);
+    padding: 8px;
+    width: 200px;
+    display: flex;
+    flex-direction: column;
+    color: var(--vscode-editor-foreground);
+    font-family: var(--vscode-font-family);
+    font-size: 13px;
+    max-height: 300px;
+}
+
+.custom-set-filter-search {
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--vscode-input-border);
+    padding-bottom: 8px;
+}
+
+.custom-set-filter-search input {
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    padding: 4px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.custom-set-filter-list {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--vscode-editorWidget-border);
+    margin-bottom: 8px;
+    padding: 4px;
+    background-color: var(--vscode-input-background);
+}
+
+.custom-set-filter-item {
+    display: flex;
+    align-items: center;
+    padding: 2px 4px;
+    cursor: pointer;
+}
+
+.custom-set-filter-item:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.custom-set-filter-item input {
+    margin-right: 6px;
+}
+
+.custom-set-filter-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.custom-set-filter-actions button {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 4px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.custom-set-filter-actions button:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}

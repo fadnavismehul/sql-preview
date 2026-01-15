@@ -228,7 +228,139 @@ window.cancelQuery = function (tabId) {
     vscode.postMessage({ command: 'cancelQuery', tabId: tabId });
 };
 
-// --- JSON Rendering ---
+// --- Custom Set Filter (Community Edition Implementation) ---
+class CustomSetFilter {
+    init(params) {
+        this.params = params;
+        this.filterText = null;
+        this.setupGui(params);
+    }
+
+    // Setup the UI
+    setupGui(params) {
+        this.gui = document.createElement('div');
+        this.gui.className = 'custom-set-filter';
+        this.gui.innerHTML = `
+            <div class="custom-set-filter-search">
+                <input type="text" placeholder="Search..." id="filter-search-${params.colDef.field}">
+            </div>
+            <div class="custom-set-filter-list" id="filter-list-${params.colDef.field}"></div>
+            <div class="custom-set-filter-actions">
+                <button id="btn-apply-${params.colDef.field}">Apply</button>
+                <button id="btn-clear-${params.colDef.field}">Clear</button>
+            </div>
+        `;
+
+        this.eFilterText = this.gui.querySelector(`#filter-search-${params.colDef.field}`);
+        this.eFilterList = this.gui.querySelector(`#filter-list-${params.colDef.field}`);
+        this.btnApply = this.gui.querySelector(`#btn-apply-${params.colDef.field}`);
+        this.btnClear = this.gui.querySelector(`#btn-clear-${params.colDef.field}`);
+
+        // Extract unique values
+        this.uniqueValues = new Set();
+        this.params.api.forEachNode(node => {
+            const value = this.params.valueGetter(node);
+            // Handle null/undef
+            const valStr = (value === null || value === undefined) ? '(Blanks)' : String(value);
+            this.uniqueValues.add(valStr);
+        });
+
+        // Convert to array and sort
+        this.sortedValues = Array.from(this.uniqueValues).sort();
+
+        // State: filtering selected values
+        // Initially, we consider "all selected" effectively inactive, 
+        // but for a set filter, we track what is UNSELECTED if we want "checked means include".
+        // Let's track SELECTED values. Initially all are selected.
+        this.selectedValues = new Set(this.sortedValues);
+
+        this.renderList();
+
+        // Event Listeners
+        this.eFilterText.addEventListener('input', this.onSearchInput.bind(this));
+
+        this.btnApply.addEventListener('click', () => {
+            this.params.filterChangedCallback();
+        });
+
+        this.btnClear.addEventListener('click', () => {
+            // Select all
+            this.sortedValues.forEach(v => this.selectedValues.add(v));
+            this.eFilterText.value = '';
+            this.renderList();
+            this.params.filterChangedCallback();
+        });
+    }
+
+    renderList() {
+        this.eFilterList.innerHTML = '';
+        const filterTerm = this.eFilterText.value.toLowerCase();
+
+        this.sortedValues.forEach(value => {
+            if (value.toLowerCase().indexOf(filterTerm) >= 0) {
+                const item = document.createElement('div');
+                item.className = 'custom-set-filter-item';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = this.selectedValues.has(value);
+                checkbox.value = value;
+
+                // Toggle selection
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        this.selectedValues.add(value);
+                    } else {
+                        this.selectedValues.delete(value);
+                    }
+                });
+
+                const label = document.createElement('span');
+                label.textContent = value;
+                label.onclick = () => checkbox.click(); // Click label to toggle
+
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                this.eFilterList.appendChild(item);
+            }
+        });
+    }
+
+    onSearchInput() {
+        this.renderList();
+    }
+
+    getGui() {
+        return this.gui;
+    }
+
+    doesFilterPass(params) {
+        const value = this.params.valueGetter(params.node);
+        const valStr = (value === null || value === undefined) ? '(Blanks)' : String(value);
+        return this.selectedValues.has(valStr);
+    }
+
+    isFilterActive() {
+        // Active if NOT all values are selected
+        return this.selectedValues.size !== this.uniqueValues.size;
+    }
+
+    getModel() {
+        if (!this.isFilterActive()) {
+            return null;
+        }
+        return { value: Array.from(this.selectedValues) };
+    }
+
+    setModel(model) {
+        if (model && model.value) {
+            this.selectedValues = new Set(model.value);
+        } else {
+            this.selectedValues = new Set(this.sortedValues); // Reset
+        }
+        this.renderList();
+    }
+}
 
 class JsonCellRenderer {
     init(params) {
@@ -303,7 +435,7 @@ function updateTabWithResults(tabId, data, title) {
             field: col.name,
             headerName: col.name,
             sortable: true,
-            filter: true, // Default Community filter
+            filter: CustomSetFilter, // Use Custom Set Filter (Community)
             resizable: true,
             headerTooltip: col.type,
             cellRenderer: isJson ? JsonCellRenderer : undefined,
@@ -332,7 +464,7 @@ function updateTabWithResults(tabId, data, title) {
 
         defaultColDef: {
             minWidth: 100,
-            filter: true, // Standard text filter
+            filter: CustomSetFilter,
             floatingFilter: false, // User requested removal of "bottom filter"
         },
 
