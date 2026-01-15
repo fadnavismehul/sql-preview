@@ -7,7 +7,136 @@
 const vscode = acquireVsCodeApi();
 
 // --- State ---
-const tabs = new Map(); // Stores gridOptions and data for each tab
+const tabs = new Map();
+
+// --- Custom Range Selection State ---
+const rangeSelection = {
+    active: false,
+    start: null, // { rowIndex, colIndex }
+    end: null,
+    tabId: null,
+
+    clear() {
+        this.active = false;
+        this.start = null;
+        this.end = null;
+        this.tabId = null;
+    }
+};
+
+// End drag on mouseup
+document.addEventListener('mouseup', () => {
+    if (rangeSelection.active) {
+        rangeSelection.isDragging = false;
+    }
+});
+
+function isRangeSelected(params) {
+    if (!rangeSelection.start || !rangeSelection.end || rangeSelection.tabId !== params.api.tabId) return false;
+
+    // Check if cell is within range
+    const allCols = params.api.getAllDisplayedColumns();
+    const colIdx = allCols.indexOf(params.column);
+    const rowIdx = params.node.rowIndex;
+
+    const startRow = Math.min(rangeSelection.start.rowIndex, rangeSelection.end.rowIndex);
+    const endRow = Math.max(rangeSelection.start.rowIndex, rangeSelection.end.rowIndex);
+    const startCol = Math.min(rangeSelection.start.colIndex, rangeSelection.end.colIndex);
+    const endCol = Math.max(rangeSelection.start.colIndex, rangeSelection.end.colIndex);
+
+    return rowIdx >= startRow && rowIdx <= endRow && colIdx >= startCol && colIdx <= endCol;
+}
+
+// Global Copy Listener
+document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+        const selection = window.getSelection();
+        // If user is selecting text explicitly (text selection enabled), let browser handle it
+        // BUT if we are in "range mode" (active), we should override it?
+        // User wants "drag over cells and copy".
+        // Screenshot 2 shows blue cell selection. Native text selection is usually gray/blue overlay text only.
+        // If our custom selection is visually active, we override.
+        if (rangeSelection.active) {
+            // Override native copy
+        } else if (selection && selection.toString().length > 0) {
+            return;
+        }
+
+        let activeTab = null;
+        for (const tab of tabs.values()) {
+            if (tab.content.classList.contains('active')) {
+                activeTab = tab;
+                break;
+            }
+        }
+
+        if (activeTab && activeTab.api) {
+            // 1. Custom Range Selection
+            if (rangeSelection.active && rangeSelection.tabId === activeTab.id && rangeSelection.start && rangeSelection.end) {
+                e.preventDefault();
+                copyRangeToClipboard(activeTab);
+                return;
+            }
+
+            // 2. Standard Row Selection (Fallback)
+            const selected = activeTab.api.getSelectedRows();
+            if (selected && selected.length > 0) {
+                e.preventDefault();
+                const rowsArray = selected.map(rowObj => {
+                    // Follow column order if possible
+                    if (activeTab.columns) {
+                        return activeTab.columns.map(col => rowObj[col.name]);
+                    }
+                    return Object.values(rowObj);
+                });
+                copyToClipboard(activeTab.columns || [], rowsArray, true);
+            }
+        }
+    }
+});
+
+function copyRangeToClipboard(tab) {
+    const api = tab.api;
+    if (!api) return;
+
+    // Calculate selection bounds
+    const startRow = Math.min(rangeSelection.start.rowIndex, rangeSelection.end.rowIndex);
+    const endRow = Math.max(rangeSelection.start.rowIndex, rangeSelection.end.rowIndex);
+    const startColIdx = Math.min(rangeSelection.start.colIndex, rangeSelection.end.colIndex);
+    const endColIdx = Math.max(rangeSelection.start.colIndex, rangeSelection.end.colIndex);
+
+    // Get displayed columns to ensure visual order
+    const allCols = api.getAllDisplayedColumns ? api.getAllDisplayedColumns() : []; // Safe check
+
+    const relevantCols = [];
+    const colHeaders = [];
+
+    // Collect columns in range
+    for (let c = startColIdx; c <= endColIdx; c++) {
+        const col = allCols[c];
+        if (col) { // Skip selector/system columns if needed? Selector is usually index 0.
+            // If they select selector column, we might or might not include it. empty string renderer.
+            // The selector column usually has empty header.
+            // user wants data. 
+            // If col id is '_rowSelector', skip it?
+            if (col.getColId() !== '_rowSelector') {
+                relevantCols.push(col);
+                colHeaders.push({ name: col.getColDef().headerName || col.getColId() });
+            }
+        }
+    }
+
+    const rows = [];
+    for (let r = startRow; r <= endRow; r++) {
+        const rowNode = api.getDisplayedRowAtIndex(r);
+        if (rowNode) {
+            const rowData = relevantCols.map(col => api.getValue(col, rowNode));
+            rows.push(rowData);
+        }
+    }
+
+    copyToClipboard(colHeaders, rows, true);
+}
 let activeTabId = null;
 let currentRowHeightDensity = 'normal';
 
@@ -452,6 +581,7 @@ function updateTabWithResults(tabId, data, title) {
 
     // Clear loading/error content
     tab.content.innerHTML = '';
+    tab.columns = data.columns; // Store columns for copy operations
 
     // Determine Columns and Renderers
     // Determine Columns and Renderers
@@ -523,16 +653,53 @@ function updateTabWithResults(tabId, data, title) {
         suppressRowClickSelection: true,
 
         // Community Features
-        enableCellTextSelection: true, // Re-enabled for drag selection and copy
+        // Community Features
+        enableCellTextSelection: false, // Disabled to allow custom cell drag selection
+
+        onCellMouseDown: (params) => {
+            // Start Drag
+            if (params.event.button !== 0) return;
+            // Ignore if clicking row selector
+            if (params.column.getColId() === '_rowSelector') return;
+
+            const allCols = params.api.getAllDisplayedColumns();
+            const colIdx = allCols.indexOf(params.column);
+
+            rangeSelection.active = true;
+            rangeSelection.isDragging = true;
+            rangeSelection.tabId = tabId;
+            rangeSelection.start = { rowIndex: params.rowIndex, colIndex: colIdx };
+            rangeSelection.end = { rowIndex: params.rowIndex, colIndex: colIdx };
+
+            // Attach tabId to api for the global checker
+            params.api.tabId = tabId;
+
+            params.api.refreshCells({ force: true });
+        },
+
+        onCellMouseOver: (params) => {
+            // Update Drag
+            if (rangeSelection.isDragging && rangeSelection.tabId === tabId) {
+                const allCols = params.api.getAllDisplayedColumns();
+                const colIdx = allCols.indexOf(params.column);
+
+                if (rangeSelection.end.rowIndex !== params.rowIndex || rangeSelection.end.colIndex !== colIdx) {
+                    rangeSelection.end = { rowIndex: params.rowIndex, colIndex: colIdx };
+                    params.api.refreshCells({ force: true });
+                }
+            }
+        },
 
         ensureDomOrder: true,
         suppressMenuHide: true,
 
         defaultColDef: {
             minWidth: 100,
-            // flex: 1, // Removed forced flex to respect calculated widths
             filter: CustomSetFilter,
-            floatingFilter: false, // User requested removal of "bottom filter"
+            floatingFilter: false,
+            cellClassRules: {
+                'range-selected-cell': (params) => isRangeSelected(params)
+            }
         },
 
         // Status Bar (Removed Enterprise)

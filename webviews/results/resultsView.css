@@ -999,3 +999,12 @@ body.vscode-high-contrast .error-message {
 .ag-cell-focus {
     border-color: var(--vscode-focusBorder) !important;
 }
+
+/* Custom Range Selection Style (Blue Highlight to match DataGrip/Google Sheets) */
+.range-selected-cell {
+    background-color: rgba(33, 150, 243, 0.3) !important;
+    /* Blue with transparency */
+    border: 1px solid rgba(33, 150, 243, 0.6) !important;
+    /* Lighter blue border */
+    /* Ensure selection logic overrides native selection color if needed */
+}
