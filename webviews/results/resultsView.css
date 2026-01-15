@@ -781,7 +781,7 @@ body.vscode-high-contrast .error-message {
 .ag-theme-quartz {
     /* Refine border radius for a smoother look */
     --ag-border-radius: 4px;
-    
+
     /* Make header nicer */
     --ag-header-height: 36px;
 }
@@ -799,22 +799,24 @@ body.vscode-high-contrast .error-message {
 
 /* --- Custom Set Filter Styles --- */
 .custom-set-filter {
-    background-color: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-editorWidget-border);
+    background-color: var(--vscode-editorWidget-background);
+    border: 1px solid var(--vscode-widget-border, var(--vscode-editorWidget-border));
+    box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.15));
     padding: 8px;
     width: 200px;
     display: flex;
     flex-direction: column;
     color: var(--vscode-editor-foreground);
     font-family: var(--vscode-font-family);
-    font-size: 13px;
+    font-size: calc(var(--sql-preview-font-size, var(--vscode-editor-font-size, var(--vscode-font-size))) * 0.9);
     max-height: 300px;
+    border-radius: 2px;
 }
 
 .custom-set-filter-search {
-    margin-bottom: 8px;
-    border-bottom: 1px solid var(--vscode-input-border);
-    padding-bottom: 8px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
 }
 
 .custom-set-filter-search input {
@@ -824,47 +826,89 @@ body.vscode-high-contrast .error-message {
     padding: 4px;
     width: 100%;
     box-sizing: border-box;
+    font-family: inherit;
+    font-size: inherit;
+    border-radius: 2px;
+}
+
+.custom-set-filter-search input:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    border-color: var(--vscode-focusBorder);
 }
 
 .custom-set-filter-list {
     flex: 1;
     overflow-y: auto;
-    border: 1px solid var(--vscode-editorWidget-border);
+    border: 1px solid var(--vscode-input-border, transparent);
     margin-bottom: 8px;
-    padding: 4px;
+    padding: 2px 0;
     background-color: var(--vscode-input-background);
+    /* Match input bg for list area */
+}
+
+/* Custom scrollbar for the list */
+.custom-set-filter-list::-webkit-scrollbar {
+    width: 10px;
+}
+
+.custom-set-filter-list::-webkit-scrollbar-thumb {
+    background-color: var(--vscode-scrollbarSlider-background);
+}
+
+.custom-set-filter-list::-webkit-scrollbar-thumb:hover {
+    background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.custom-set-filter-list::-webkit-scrollbar-thumb:active {
+    background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
 .custom-set-filter-item {
     display: flex;
     align-items: center;
-    padding: 2px 4px;
+    padding: 3px 6px;
     cursor: pointer;
+    user-select: none;
 }
 
 .custom-set-filter-item:hover {
     background-color: var(--vscode-list-hoverBackground);
+    color: var(--vscode-list-hoverForeground);
 }
 
 .custom-set-filter-item input {
-    margin-right: 6px;
+    margin-right: 8px;
+    cursor: pointer;
 }
 
 .custom-set-filter-actions {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid var(--vscode-editorWidget-border);
 }
 
 .custom-set-filter-actions button {
-    background-color: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    padding: 4px 10px;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: 1px solid var(--vscode-button-border, transparent);
+    padding: 4px 12px;
     cursor: pointer;
     border-radius: 2px;
+    font-family: inherit;
+    font-size: inherit;
 }
 
 .custom-set-filter-actions button:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.custom-set-filter-actions button.primary {
+    background-color: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.custom-set-filter-actions button.primary:hover {
     background-color: var(--vscode-button-hoverBackground);
 }
