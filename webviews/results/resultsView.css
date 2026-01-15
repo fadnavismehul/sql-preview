@@ -980,3 +980,22 @@ body.vscode-high-contrast .error-message {
 .ag-row-selected .ag-cell {
     color: inherit !important;
 }
+
+/* Scale down the filter/menu icon to avoid overlap and save space */
+.ag-header-cell-menu-button .ag-icon {
+    font-size: 14px;
+    /* Default is usually 16px */
+    transform: scale(0.9);
+}
+
+/* Ensure text selection (re-enabled for cells) matches theme selection color */
+.ag-cell::selection,
+.ag-cell *::selection {
+    background-color: var(--vscode-editor-selectionBackground) !important;
+    color: var(--vscode-editor-selectionForeground, inherit) !important;
+}
+
+/* Fix "weird" selection by ensuring focus outline is subtle */
+.ag-cell-focus {
+    border-color: var(--vscode-focusBorder) !important;
+}

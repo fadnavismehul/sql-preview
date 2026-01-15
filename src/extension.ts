@@ -272,10 +272,21 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     sourceUri = 'sql-preview:scratchpad';
   }
 
-  // Simple title generation
-  const title = sourceUri
-    ? `Result ${resultsViewProvider.getMaxResultCountForFile(sourceUri) + 1}`
-    : 'Result';
+  // Determine Title based on Configuration
+  const config = vscode.workspace.getConfiguration('sqlPreview');
+  const contextNaming = config.get<string>('tabNaming', 'file-sequential');
+
+  let title = 'Result';
+  if (contextNaming === 'query-snippet') {
+    // Use first 16 chars of query
+    const snippet = sql.replace(/\s+/g, ' ').substring(0, 16).trim();
+    title = snippet || 'Query';
+  } else {
+    // Default: file-sequential
+    title = sourceUri
+      ? `Result ${resultsViewProvider.getMaxResultCountForFile(sourceUri) + 1}`
+      : 'Result';
+  }
 
   let tabId: string;
   if (newTab) {

@@ -475,6 +475,10 @@ function updateTabWithResults(tabId, data, title) {
             // Toggle selection on click
             if (params.node) {
                 params.node.setSelected(!params.node.isSelected());
+                // Focus the cell to ensure keyboard shortcuts (like Copy) work
+                if (params.api) {
+                    params.api.setFocusedCell(params.rowIndex, '_rowSelector');
+                }
             }
         }
     });
@@ -485,8 +489,8 @@ function updateTabWithResults(tabId, data, title) {
         const isJson = type.includes('json') || type.includes('array') || type.includes('map') || type.includes('struct');
 
         // Calculate standard width based on header length
-        // Approx 9px per char + padding. Max 300px, Min 100px.
-        const width = Math.min(Math.max(col.name.length * 9 + 40, 100), 250);
+        // Approx 9px per char + padding (80px for filter icon space). Max 300px, Min 100px.
+        const width = Math.min(Math.max(col.name.length * 9 + 80, 100), 250);
 
         columnDefs.push({
             field: col.name,
@@ -519,7 +523,8 @@ function updateTabWithResults(tabId, data, title) {
         suppressRowClickSelection: true,
 
         // Community Features
-        enableCellTextSelection: false, // Changed to false to allow proper selection behavior
+        enableCellTextSelection: true, // Re-enabled for drag selection and copy
+
         ensureDomOrder: true,
         suppressMenuHide: true,
 
