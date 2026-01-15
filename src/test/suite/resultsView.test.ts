@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { mockWebviewPanel } from '../setup';
+import { mockWebviewPanel, mockWorkspaceConfig } from '../setup';
 import { ResultsViewProvider } from '../../resultsViewProvider';
 import { TabManager } from '../../services/TabManager';
 import { ExportService } from '../../services/ExportService';
@@ -96,6 +96,33 @@ describe('ResultsViewProvider Tests', () => {
       title: 'Test Tab',
       data,
     });
+  });
+
+  test('should send updateRowHeight message when webviewLoaded is received', async () => {
+    // Mock config behavior just for this test
+    mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
+      if (key === 'rowHeight') {
+        return 'normal';
+      }
+      return defaultValue;
+    });
+
+    // Get the onDidReceiveMessage handler registered in resolveWebviewView
+    const onDidReceiveMessageMock = mockWebviewPanel.webview.onDidReceiveMessage as jest.Mock;
+
+    // The handler is the first argument of the first call found
+    const messageHandler = onDidReceiveMessageMock.mock.calls[0][0];
+
+    // Simulate sending 'webviewLoaded'
+    await messageHandler({ command: 'webviewLoaded' });
+
+    // Verify 'updateRowHeight' was sent back
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'updateRowHeight',
+        density: 'normal',
+      })
+    );
   });
 
   test('should show results for specific tab', async () => {

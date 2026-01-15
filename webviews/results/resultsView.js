@@ -833,10 +833,23 @@ function updateGridDensity(density) {
 
     for (const tab of tabs.values()) {
         if (tab.gridOptions && tab.gridOptions.api) {
-            tab.gridOptions.api.setGridOption('rowHeight', rowH);
-            tab.gridOptions.api.setGridOption('headerHeight', headH);
-            // Force redraw essentially
+            // Update properties
+            tab.gridOptions.rowHeight = rowH;
+            tab.gridOptions.headerHeight = headH;
+
+            // Use API methods to enforce changes
+            if (typeof tab.gridOptions.api.setGridOption === 'function') {
+                tab.gridOptions.api.setGridOption('rowHeight', rowH);
+                tab.gridOptions.api.setGridOption('headerHeight', headH);
+            }
+
+            // Explicitly reset row heights
             tab.gridOptions.api.resetRowHeights();
+
+            // Explicitly set header height (API method takes precedence)
+            if (typeof tab.gridOptions.api.setHeaderHeight === 'function') {
+                tab.gridOptions.api.setHeaderHeight(headH);
+            }
         }
     }
 }

@@ -903,23 +903,31 @@ body.vscode-high-contrast .error-message {
 .custom-set-filter-actions button.primary:hover {
     background-color: var(--ag-row-hover-color, #f0f0f0);
 }
+
 /* Active Filter Indicator */
-/* AG Grid filtered header cell class */
+/* Hide the default filter icon since we are using the 'menu' (funnel) icon */
+.ag-icon-filter {
+    display: none !important;
+}
+
+/* AG Grid filtered header cell class - Color the funnel with export button color */
 .ag-header-cell-filtered .ag-icon-menu {
-    /* Make the funnel green */
-    color: var(--vscode-charts-green, #37a726); 
+    color: var(--vscode-button-background);
+    /* Highlight color (same as export button) */
     font-weight: bold;
 }
 
-/* Also add a green dot for extra visibility as requested */
+/* Also add a dot for extra visibility, slightly larger and matching color */
 .ag-header-cell-filtered .ag-header-cell-menu-button::after {
     content: '';
     position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    background-color: var(--vscode-charts-green, #37a726);
+    top: 3px;
+    right: 3px;
+    width: 8px;
+    /* Bigger dot */
+    height: 8px;
+    background-color: var(--vscode-button-background);
+    /* Highlight color */
     border-radius: 50%;
     border: 1px solid var(--vscode-editorWidget-background);
     pointer-events: none;
