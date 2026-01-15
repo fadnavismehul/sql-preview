@@ -9,6 +9,7 @@ const vscode = acquireVsCodeApi();
 // --- State ---
 const tabs = new Map(); // Stores gridOptions and data for each tab
 let activeTabId = null;
+let currentRowHeightDensity = 'normal';
 
 // --- Elements ---
 const tabList = document.getElementById('tab-list');
@@ -56,6 +57,9 @@ window.addEventListener('message', event => {
             break;
         case 'filterTabs':
             filterTabsByFile(message.fileUri, message.fileName);
+            break;
+        case 'updateRowHeight':
+            updateGridDensity(message.density);
             break;
     }
 });
@@ -495,6 +499,8 @@ function updateTabWithResults(tabId, data, title) {
 
         // Custom Icons
         icons: {
+            // Use the Funnel icon for the 'menu' (hamburger) to make it intuitive
+            menu: FILTER_ICON_SVG,
             filter: FILTER_ICON_SVG
         }
     };
@@ -812,3 +818,25 @@ function escapeHtml(unsafe) {
 
 // Signal ready
 vscode.postMessage({ command: 'webviewLoaded' });
+function updateGridDensity(density) {
+    currentRowHeightDensity = density || 'normal';
+    let rowH = 25;
+    let headH = 32;
+
+    if (currentRowHeightDensity === 'compact') {
+        rowH = 20;
+        headH = 26;
+    } else if (currentRowHeightDensity === 'comfortable') {
+        rowH = 35;
+        headH = 40;
+    }
+
+    for (const tab of tabs.values()) {
+        if (tab.gridOptions && tab.gridOptions.api) {
+            tab.gridOptions.api.setGridOption('rowHeight', rowH);
+            tab.gridOptions.api.setGridOption('headerHeight', headH);
+            // Force redraw essentially
+            tab.gridOptions.api.resetRowHeights();
+        }
+    }
+}

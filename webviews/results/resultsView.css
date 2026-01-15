@@ -903,3 +903,24 @@ body.vscode-high-contrast .error-message {
 .custom-set-filter-actions button.primary:hover {
     background-color: var(--ag-row-hover-color, #f0f0f0);
 }
+/* Active Filter Indicator */
+/* AG Grid filtered header cell class */
+.ag-header-cell-filtered .ag-icon-menu {
+    /* Make the funnel green */
+    color: var(--vscode-charts-green, #37a726); 
+    font-weight: bold;
+}
+
+/* Also add a green dot for extra visibility as requested */
+.ag-header-cell-filtered .ag-header-cell-menu-button::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    background-color: var(--vscode-charts-green, #37a726);
+    border-radius: 50%;
+    border: 1px solid var(--vscode-editorWidget-background);
+    pointer-events: none;
+}

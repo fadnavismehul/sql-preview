@@ -104,7 +104,15 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 
         this._postMessage({ type: 'updateFontSize', fontSize: fontSizeValue });
       }
+
+      if (e.affectsConfiguration('sqlPreview.rowHeight')) {
+        const config = vscode.workspace.getConfiguration('sqlPreview');
+        const density = config.get<string>('rowHeight', 'normal');
+        this._postMessage({ type: 'updateRowHeight', density });
+      }
     });
+
+    // Initial configuration is sent when 'webviewLoaded' is received
 
     webviewView.onDidDispose(() => {
       configListener.dispose();
@@ -121,12 +129,17 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           // but we can trigger the command.
           vscode.commands.executeCommand('sql.runQueryNewTab');
           return;
-        case 'webviewLoaded':
+        case 'webviewLoaded': {
           this._restoreTabsToWebview();
           if (this._activeEditorUri) {
             this._filterTabsByFile(this._activeEditorUri);
           }
+          // Send current row height setting
+          const config = vscode.workspace.getConfiguration('sqlPreview');
+          const density = config.get<string>('rowHeight', 'normal');
+          this._postMessage({ type: 'updateRowHeight', density });
           return;
+        }
         case 'tabClosed':
           this.log(`Tab closed: ${data.tabId}`);
           this._tabManager.removeTab(data.tabId);

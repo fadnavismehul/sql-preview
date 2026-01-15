@@ -251,6 +251,17 @@
           "default": "trino",
           "description": "Database connector to use.",
           "order": 12
+        },
+        "sqlPreview.rowHeight": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "normal",
+            "comfortable"
+          ],
+          "default": "normal",
+          "description": "Grid row height density.",
+          "order": 15
         }
       }
     }

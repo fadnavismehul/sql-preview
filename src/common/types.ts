@@ -111,4 +111,5 @@ export type ExtensionToWebviewMessage =
   | { type: 'closeOtherTabs' }
   | { type: 'closeAllTabs' }
   | { type: 'updateFontSize'; fontSize: string }
-  | { type: 'filterTabs'; fileUri?: string | undefined; fileName?: string | undefined };
+  | { type: 'filterTabs'; fileUri?: string | undefined; fileName?: string | undefined }
+  | { type: 'updateRowHeight'; density: string };
