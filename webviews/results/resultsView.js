@@ -1,6 +1,6 @@
 /**
  * Webview Script for SQL Results
- * Handles the display of query results using AG Grid Enterprise.
+ * Handles the display of query results using AG Grid Community (Free).
  */
 
 // Initialize VS Code API
@@ -303,14 +303,11 @@ function updateTabWithResults(tabId, data, title) {
             field: col.name,
             headerName: col.name,
             sortable: true,
-            filter: 'agSetColumnFilter', // Enterprise Feature: Set Filter
+            filter: true, // Default Community filter
             resizable: true,
             headerTooltip: col.type,
             cellRenderer: isJson ? JsonCellRenderer : undefined,
-            // Use specific filter params if needed
-            filterParams: {
-                buttons: ['reset']
-            }
+            // filterParams removed (Set Filter not supported)
         };
     });
 
@@ -328,31 +325,18 @@ function updateTabWithResults(tabId, data, title) {
         pagination: true,
         paginationPageSize: 100,
 
-        // Enterprise Features for "10X Better" Experience
-        enableRangeSelection: true, // DataGrip-like selection
-        rowSelection: 'multiple',
-        suppressRowClickSelection: true, // Let range selection handle it, or stick to simple row clicking. Actually, users might expect clicking a row number to select row. 
-        // With enableRangeSelection, clicking cells selects cells. Clicking row header selects row.
-
-        enableCellTextSelection: false, // Disable browser selection to allow clean Range Selection
+        // Community Features
+        enableCellTextSelection: true,
         ensureDomOrder: true,
         suppressMenuHide: true,
 
         defaultColDef: {
             minWidth: 100,
-            filter: 'agSetColumnFilter',
-            floatingFilter: true, // Nice to have for quick filtering
-            menuTabs: ['filterMenuTab', 'generalMenuTab', 'columnsMenuTab'],
+            filter: true, // Standard text filter
+            floatingFilter: false, // User requested removal of "bottom filter"
         },
 
-        // Status Bar (Enterprise)
-        statusBar: {
-            statusPanels: [
-                { statusPanel: 'agTotalAndFilteredRowCountComponent', align: 'left' },
-                { statusPanel: 'agTotalRowCountComponent', align: 'center' },
-                { statusPanel: 'agAggregationComponent', align: 'right' }, // Sum, Avg, etc.
-            ]
-        },
+        // Status Bar (Removed Enterprise)
 
         // Custom Icons
         icons: {
@@ -383,28 +367,54 @@ function createToolbar(tabId, gridOptions, data) {
     const toolbar = document.createElement('div');
     toolbar.className = 'controls';
 
-    // Row Count Info (Left Side Now) - Optional, since Status Bar handles it better in Enterprise
-    // But we keep truncation warning.
+    // Row Count Info (Left Side - Restored for Community)
     const leftGroup = document.createElement('div');
+    const infoText = document.createElement('span');
+    infoText.id = 'status-message';
+    infoText.textContent = `${data.rows.length} rows`;
 
     if (data.wasTruncated) {
         const warn = document.createElement('span');
         warn.id = 'truncation-warning';
-        warn.textContent = 'Results Truncated';
+        warn.textContent = ' (Truncated)';
         warn.title = 'Result set was truncated. Use "Export All" to get full data.';
         warn.className = 'warning-badge';
         leftGroup.appendChild(warn);
     }
+    leftGroup.appendChild(infoText);
     toolbar.appendChild(leftGroup);
 
-    // Action Buttons (Right Side)
+    // Action Buttons (Right Side - Restored Copy Buttons)
     const rightGroup = document.createElement('div');
     rightGroup.className = 'button-group';
 
-    // 1. Export All (Full Query Export)
+    // 1. Copy First 5 Rows (TSV)
+    if (data.rows.length > 0) {
+        const copy5Btn = document.createElement('button');
+        copy5Btn.className = 'copy-button';
+        copy5Btn.textContent = 'Copy First 5 Rows';
+        copy5Btn.onclick = () => {
+            copyToClipboard(data.columns, data.rows.slice(0, 5), true);
+        };
+        rightGroup.appendChild(copy5Btn);
+    }
+
+    // 2. Copy All Cached (TSV)
+    if (data.rows.length > 0) {
+        const count = data.rows.length;
+        const copyAllBtn = document.createElement('button');
+        copyAllBtn.className = 'copy-button';
+        copyAllBtn.textContent = `Copy ${count}`;
+        copyAllBtn.onclick = () => {
+            copyToClipboard(data.columns, data.rows, true);
+        };
+        rightGroup.appendChild(copyAllBtn);
+    }
+
+    // 3. Export All (Full Query Export)
     const exportBtn = document.createElement('button');
     exportBtn.className = 'export-button';
-    exportBtn.textContent = 'Export CSV/JSON';
+    exportBtn.textContent = 'Export All';
     exportBtn.title = "Export full results";
     exportBtn.onclick = () => {
         // Trigger extension command to handle full export
@@ -412,11 +422,36 @@ function createToolbar(tabId, gridOptions, data) {
     };
     rightGroup.appendChild(exportBtn);
 
-    // 2. Refresh / Re-run (Maybe later feature)
-
     toolbar.appendChild(rightGroup);
 
     return toolbar;
+}
+
+// Helper to copy data
+function copyToClipboard(columns, rows, isTsv = true) {
+    const delimiter = isTsv ? '\t' : ',';
+
+    // Header
+    const headers = columns.map(c => c.name).join(delimiter);
+
+    // Rows
+    const body = rows.map(row => {
+        return row.map(cell => {
+            if (cell === null || cell === undefined) return '';
+            // Escape special chars if necessary (simple version)
+            const str = String(cell);
+            if (isTsv) {
+                return str.replace(/\t/g, ' ').replace(/\n/g, ' ');
+            }
+            return str;
+        }).join(delimiter);
+    }).join('\n');
+
+    const text = headers + '\n' + body;
+
+    navigator.clipboard.writeText(text).then(() => {
+        vscode.postMessage({ command: 'alert', text: `✅ Copied ${rows.length} rows to clipboard` });
+    });
 }
 
 // --- JSON Modal ---
