@@ -233,6 +233,7 @@ class CustomSetFilter {
     init(params) {
         this.params = params;
         this.filterText = null;
+        this.uniqueId = Math.random().toString(36).substring(7); // Unique ID to prevent selector collisions
         this.setupGui(params);
     }
 
@@ -240,55 +241,69 @@ class CustomSetFilter {
     setupGui(params) {
         this.gui = document.createElement('div');
         this.gui.className = 'custom-set-filter';
+        const idPrefix = `csf-${this.uniqueId}`;
+
         this.gui.innerHTML = `
             <div class="custom-set-filter-search">
-                <input type="text" placeholder="Search..." id="filter-search-${params.colDef.field}">
+                <input type="text" placeholder="Search..." id="${idPrefix}-search">
             </div>
-            <div class="custom-set-filter-list" id="filter-list-${params.colDef.field}"></div>
+            <div class="custom-set-filter-list" id="${idPrefix}-list"></div>
             <div class="custom-set-filter-actions">
-                <button id="btn-apply-${params.colDef.field}">Apply</button>
-                <button id="btn-clear-${params.colDef.field}">Clear</button>
+                <button id="${idPrefix}-apply" class="primary">Apply</button>
+                <button id="${idPrefix}-clear">Clear</button>
             </div>
         `;
 
-        this.eFilterText = this.gui.querySelector(`#filter-search-${params.colDef.field}`);
-        this.eFilterList = this.gui.querySelector(`#filter-list-${params.colDef.field}`);
-        this.btnApply = this.gui.querySelector(`#btn-apply-${params.colDef.field}`);
-        this.btnClear = this.gui.querySelector(`#btn-clear-${params.colDef.field}`);
+        this.eFilterText = this.gui.querySelector(`#${idPrefix}-search`);
+        this.eFilterList = this.gui.querySelector(`#${idPrefix}-list`);
+        this.btnApply = this.gui.querySelector(`#${idPrefix}-apply`);
+        this.btnClear = this.gui.querySelector(`#${idPrefix}-clear`);
 
         // Extract unique values
         this.uniqueValues = new Set();
         this.params.api.forEachNode(node => {
-            const value = this.params.valueGetter(node);
-            // Handle null/undef
-            const valStr = (value === null || value === undefined) ? '(Blanks)' : String(value);
+            // Robust value extraction: Try valueGetter, then field access
+            let value = null;
+            if (this.params.valueGetter) {
+                value = this.params.valueGetter(node);
+            }
+            if ((value === null || value === undefined) && node.data && this.params.colDef.field) {
+                value = node.data[this.params.colDef.field];
+            }
+
+            // Handle null/undef/objects
+            let valStr = '(Blanks)';
+            if (value !== null && value !== undefined) {
+                 valStr = String(value);
+            }
             this.uniqueValues.add(valStr);
         });
-
+        
         // Convert to array and sort
         this.sortedValues = Array.from(this.uniqueValues).sort();
-
+        
         // State: filtering selected values
-        // Initially, we consider "all selected" effectively inactive, 
-        // but for a set filter, we track what is UNSELECTED if we want "checked means include".
-        // Let's track SELECTED values. Initially all are selected.
         this.selectedValues = new Set(this.sortedValues);
-
+        
         this.renderList();
 
         // Event Listeners
         this.eFilterText.addEventListener('input', this.onSearchInput.bind(this));
-
+        
         this.btnApply.addEventListener('click', () => {
-            this.params.filterChangedCallback();
+            if (this.params.filterChangedCallback) {
+                this.params.filterChangedCallback();
+            }
         });
-
+        
         this.btnClear.addEventListener('click', () => {
             // Select all
             this.sortedValues.forEach(v => this.selectedValues.add(v));
             this.eFilterText.value = '';
             this.renderList();
-            this.params.filterChangedCallback();
+            if (this.params.filterChangedCallback) {
+                this.params.filterChangedCallback();
+            }
         });
     }
 
