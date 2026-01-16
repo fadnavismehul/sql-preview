@@ -2,7 +2,7 @@
   "name": "sql-preview",
   "displayName": "SQL Preview",
   "description": "Run SQL queries directly from VS Code with tabbed results",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "publisher": "mehul",
   "icon": "media/icon.png",
   "repository": {
@@ -90,7 +90,7 @@
           "id": "sqlResultsView",
           "name": "Results",
           "type": "webview",
-          "contextualTitle": "SQL Preview Results",
+          "contextualTitle": "SQL Preview",
           "icon": "media/table.svg"
         }
       ]

@@ -60,8 +60,12 @@ export class McpToolManager {
         throw new Error('SQL query is required');
       }
 
+      // Resolve Context for Configuration
+      // Fallback to the last active SQL file known to the provider
+      const contextUri = this.resultsProvider.getLastActiveFileUri();
+
       // Safe Mode Check
-      const config = vscode.workspace.getConfiguration('sqlPreview');
+      const config = vscode.workspace.getConfiguration('sqlPreview', contextUri);
       const safeMode = config.get<boolean>('mcpSafeMode', true);
 
       if (safeMode) {
@@ -74,17 +78,20 @@ export class McpToolManager {
       }
 
       // Fire and forget
-      const commandPromise = newTab
-        ? vscode.commands.executeCommand('sql.runQueryNewTab', sql)
-        : vscode.commands.executeCommand('sql.runQuery', sql);
+      // Fire and forget - Use setTimeout to ensure we return immediately
+      setTimeout(() => {
+        const commandPromise = newTab
+          ? vscode.commands.executeCommand('sql.runQueryNewTab', sql)
+          : vscode.commands.executeCommand('sql.runQuery', sql);
 
-      commandPromise.then(
-        () => void 0,
-        (err: any) => {
-          // eslint-disable-next-line no-console
-          console.error('Failed to trigger query command:', err);
-        }
-      );
+        commandPromise.then(
+          () => void 0,
+          (err: any) => {
+            // eslint-disable-next-line no-console
+            console.error('Failed to trigger query command:', err);
+          }
+        );
+      }, 10);
 
       const activeEditor = vscode.window.activeTextEditor;
       const contextFile = activeEditor

@@ -267,9 +267,15 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
   if (activeEditor && activeEditor.document.languageId === 'sql') {
     sourceUri = activeEditor.document.uri.toString();
   } else {
-    // 2. If non-SQL (Markdown, etc) or no editor, use the Scratchpad.
-    // This prevents polluting non-SQL files with results.
-    sourceUri = 'sql-preview:scratchpad';
+    // 2. Fallback: Use the last active SQL file from the results provider.
+    // This supports cases where focus is in the Sidebar/Chat but the user is working on a specific file.
+    const lastActive = resultsViewProvider.activeEditorUri;
+    if (lastActive) {
+      sourceUri = lastActive;
+    } else {
+      // 3. If no context, use the Scratchpad.
+      sourceUri = 'sql-preview:scratchpad';
+    }
   }
 
   // Determine Title based on Configuration
@@ -288,7 +294,8 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
   resultsViewProvider.showLoadingForTab(tabId, sql, title);
 
   try {
-    const generator = queryExecutor.execute(sql);
+    const contextUri = sourceUri ? vscode.Uri.parse(sourceUri) : undefined;
+    const generator = queryExecutor.execute(sql, contextUri);
     let totalRows = 0;
     let columns: any[] = [];
     const allRows: any[] = [];

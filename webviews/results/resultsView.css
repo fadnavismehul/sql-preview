@@ -36,21 +36,23 @@ body {
 
 .active-file-indicator {
     padding: 2px 10px;
-    background-color: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
-    color: var(--vscode-button-secondaryForeground, var(--vscode-descriptionForeground));
+    background-color: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
     font-size: calc(var(--sql-preview-font-size, var(--vscode-editor-font-size, var(--vscode-font-size))) * 0.82);
-    border: 1px solid var(--vscode-button-secondaryBorder, var(--vscode-editorWidget-border));
+    border: 1px solid var(--vscode-list-activeSelectionBackground);
     border-radius: 12px;
     margin: 4px 12px;
     flex-shrink: 0;
     font-weight: 600;
     display: inline-block;
     white-space: nowrap;
+    margin-left: auto;
+    /* Push to the right */
 }
 
 .active-file-indicator.persisted {
-    opacity: 0.7;
-    border-style: dashed;
+    opacity: 0.9;
+    border-style: solid;
 }
 
 .tab-list {
@@ -128,20 +130,8 @@ body {
 }
 
 .new-tab-button {
-    background: none;
-    border: none;
-    color: var(--vscode-tab-inactiveForeground);
-    cursor: pointer;
-    padding: 6px 8px;
-    font-size: 16px;
-    line-height: 1;
-    border-radius: 2px;
-    margin: 2px 4px;
-}
-
-.new-tab-button:hover {
-    background-color: var(--vscode-toolbar-hoverBackground);
-    color: var(--vscode-tab-activeForeground);
+    display: none;
+    /* Hidden as per request */
 }
 
 .tab-content-container {
@@ -226,8 +216,8 @@ body {
 /* Copy buttons have a slightly different style to distinguish them */
 .copy-button,
 .copy-all-button {
-    background-color: var(--vscode-button-secondaryBackground, var(--vscode-button-background));
-    border: 1px solid var(--vscode-contrastBorder, var(--vscode-button-border, transparent));
+    background-color: var(--vscode-button-background);
+    border: 1px solid var(--vscode-button-border, transparent);
 }
 
 .copy-button:hover,
@@ -249,7 +239,7 @@ body {
 .copy-all-button:active,
 .export-button:active,
 .export-full-button:active {
-    background-color: var(--vscode-button-secondaryBackground, var(--vscode-button-hoverBackground));
+    background-color: var(--vscode-button-hoverBackground);
 }
 
 /* Both export buttons now have the same primary button styling */
@@ -457,12 +447,12 @@ body {
     --ag-header-cell-menu-button-hover-color: var(--vscode-icon-foreground);
 
     /* Range Selection */
-    --ag-range-selection-border-color: var(--vscode-editor-selectionBackground);
-    --ag-range-selection-background-color: var(--vscode-editor-selectionBackground);
-    --ag-range-selection-background-color-2: var(--vscode-editor-selectionBackground);
-    --ag-range-selection-background-color-3: var(--vscode-editor-selectionBackground);
-    --ag-range-selection-background-color-4: var(--vscode-editor-selectionBackground);
-    --ag-range-selection-highlight-color: var(--vscode-peekViewResult-selectionBackground);
+    --ag-range-selection-border-color: var(--vscode-list-activeSelectionBackground);
+    --ag-range-selection-background-color: var(--vscode-list-activeSelectionBackground);
+    --ag-range-selection-background-color-2: var(--vscode-list-activeSelectionBackground);
+    --ag-range-selection-background-color-3: var(--vscode-list-activeSelectionBackground);
+    --ag-range-selection-background-color-4: var(--vscode-list-activeSelectionBackground);
+    --ag-range-selection-highlight-color: var(--vscode-list-activeSelectionBackground);
 
 }
 
@@ -771,15 +761,39 @@ body.vscode-high-contrast .error-message {
 }
 
 .warning-badge {
-    background-color: var(--vscode-inputValidation-warningBackground);
-    color: var(--vscode-inputValidation-warningForeground);
-    border: 1px solid var(--vscode-inputValidation-warningBorder);
-    padding: 2px 6px;
-    border-radius: 3px;
+    background-color: var(--vscode-button-secondaryBackground, #3a3d41);
+    color: var(--vscode-button-secondaryForeground, #ffffff);
+    border: 1px solid var(--vscode-button-secondaryBorder, transparent);
+    padding: 2px 8px;
+    /* Slightly more padding */
+    border-radius: 12px;
+    /* Match active pill radius */
     font-size: 0.85em;
     display: inline-flex;
     align-items: center;
     font-weight: 500;
+}
+
+/* Custom Range Selection Style */
+.range-selected-cell {
+    background-color: var(--vscode-editor-selectionBackground) !important;
+    /* Optional: Add a subtle border to distinguish the range if needed, 
+       but user said borders look weird. Let's keep it clean with just background. */
+}
+
+/* Ensure selected rows from gutter also use the editor selection background */
+/* But with higher opacity/different color if row selection is distinct? 
+   User asked for "right highlight color". list.activeSelection is usually solid.
+   editor.selection is alpha.
+   Let's override the row selection to be consistent. */
+.ag-theme-quartz .ag-row-selected {
+    background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-editor-selectionBackground)) !important;
+}
+
+/* Active selection (focused) row? */
+.ag-theme-quartz .ag-row-selected.ag-row-focus {
+    background-color: var(--vscode-list-activeSelectionBackground) !important;
+    color: var(--vscode-list-activeSelectionForeground) !important;
 }
 
 /* --- Aesthetics Polish --- */
@@ -965,15 +979,32 @@ body.vscode-high-contrast .error-message {
     align-items: center;
 }
 
-/* Hover effect for the selector cell */
-.row-selector-cell:hover {
-    background-color: var(--vscode-list-hoverBackground);
+/* AG Grid Theme Overrides - The "Right Way" using Variables */
+.ag-theme-quartz {
+    /* Main Selection Color - Setting this drives many derived colors in Quartz */
+    --ag-active-color: var(--vscode-editor-selectionBackground);
+
+    /* Specific Variables - Explicitly set these to be sure */
+    --ag-selected-row-background-color: var(--vscode-editor-selectionBackground);
+    --ag-range-selection-background-color: var(--vscode-editor-selectionBackground);
+    --ag-row-hover-color: var(--vscode-list-hoverBackground);
+
+    /* Borders */
+    --ag-borders: none;
+    --ag-row-border-style: solid;
+    --ag-row-border-width: 1px;
+    --ag-row-border-color: var(--vscode-input-border, transparent);
 }
 
-/* Selected Row Styles */
-.ag-row-selected {
-    background-color: var(--vscode-list-activeSelectionBackground) !important;
-    color: var(--vscode-list-activeSelectionForeground) !important;
+/* Force override for Row Selection - "Belt and Suspenders" fix */
+.ag-theme-quartz .ag-row-selected {
+    background-color: var(--vscode-editor-selectionBackground) !important;
+    color: inherit !important;
+}
+
+/* Hover effect for the selector cell (Keep custom if needed) */
+.row-selector-cell:hover {
+    background-color: var(--ag-row-hover-color);
 }
 
 /* Ensure text color in selected row is readable */
@@ -1000,11 +1031,44 @@ body.vscode-high-contrast .error-message {
     border-color: var(--vscode-focusBorder) !important;
 }
 
-/* Custom Range Selection Style (Blue Highlight to match DataGrip/Google Sheets) */
+/* Custom Range Selection Style - Consistent with Row Selection */
 .range-selected-cell {
-    background-color: rgba(33, 150, 243, 0.3) !important;
-    /* Blue with transparency */
-    border: 1px solid rgba(33, 150, 243, 0.6) !important;
-    /* Lighter blue border */
-    /* Ensure selection logic overrides native selection color if needed */
+    background-color: var(--ag-selected-row-background-color) !important;
+    border: none !important;
+}
+
+/* Context Menu */
+.context-menu {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    background: var(--vscode-menu-background);
+    color: var(--vscode-menu-foreground);
+    border: 1px solid var(--vscode-menu-border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    padding: 4px 0;
+    min-width: 130px;
+    border-radius: 4px;
+}
+
+.context-menu.visible {
+    display: block;
+}
+
+.context-menu-item {
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    display: block;
+    user-select: none;
+}
+
+.context-menu-item:hover {
+    background-color: var(--vscode-menu-selectionBackground);
+    color: var(--vscode-menu-selectionForeground);
+}
+
+/* Force standard theme hover highlight */
+.ag-row-hover {
+    background-color: var(--vscode-list-hoverBackground) !important;
 }

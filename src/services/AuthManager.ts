@@ -42,8 +42,8 @@ export class AuthManager {
   /**
    * Updates the password status display in settings
    */
-  async updatePasswordStatus(): Promise<void> {
-    const config = vscode.workspace.getConfiguration('sqlPreview');
+  async updatePasswordStatus(contextUri?: vscode.Uri): Promise<void> {
+    const config = vscode.workspace.getConfiguration('sqlPreview', contextUri);
     const hasPassword = (await this.getPassword()) !== undefined;
 
     // Update the display value in settings

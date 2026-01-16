@@ -187,16 +187,152 @@ window.addEventListener('message', event => {
         case 'filterTabs':
             filterTabsByFile(message.fileUri, message.fileName);
             break;
-        case 'updateRowHeight':
             updateGridDensity(message.density);
             break;
     }
 });
 
-// New Tab Button
-newTabButton.addEventListener('click', () => {
-    vscode.postMessage({ command: 'createNewTab' });
+// Context Menu Logic
+const contextMenu = document.getElementById('tab-context-menu');
+const copyQueryItem = document.getElementById('ctx-copy-query');
+let contextMenuTargetTabId = null;
+
+document.addEventListener('contextmenu', (e) => {
+    const tabElement = e.target.closest('.tab');
+    if (tabElement) {
+        e.preventDefault();
+        contextMenuTargetTabId = tabElement.dataset.tabId;
+
+        // Position menu
+        const menuWidth = 150;
+        let x = e.pageX;
+        let y = e.pageY;
+
+        // Boundary check (simple)
+        if (x + menuWidth > window.innerWidth) {
+            x -= menuWidth;
+        }
+
+        contextMenu.style.left = `${x}px`;
+        contextMenu.style.top = `${y}px`;
+        contextMenu.classList.add('visible');
+    } else {
+        contextMenu.classList.remove('visible');
+    }
 });
+
+// Helper to hide menu
+function hideContextMenu() {
+    contextMenu.classList.remove('visible');
+    contextMenuTargetTabId = null;
+}
+
+const inputs = { close: document.getElementById('ctx-close'), closeOthers: document.getElementById('ctx-close-others'), closeAll: document.getElementById('ctx-close-all') };
+
+if (copyQueryItem) {
+    copyQueryItem.addEventListener('click', () => {
+        if (contextMenuTargetTabId) {
+            const tab = tabs.get(contextMenuTargetTabId);
+            if (tab && tab.query) {
+                navigator.clipboard.writeText(tab.query).then(() => {
+                    // Visual feedback like existing copyRows
+                    vscode.postMessage({ command: 'alert', text: '✅ Query copied to clipboard' });
+                });
+            }
+        }
+        hideContextMenu();
+    });
+}
+
+if (inputs.close) {
+    inputs.close.addEventListener('click', () => {
+        if (contextMenuTargetTabId) {
+            closeTab(contextMenuTargetTabId);
+        }
+        hideContextMenu();
+    });
+}
+
+if (inputs.closeOthers) {
+    inputs.closeOthers.addEventListener('click', () => {
+        if (contextMenuTargetTabId) {
+            const allIds = Array.from(tabs.keys());
+            allIds.forEach(id => {
+                if (id !== contextMenuTargetTabId) {
+                    closeTab(id);
+                }
+            });
+        }
+        hideContextMenu();
+    });
+}
+
+if (inputs.closeAll) {
+    inputs.closeAll.addEventListener('click', () => {
+        const allIds = Array.from(tabs.keys());
+        allIds.forEach(id => closeTab(id));
+        hideContextMenu();
+    });
+}
+
+
+// Global Click Listener to Deselect Grid and Hide Context Menu
+// Global Click Listener to Deselect Grid and Hide Context Menu
+document.addEventListener('mousedown', (event) => {
+    // Hide context menu on any click if not clicking inside it
+    if (contextMenu && contextMenu.classList.contains('visible')) {
+        const isContextMenu = event.target.closest('.context-menu');
+        if (!isContextMenu) {
+            contextMenu.classList.remove('visible');
+        }
+    }
+
+    // Check if click is inside any grid or tab list or controls
+    const isGrid = event.target.closest('.results-grid');
+    const isTab = event.target.closest('.tab');
+    const isControl = event.target.closest('.controls');
+    const isContextMenu = event.target.closest('.context-menu');
+
+    let shouldDeselect = false;
+
+    if (!isGrid && !isTab && !isControl && !isContextMenu) {
+        shouldDeselect = true;
+    } else if (isGrid) {
+        // If clicking inside grid but NOT on a cell/row/header/scroll, it's empty space -> Deselect
+        const isCell = event.target.closest('.ag-cell');
+        const isRow = event.target.closest('.ag-row');
+        const isHeader = event.target.closest('.ag-header');
+        // Scrollbars are tricky, clicking them usually shouldn't clear selection?
+        // But if they are native, event.target might be viewport.
+        // Let's assume hitting "ag-body-viewport" directly is empty space.
+
+        if (!isCell && !isRow && !isHeader) {
+            // Check if scrollbar? Often target is viewport.
+            shouldDeselect = true;
+        }
+    }
+
+    if (shouldDeselect) {
+        // Deselect all visible grids
+        tabs.forEach(tab => {
+            if (tab.api) {
+                tab.api.deselectAll();
+                tab.api.clearFocusedCell();
+
+                // Clear custom range selection if active
+                if (rangeSelection.active && rangeSelection.tabId === tab.id) {
+                    rangeSelection.clear();
+                    tab.api.refreshCells({ force: true });
+                }
+            }
+        });
+    }
+});
+
+// New Tab Button (Removed)
+// newTabButton.addEventListener('click', () => {
+//     vscode.postMessage({ command: 'createNewTab' });
+// });
 
 // --- Tab Management ---
 
@@ -602,9 +738,37 @@ function updateTabWithResults(tabId, data, title) {
         cellClass: 'row-selector-cell',
         cellRenderer: () => '', // Ensure it is blank
         onCellClicked: (params) => {
-            // Toggle selection on click
             if (params.node) {
-                params.node.setSelected(!params.node.isSelected());
+                // Selection Logic: Click (Single), Cmd+Click (Toggle), Shift+Click (Range)
+                const currentIndex = params.rowIndex;
+                const tab = tabs.get(tabId);
+                const anchorIndex = (tab && tab.lastClickedRowIndex !== null && tab.lastClickedRowIndex !== undefined)
+                    ? tab.lastClickedRowIndex
+                    : currentIndex;
+
+                if (params.event.shiftKey) {
+                    // Range Selection: Clear others, select range from Anchor to Current
+                    params.api.deselectAll();
+                    const start = Math.min(anchorIndex, currentIndex);
+                    const end = Math.max(anchorIndex, currentIndex);
+
+                    for (let i = start; i <= end; i++) {
+                        const rowNode = params.api.getDisplayedRowAtIndex(i);
+                        if (rowNode) {
+                            rowNode.setSelected(true);
+                        }
+                    }
+                } else if (params.event.metaKey || params.event.ctrlKey) {
+                    // Toggle Selection
+                    params.node.setSelected(!params.node.isSelected());
+                    if (tab) tab.lastClickedRowIndex = currentIndex;
+                } else {
+                    // Single Select: Clear all, select this one
+                    params.api.deselectAll();
+                    params.node.setSelected(true);
+                    if (tab) tab.lastClickedRowIndex = currentIndex;
+                }
+
                 // Focus the cell to ensure keyboard shortcuts (like Copy) work
                 if (params.api) {
                     params.api.setFocusedCell(params.rowIndex, '_rowSelector');
@@ -666,6 +830,9 @@ function updateTabWithResults(tabId, data, title) {
                 params.api.refreshCells({ force: true });
                 return;
             }
+
+            // Clear any native row selections when starting cell drag
+            params.api.deselectAll();
 
             const allCols = params.api.getAllDisplayedColumns();
             const colIdx = allCols.indexOf(params.column);
@@ -745,20 +912,22 @@ function createToolbar(tabId, gridOptions, data) {
     toolbar.className = 'controls';
 
     // Row Count Info (Left Side - Restored for Community)
+    // Row Count Info (Left Side - Restored for Community)
     const leftGroup = document.createElement('div');
     const infoText = document.createElement('span');
     infoText.id = 'status-message';
     infoText.textContent = `${data.rows.length} rows`;
+    leftGroup.appendChild(infoText);
 
     if (data.wasTruncated) {
         const warn = document.createElement('span');
         warn.id = 'truncation-warning';
-        warn.textContent = ' (Truncated)';
+        warn.textContent = 'Truncated';
         warn.title = 'Result set was truncated. Use "Export All" to get full data.';
         warn.className = 'warning-badge';
+        warn.style.marginLeft = '8px'; // Add spacing
         leftGroup.appendChild(warn);
     }
-    leftGroup.appendChild(infoText);
     toolbar.appendChild(leftGroup);
 
     // Action Buttons (Right Side - Restored Copy Buttons)

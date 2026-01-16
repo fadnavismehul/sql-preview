@@ -29,9 +29,10 @@ export class QueryExecutor {
    */
   async *execute(
     query: string,
+    contextUri?: vscode.Uri,
     abortSignal?: AbortSignal
   ): AsyncGenerator<QueryPage, void, unknown> {
-    const config = vscode.workspace.getConfiguration('sqlPreview');
+    const config = vscode.workspace.getConfiguration('sqlPreview', contextUri);
 
     // Explicitly handle potentially undefined values
     const catalog = config.get<string>('catalog');

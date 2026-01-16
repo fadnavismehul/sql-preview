@@ -22,7 +22,7 @@ export async function run(): Promise<void> {
         findTestFiles(filePath, fileList);
       } else {
         // Filter for integration tests primarily as requested
-        if (file.endsWith('.integration.test.js')) {
+        if (file.endsWith('.test.js')) {
           fileList.push(filePath);
         }
       }
