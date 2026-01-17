@@ -343,4 +343,22 @@ describe('ResultsViewProvider Tests', () => {
       fileName: 'script.sql',
     });
   });
+
+  test('should decode and filter tabs when active editor has encoded characters', () => {
+    (resultsViewProvider as any)._filterTabsByFile('file:///path/to/my%20query%20script.sql');
+
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
+      type: 'filterTabs',
+      fileUri: 'file:///path/to/my%20query%20script.sql',
+      fileName: 'my query script.sql',
+    });
+  });
+  test('should include context menu in webview HTML', () => {
+    // Access the HTML set on the webview
+    const html = mockWebviewPanel.webview.html;
+    expect(html).toContain('id="tab-context-menu"');
+    expect(html).toContain('class="context-menu"');
+    expect(html).toContain('id="ctx-copy-query"');
+    expect(html).toContain('Copy Query');
+  });
 });

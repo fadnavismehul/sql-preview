@@ -35,6 +35,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     this._outputChannel = vscode.window.createOutputChannel('SQL Preview');
     this._stateManager = new StateManager(context);
 
+    // Initialize active editor if already open
+    if (
+      vscode.window.activeTextEditor &&
+      vscode.window.activeTextEditor.document.languageId === 'sql'
+    ) {
+      this._activeEditorUri = vscode.window.activeTextEditor.document.uri.toString();
+    }
+
     // Load state
     this._loadState();
 
@@ -45,10 +53,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           this._activeEditorUri = editor.document.uri.toString();
           this._filterTabsByFile(this._activeEditorUri);
         } else {
-          // If switching to non-SQL file or no editor, allow view to decide behavior
-          // Current behavior: show all if undefined?
-          // Originally: if undefined, hide all.
-          this._activeEditorUri = undefined;
+          // If switching to non-SQL file or no editor, keep the last active SQL context
+          // This allows MCP and the view to persist the relevant tabs (e.g. when using Chat)
+          // this._activeEditorUri = undefined; // REMOVED clearing
+
+          // Optionally update view to reflect we aren't "in" the file anymore?
+          // Current logic: _filterTabsByFile(undefined) invokes "persistence" mode (returns early).
+          // But if we want to ensure MCP works, we want _activeEditorUri to be preserved.
+
           this._filterTabsByFile(undefined);
         }
       })
@@ -58,6 +70,10 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
   public dispose() {
     this._disposables.forEach(d => d.dispose());
     this._disposables = [];
+  }
+
+  public getLastActiveFileUri(): vscode.Uri | undefined {
+    return this._activeEditorUri ? vscode.Uri.parse(this._activeEditorUri) : undefined;
   }
 
   /**
@@ -567,7 +583,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 
     if (this._view) {
       // Extract filename for display
-      const fileName = fileUri ? fileUri.split('/').pop() : undefined;
+      const fileName = fileUri ? decodeURIComponent(fileUri).split('/').pop() : undefined;
       // Note: filterTabs message tells the webview which file is active, webview filters DOM?
       // Assuming existing webview logic for 'filterTabs' works with this message.
       this._view.webview.postMessage({ type: 'filterTabs', fileUri, fileName });
@@ -620,15 +636,21 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 		</head>
 		<body>
 			<div id="tab-container" class="tab-container">
-                <div id="active-file-indicator" class="active-file-indicator" style="display:none;"></div>
 				<div id="tab-list" class="tab-list"></div>
-				<button id="new-tab-button" class="new-tab-button" title="New Query Tab">+</button>
+                <div id="active-file-indicator" class="active-file-indicator" style="display:none;"></div>
 			</div>
 			<div id="tab-content-container" class="tab-content-container">
 				<div id="no-tabs-message" class="no-tabs-message">
 					<p>Execute a SQL query to create your first results tab</p>
 				</div>
 			</div>
+            <div id="tab-context-menu" class="context-menu">
+                <div class="context-menu-item" id="ctx-copy-query">Copy Query</div>
+                <div class="context-menu-separator" style="height:1px; background:var(--vscode-menu-separatorBackground); margin:4px 0;"></div>
+                <div class="context-menu-item" id="ctx-close">Close</div>
+                <div class="context-menu-item" id="ctx-close-others">Close Others</div>
+                <div class="context-menu-item" id="ctx-close-all">Close All</div>
+            </div>
 			<script nonce="${nonce}" src="${agGridScriptUri}"></script>
 			<script nonce="${nonce}" src="${scriptUri}"></script>
 		</body>

@@ -8,6 +8,18 @@ export class ExportService {
   constructor(private readonly queryExecutor: QueryExecutor) {}
 
   public async exportResults(tab: TabData) {
+    // Resolve context URI for configuration and workspace folder
+    const contextUri = tab.sourceFileUri ? vscode.Uri.parse(tab.sourceFileUri) : undefined;
+
+    // Determine default save folder
+    let defaultFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+    if (contextUri) {
+      const folder = vscode.workspace.getWorkspaceFolder(contextUri);
+      if (folder) {
+        defaultFolder = folder.uri.fsPath;
+      }
+    }
+
     const saveUri = await vscode.window.showSaveDialog({
       filters: {
         'CSV (Comma Separated)': ['csv'],
@@ -16,10 +28,7 @@ export class ExportService {
       },
       title: 'Export Full Results',
       defaultUri: vscode.Uri.file(
-        path.join(
-          vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '',
-          `${tab.title.replace(/\s+/g, '_')}.csv`
-        )
+        path.join(defaultFolder, `${tab.title.replace(/\s+/g, '_')}.csv`)
       ),
     });
 
@@ -44,7 +53,7 @@ export class ExportService {
         let rowCount = 0;
 
         try {
-          const generator = this.queryExecutor.execute(tab.query);
+          const generator = this.queryExecutor.execute(tab.query, contextUri);
           let firstPage = true;
 
           if (format === 'json') {
