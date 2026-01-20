@@ -174,6 +174,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           const density = config.get<string>('rowHeight', 'normal');
           this._postMessage({ type: 'updateRowHeight', density });
           // eslint-disable-next-line no-console
+          // eslint-disable-next-line no-console
           this._refreshConnections().catch(console.error);
           return;
         }
@@ -234,6 +235,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
             type: 'testConnectionResult',
             success: result.success,
             error: result.error,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any);
           return;
         }
@@ -302,6 +304,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
               ...s,
               hasPassword,
             },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any);
 
           vscode.window.setStatusBarMessage('SQL Preview settings saved.', 2000);
@@ -488,6 +491,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public showResults(data: any) {
     // Compatibility wrapper for tests
     // Need to map 'any' to QueryResults strictly
@@ -766,10 +770,10 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         schema: config.get('schema'),
         ssl: config.get('ssl'),
         sslVerify: config.get('sslVerify'),
-        mcpEnabled: config.get('mcpEnabled'),
         mcpPort: config.get('mcpPort'),
         hasPassword,
       },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
   }
 
