@@ -7,7 +7,7 @@ import { QuerySessionRegistry } from './services/QuerySessionRegistry';
 import { ConnectionManager } from './services/ConnectionManager';
 
 import { AuthManager } from './services/AuthManager';
-import { QueryExecutor } from './services/QueryExecutor';
+import { QueryExecutor } from './core/execution/QueryExecutor';
 import { getNonce } from './utils/nonce';
 
 /**
@@ -792,6 +792,9 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     const stylesUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'resultsView.css')
     );
+    const themeStylesUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'theme.css')
+    );
     const customFontSize = vscode.workspace
       .getConfiguration('sqlPreview')
       .get<number>('fontSize', 0);
@@ -804,6 +807,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
 			<link href="${agGridStylesUri}" rel="stylesheet">
 			<link href="${agGridThemeStylesUri}" rel="stylesheet">
+            <link href="${themeStylesUri}" rel="stylesheet">
 			<link href="${stylesUri}" rel="stylesheet">
             <style nonce="${nonce}">
                 :root {

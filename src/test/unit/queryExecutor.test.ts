@@ -1,10 +1,10 @@
-import { QueryExecutor } from '../../services/QueryExecutor';
-import { ConnectorRegistry } from '../../services/connectors/ConnectorRegistry';
+import { QueryExecutor } from '../../core/execution/QueryExecutor';
+import { ConnectorRegistry } from '../../connectors/base/ConnectorRegistry';
 import { ConnectionManager } from '../../services/ConnectionManager';
-import { ConnectorConfig } from '../../services/connectors/IConnector';
+import { ConnectorConfig } from '../../connectors/base/IConnector';
 
 // Mock dependencies
-jest.mock('../../services/connectors/ConnectorRegistry');
+jest.mock('../../connectors/base/ConnectorRegistry');
 jest.mock('../../services/ConnectionManager');
 
 describe('QueryExecutor Unit Tests', () => {
@@ -25,6 +25,8 @@ describe('QueryExecutor Unit Tests', () => {
     // Setup Connector Mock
     mockConnector = {
       runQuery: jest.fn(),
+      validateConfig: jest.fn().mockReturnValue(undefined), // Valid by default
+      id: 'trino',
     };
     mockRegistry.get = jest.fn().mockReturnValue(mockConnector);
 

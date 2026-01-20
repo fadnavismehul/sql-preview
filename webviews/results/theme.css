@@ -1,0 +1,149 @@
+/* AG Grid Theme Overrides - Quartz Theme Integration with VS Code */
+
+.ag-theme-quartz {
+    /* --- Font & Typography --- */
+    /* Font family is defined per-theme (light/dark) below to ensure correct fallback */
+    --ag-font-size: var(--sql-preview-font-size, var(--vscode-editor-font-size, var(--vscode-font-size)));
+
+    /* --- Core Colors (Default Fallbacks) --- */
+    --ag-background-color: var(--vscode-editor-background);
+    --ag-foreground-color: var(--vscode-editor-foreground);
+    --ag-secondary-foreground-color: var(--vscode-descriptionForeground);
+
+    /* --- Borders --- */
+    --ag-border-color: var(--vscode-editorWidget-border, var(--vscode-contrastBorder, #454545));
+    --ag-secondary-border-color: var(--vscode-tree-indentGuidesStroke, var(--vscode-editorGroup-border, #585858));
+    --ag-row-border-color: var(--vscode-editorRuler-foreground, var(--vscode-editorWidget-border, #454545));
+
+    /* Grid-specific divider styles */
+    --ag-header-column-separator-display: block;
+    --ag-header-column-separator-height: 100%;
+    --ag-header-column-separator-width: 1px;
+    --ag-header-column-separator-color: var(--vscode-editorWidget-border);
+
+    /* --- Header --- */
+    --ag-header-background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background));
+    --ag-header-foreground-color: var(--vscode-tab-activeForeground, var(--vscode-editor-foreground));
+    --ag-header-height: 32px;
+    --ag-header-cell-hover-background-color: var(--vscode-list-hoverBackground);
+    --ag-header-cell-moving-background-color: var(--vscode-list-activeSelectionBackground);
+
+    /* --- Row Styles --- */
+    --ag-row-background-color: var(--vscode-editor-background);
+    /* Using editorWidget-background for a potentially more subtle odd row color */
+    --ag-odd-row-background-color: var(--vscode-editorWidget-background, var(--vscode-editorGutter-background, #2c2c2c));
+    --ag-row-hover-color: var(--vscode-list-hoverBackground, #2a2d2e);
+    --ag-row-height: 24px;
+    /* Slightly compacted from default */
+
+    /* --- Selection (Default) --- */
+    --ag-selected-row-background-color: var(--vscode-list-activeSelectionBackground, #094771);
+    --ag-selected-row-foreground-color: var(--vscode-list-activeSelectionForeground, #ffffff);
+
+    /* --- Cells --- */
+    --ag-cell-horizontal-border: 1px solid var(--ag-secondary-border-color);
+    --ag-cell-data-changed-color: var(--vscode-editorGutter-modifiedBackground, yellow);
+
+    /* --- Inputs --- */
+    --ag-input-background-color: var(--vscode-input-background);
+    --ag-input-foreground-color: var(--vscode-input-foreground);
+    --ag-input-border-color: var(--vscode-input-border);
+    --ag-input-disabled-background-color: var(--vscode-input-disabledBackground, var(--vscode-input-background));
+    --ag-input-disabled-foreground-color: var(--vscode-input-disabledForeground, var(--vscode-input-foreground));
+
+    /* --- Range Selection --- */
+    --ag-range-selection-border-color: var(--vscode-list-activeSelectionBackground);
+    --ag-range-selection-background-color: var(--vscode-list-activeSelectionBackground);
+    --ag-range-selection-background-color-2: var(--vscode-list-activeSelectionBackground);
+    --ag-range-selection-highlight-color: var(--vscode-list-activeSelectionBackground);
+}
+
+
+/* --- THEME SPECIFIC OVERRIDES --- */
+
+body.vscode-light .ag-theme-quartz {
+    --ag-font-family: 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', Courier, monospace;
+
+    --ag-background-color: var(--vscode-editor-background) !important;
+    --ag-row-background-color: var(--vscode-editor-background) !important;
+    --ag-odd-row-background-color: #f5f5f5;
+    /* Explicit light grey for odd rows */
+
+    --ag-header-background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background)) !important;
+    --ag-header-foreground-color: var(--vscode-tab-activeForeground, var(--vscode-editor-foreground)) !important;
+    --ag-foreground-color: var(--vscode-editor-foreground) !important;
+}
+
+body.vscode-dark .ag-theme-quartz {
+    --ag-font-family: 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', Courier, monospace;
+
+    --ag-background-color: var(--vscode-editor-background) !important;
+    --ag-row-background-color: var(--vscode-editor-background) !important;
+    --ag-odd-row-background-color: var(--vscode-editorWidget-background, #2c2c2c);
+
+    --ag-header-background-color: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editorWidget-background)) !important;
+    --ag-header-foreground-color: var(--vscode-tab-activeForeground, var(--vscode-editor-foreground)) !important;
+    --ag-foreground-color: var(--vscode-editor-foreground) !important;
+}
+
+body.vscode-high-contrast .ag-theme-quartz {
+    --ag-odd-row-background-color: var(--vscode-editor-background);
+    --ag-border-color: var(--vscode-contrastBorder);
+    --ag-secondary-border-color: var(--vscode-contrastBorder);
+    --ag-header-background-color: var(--vscode-editor-background);
+    --ag-header-border-color: var(--vscode-contrastBorder);
+}
+
+/* --- CELL TYPOGRAPHY --- */
+/* Apply font family explicitly to cells to avoid inheritance issues */
+.ag-theme-quartz .ag-cell,
+.ag-theme-quartz .ag-cell .ag-cell-value {
+    font-family: var(--ag-font-family) !important;
+    color: var(--ag-foreground-color) !important;
+    /* Ensure text selection works */
+    user-select: none;
+}
+
+
+/* --- FOCUS RING REMOVAL ("Ugly Blue Box" Fix) --- */
+.ag-theme-quartz .ag-cell-focus {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Quartz uses ::after for the focus border overlay, we must nuke it */
+.ag-theme-quartz .ag-cell-focus::after {
+    content: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* --- ROW NUMBER COLUMN --- */
+/* --- ROW NUMBER COLUMN --- */
+/* Target the row selector column correctly (field is _rowSelector) */
+.ag-theme-quartz .ag-pinned-left-cols-container .ag-cell[col-id="_rowSelector"] {
+    background-color: var(--vscode-editorGutter-background, var(--vscode-editorWidget-background));
+    color: var(--vscode-editorLineNumber-foreground) !important;
+    font-weight: bold;
+    font-family: var(--ag-font-family) !important;
+    border-right: 1px solid var(--ag-secondary-border-color) !important;
+}
+
+/* Ensure the gutter marks selected rows correctly */
+.ag-theme-quartz .ag-row-selected .ag-pinned-left-cols-container .ag-cell[col-id="_rowSelector"] {
+    background-color: var(--vscode-list-activeSelectionBackground) !important;
+    color: var(--vscode-list-activeSelectionForeground) !important;
+    border-color: transparent !important;
+}
+
+/* --- ROW SELECTION OVERRIDE --- */
+/* Ensure we use a distinct background for selected rows, overriding any odd-row styles */
+.ag-theme-quartz .ag-row-selected {
+    background-color: var(--vscode-list-inactiveSelectionBackground, var(--vscode-editor-selectionBackground)) !important;
+}
+
+.ag-theme-quartz .ag-row-selected.ag-row-focus {
+    background-color: var(--vscode-list-activeSelectionBackground) !important;
+    color: var(--vscode-list-activeSelectionForeground) !important;
+}

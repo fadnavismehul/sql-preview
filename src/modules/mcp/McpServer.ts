@@ -10,8 +10,9 @@ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import express from 'express';
 import cors from 'cors';
 import * as vscode from 'vscode';
-import { ResultsViewProvider } from './resultsViewProvider';
-import { McpToolManager } from './services/McpToolManager';
+import { ResultsViewProvider } from '../../resultsViewProvider';
+import { McpToolManager } from './McpToolManager';
+import { TabManager } from '../../services/TabManager';
 
 export class SqlPreviewMcpServer {
   private server: Server;
@@ -19,8 +20,11 @@ export class SqlPreviewMcpServer {
   private httpServer: any; // Store http server instance to close it later
   private toolManager: McpToolManager;
 
-  constructor(private resultsProvider: ResultsViewProvider) {
-    this.toolManager = new McpToolManager(resultsProvider);
+  constructor(
+    resultsProvider: ResultsViewProvider,
+    private tabManager: TabManager
+  ) {
+    this.toolManager = new McpToolManager(resultsProvider, tabManager);
 
     this.server = new Server(
       {
@@ -42,7 +46,7 @@ export class SqlPreviewMcpServer {
   private setupHandlers() {
     // List available resources (active tabs)
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
-      const tabs = this.resultsProvider.getTabs();
+      const tabs = this.tabManager.getAllTabs();
       return {
         resources: tabs.map(tab => ({
           uri: `sql-preview://tabs/${tab.id}`,
@@ -61,7 +65,7 @@ export class SqlPreviewMcpServer {
         throw new Error('Invalid resource URI');
       }
 
-      const tabData = this.resultsProvider.getTabData(tabId);
+      const tabData = this.tabManager.getTab(tabId);
       if (!tabData) {
         throw new Error(`Tab not found: ${tabId}`);
       }
@@ -179,6 +183,9 @@ export class SqlPreviewMcpServer {
         });
         break;
       } catch (err: any) {
+        // If start failed, ensure we don't hold a reference to a dead server
+        this.httpServer = null;
+
         if (err.code === 'EADDRINUSE') {
           // Port busy, wait and retry SAME port to allow other window to release it
           console.log(`Port ${startPort} busy, retrying... (${retries})`);
@@ -200,7 +207,12 @@ export class SqlPreviewMcpServer {
       await new Promise<void>((resolve, reject) => {
         this.httpServer?.close((err: any) => {
           if (err) {
-            reject(err);
+            // If server is not running, close() throws. We consider this a success (it's stopped).
+            if (err.code === 'ERR_SERVER_NOT_RUNNING') {
+              resolve();
+            } else {
+              reject(err);
+            }
           } else {
             resolve();
           }

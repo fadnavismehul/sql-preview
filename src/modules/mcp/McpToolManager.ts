@@ -1,8 +1,12 @@
 import * as vscode from 'vscode';
-import { ResultsViewProvider } from '../resultsViewProvider';
+import { ResultsViewProvider } from '../../resultsViewProvider';
+import { TabManager } from '../../services/TabManager';
 
 export class McpToolManager {
-  constructor(private resultsProvider: ResultsViewProvider) {}
+  constructor(
+    private readonly resultsProvider: ResultsViewProvider,
+    private readonly tabManager: TabManager
+  ) {}
 
   public getTools() {
     return [
@@ -129,9 +133,9 @@ export class McpToolManager {
       // Polling loop
       let isDone = false;
       while (!isDone) {
-        activeTabId = this.resultsProvider.getActiveTabId();
+        activeTabId = this.tabManager.activeTabId;
         if (activeTabId) {
-          tabData = this.resultsProvider.getTabData(activeTabId);
+          tabData = this.tabManager.getTab(activeTabId);
           if (tabData) {
             // If status is NOT loading, we are done
             if (tabData.status !== 'loading') {

@@ -291,7 +291,7 @@
     "publish:vscode:env": "dotenv -e .env.local -- npx vsce publish -p $VSCE_PAT",
     "publish:ovsx": "npx ovsx publish",
     "publish:ovsx:env": "dotenv -e .env.local -- npx ovsx publish -p $OVSX_PAT",
-    "publish:all": "npm run publish:vscode:env && npm run publish:ovsx:env",
+    "publish:all": "npm run publish:vscode && npm run publish:ovsx",
     "prepare": "husky install",
     "probe": "node scripts/probe-presto.mjs",
     "probe:extension": "node scripts/probe-extension-path.mjs"

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.8] - 2026-01-20
+
+### Added
+
+- **UI UX Polish**:
+  - Implemented "native-like" grid selection feel by removing browser text overlay.
+  - Enhanced copy/paste functionality to reliably copy rows as TSV with headers.
+  - Added persistence for "Row Height" preference (Normal, Compact, Comfortable).
+  - Unified gutter selection styling for a consistent visual experience.
+
+### Changed
+
+- **Architecture**: Decoupled MCP Server from `ResultsViewProvider` for better modularity and stability.
+- **MCP Server**: Improved robustness of server startup/shutdown to prevent `EADDRINUSE` and `ERR_SERVER_NOT_RUNNING` errors.
+
+### Fixed
+
+- **Runtime Stability**: Resolved race conditions in MCP server lifecycle.
+- **Styling**: Fixed AG Grid focus ring issues and selection color inconsistencies.
+
 ## [0.2.4] - 2026-01-12
 
 ### Fixed

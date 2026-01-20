@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ResultsViewProvider } from './resultsViewProvider';
-import { SqlPreviewMcpServer } from './mcpServer';
+import { SqlPreviewMcpServer } from './modules/mcp/McpServer';
 import { PrestoCodeLensProvider } from './PrestoCodeLensProvider';
 import { getQueryAtOffset } from './utils/querySplitter';
 import { ServiceContainer } from './services/ServiceContainer';
@@ -82,8 +82,12 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     outputChannel.appendLine('Initializing MCP Server...');
+    outputChannel.appendLine('Initializing MCP Server...');
     try {
-      mcpServer = new SqlPreviewMcpServer(provider);
+      mcpServer = new SqlPreviewMcpServer(
+        serviceContainer.resultsViewProvider,
+        serviceContainer.tabManager
+      );
       await mcpServer.start();
       mcpStatusBarItem.text = `$(server) MCP Active`;
       mcpStatusBarItem.show();

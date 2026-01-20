@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { QueryExecutor } from './QueryExecutor';
+import { QueryExecutor } from '../core/execution/QueryExecutor';
 import { TabData } from '../common/types';
 
 export class ExportService {

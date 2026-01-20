@@ -906,6 +906,31 @@ function updateTabWithResults(tabId, data, title) {
         tab.gridOptions = gridOptions;
         // If createGrid returns undefined (older versions), fall back to gridOptions.api
         tab.api = api || gridOptions.api;
+
+        // Apply current row density settings immediately
+        if (currentRowHeightDensity && currentRowHeightDensity !== 'normal') {
+            // Re-use logic from updateGridDensity but for single instance
+            let rowH = 35;
+            let headH = 42;
+            if (currentRowHeightDensity === 'compact') {
+                rowH = 28;
+                headH = 36;
+            } else if (currentRowHeightDensity === 'comfortable') {
+                rowH = 45;
+                headH = 52;
+            }
+
+            if (api) {
+                if (typeof api.setGridOption === 'function') {
+                    api.setGridOption('rowHeight', rowH);
+                    api.setGridOption('headerHeight', headH);
+                } else {
+                    // Fallback
+                    if (api.resetRowHeights) api.resetRowHeights();
+                    if (api.setHeaderHeight) api.setHeaderHeight(headH);
+                }
+            }
+        }
     } else {
         tab.content.innerHTML = '<div class="error-message">Error: AG Grid library not loaded.</div>';
     }

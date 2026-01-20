@@ -1,9 +1,9 @@
 import axios from 'axios';
 import * as https from 'https';
-import { IConnector, ConnectorConfig } from './IConnector';
+import { IConnector, ConnectorConfig } from '../base/IConnector'; // New path
 import { QueryPage } from '../../common/types';
-import { safeJsonParse } from '../../utils/jsonUtils';
-import { ConnectionError, QueryError, AuthenticationError } from '../../common/errors';
+import { safeJsonParse } from '../../utils/jsonUtils'; // Need to check if utils moved
+import { ConnectionError, QueryError, AuthenticationError } from '../../common/errors'; // Need to check errors path
 
 interface TrinoResponse {
   id?: string;
@@ -18,10 +18,35 @@ interface TrinoResponse {
   };
 }
 
-export class TrinoConnector implements IConnector {
+export interface TrinoConfig extends ConnectorConfig {
+  host: string;
+  port: number;
+  user: string;
+  catalog?: string;
+  schema?: string;
+  ssl?: boolean;
+  sslVerify?: boolean;
+}
+
+export class TrinoConnector implements IConnector<TrinoConfig> {
+  readonly id = 'trino';
+
+  validateConfig(config: TrinoConfig): string | undefined {
+    if (!config.host) {
+      return 'Host is required';
+    }
+    if (!config.port) {
+      return 'Port is required';
+    }
+    if (!config.user) {
+      return 'User is required';
+    }
+    return undefined;
+  }
+
   async *runQuery(
     query: string,
-    config: ConnectorConfig,
+    config: TrinoConfig,
     authHeader?: string,
     abortSignal?: AbortSignal
   ): AsyncGenerator<QueryPage, void, unknown> {

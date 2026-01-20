@@ -1,8 +1,9 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { SqlPreviewMcpServer } from '../../mcpServer';
+import { SqlPreviewMcpServer } from '../../modules/mcp/McpServer';
 import { ResultsViewProvider } from '../../resultsViewProvider';
+import { TabManager } from '../../services/TabManager';
 
 // Helper to access private properties for testing
 const asAny = (obj: any) => obj as any;
@@ -10,6 +11,7 @@ const asAny = (obj: any) => obj as any;
 describe('MCP Server Test Suite', () => {
   let sandbox: sinon.SinonSandbox;
   let mockResultsProvider: sinon.SinonStubbedInstance<ResultsViewProvider>;
+  let mockTabManager: sinon.SinonStubbedInstance<TabManager>;
   let mcpServer: SqlPreviewMcpServer;
   let clock: sinon.SinonFakeTimers;
 
@@ -20,8 +22,14 @@ describe('MCP Server Test Suite', () => {
     mockResultsProvider = sandbox.createStubInstance(ResultsViewProvider);
     mockResultsProvider.log.returns(); // Stub log method
 
+    // Mock TabManager
+    mockTabManager = sandbox.createStubInstance(TabManager);
+
     // Create instance of McpServer
-    mcpServer = new SqlPreviewMcpServer(mockResultsProvider as unknown as ResultsViewProvider);
+    mcpServer = new SqlPreviewMcpServer(
+      mockResultsProvider as unknown as ResultsViewProvider,
+      mockTabManager as unknown as TabManager
+    );
     clock = sandbox.useFakeTimers();
   });
 
@@ -56,10 +64,10 @@ describe('MCP Server Test Suite', () => {
   });
 
   test('get_active_tab_info tool handles BigInt correctly', async () => {
-    // Mock getActiveTabId to return an ID
-    mockResultsProvider.getActiveTabId.returns('tab-1');
+    // Mock activeTabId getters
+    sandbox.stub(mockTabManager, 'activeTabId').get(() => 'tab-1');
 
-    // Mock getTabData to return data with BigInt
+    // Mock getTab to return data with BigInt
     const bigIntData = {
       id: 'tab-1',
       title: 'Test Tab',
@@ -67,12 +75,13 @@ describe('MCP Server Test Suite', () => {
       columns: [{ name: 'id', type: 'bigint' }],
       rows: [[BigInt('9007199254740991') + BigInt(1)]], // Value larger than Number.MAX_SAFE_INTEGER
       status: 'success',
+      sourceFileUri: undefined,
     };
-    mockResultsProvider.getTabData.returns(bigIntData as any);
+    mockTabManager.getTab.returns(bigIntData as any);
 
     // We can't easily invoke the private tool handler, but the previous test confirms the serialization logic works.
     // This test primarily ensures that the mocking setup for getTabData works as expected with BigInts.
-    const retrievedData = mockResultsProvider.getTabData('tab-1');
+    const retrievedData = mockTabManager.getTab('tab-1');
     assert.strictEqual(retrievedData, bigIntData);
   });
 

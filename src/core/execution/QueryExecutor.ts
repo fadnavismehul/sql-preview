@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
-
-import { IConnector, ConnectorConfig } from './connectors/IConnector';
-import { ConnectorRegistry } from './connectors/ConnectorRegistry';
-import { QueryPage } from '../common/types';
-
-import { ConnectionManager } from './ConnectionManager';
-import { TrinoConnectionProfile } from '../common/types';
+import { IConnector, ConnectorConfig } from '../../connectors/base/IConnector';
+import { ConnectorRegistry } from '../../connectors/base/ConnectorRegistry';
+import { QueryPage } from '../../common/types';
+import { ConnectionManager } from '../../services/ConnectionManager'; // Referencing old service for now
+import { Logger } from '../logging/Logger';
 
 export class QueryExecutor {
+  private logger = Logger.getInstance();
+
   constructor(
     private readonly connectorRegistry: ConnectorRegistry,
     private readonly connectionManager: ConnectionManager
@@ -22,16 +22,16 @@ export class QueryExecutor {
   }
 
   /**
-   * Orchestrates the query execution:
-   * 1. Reads configuration from ConnectionManager
-   * 2. Gets credentials from ConnectionManager
-   * 3. Delegates to connector
+   * Orchestrates the query execution.
    */
   async *execute(
     query: string,
     contextUri?: vscode.Uri,
     abortSignal?: AbortSignal
   ): AsyncGenerator<QueryPage, void, unknown> {
+    const correlationId = Math.random().toString(36).substring(7);
+    this.logger.info(`Starting query execution`, { query }, correlationId);
+
     // Resolve Connection Profile
     const connections = await this.connectionManager.getConnections();
     if (connections.length === 0) {
@@ -47,28 +47,42 @@ export class QueryExecutor {
     }
 
     const config = vscode.workspace.getConfiguration('sqlPreview', contextUri);
-    const trinoProfile = profile as TrinoConnectionProfile;
 
+    // Generic Config Construction: Spread profile properties
+    // This allows any connector-specific fields (catalog, dbName, etc.) to pass through
     const connectorConfig: ConnectorConfig = {
-      host: profile.host,
-      port: profile.port,
-      user: profile.user,
-      ssl: profile.ssl,
-      sslVerify: profile.sslVerify !== undefined ? profile.sslVerify : true,
+      ...profile,
       maxRows: config.get<number>('maxRowsToDisplay', 500),
-      ...(trinoProfile.catalog ? { catalog: trinoProfile.catalog } : {}),
-      ...(trinoProfile.schema ? { schema: trinoProfile.schema } : {}),
+      // Default sslVerify to true if undefined, but respect profile setting
+      sslVerify: profile.sslVerify !== undefined ? profile.sslVerify : true,
     };
+
+    // Validation (Connector Self-Validation)
+    const connector = this.getConnector(profile.type);
+    const validationError = connector.validateConfig(connectorConfig);
+    if (validationError) {
+      this.logger.error(
+        `Configuration validation failed`,
+        { error: validationError },
+        correlationId
+      );
+      throw new Error(`Configuration Error: ${validationError}`);
+    }
 
     let authHeader: string | undefined;
     if (profile.password) {
       authHeader = 'Basic ' + Buffer.from(`${profile.user}:${profile.password}`).toString('base64');
     }
 
-    // Get connector instance
-    const connector = this.getConnector(profile.type);
-    yield* connector.runQuery(query, connectorConfig, authHeader, abortSignal);
+    try {
+      yield* connector.runQuery(query, connectorConfig, authHeader, abortSignal);
+      this.logger.info(`Query execution completed`, undefined, correlationId);
+    } catch (e: any) {
+      this.logger.error(`Query execution failed`, e, correlationId);
+      throw e;
+    }
   }
+
   /**
    * Tests connectivity by running a lightweight query (SELECT 1).
    */
@@ -79,6 +93,12 @@ export class QueryExecutor {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const connector = this.getConnector(type);
+      // Validate before running
+      const valError = connector.validateConfig(config);
+      if (valError) {
+        return { success: false, error: valError };
+      }
+
       const iterator = connector.runQuery('SELECT 1', config, authHeader);
       // Attempt to fetch first page to validate connection & auth
       await iterator.next();

@@ -1,12 +1,14 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { SqlPreviewMcpServer } from '../../mcpServer';
+import { SqlPreviewMcpServer } from '../../modules/mcp/McpServer';
 import { ResultsViewProvider } from '../../resultsViewProvider';
+import { TabManager } from '../../services/TabManager';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 describe('MCP Server Timeout Logic Test Suite', () => {
   let sandbox: sinon.SinonSandbox;
   let mockResultsProvider: sinon.SinonStubbedInstance<ResultsViewProvider>;
+  let mockTabManager: sinon.SinonStubbedInstance<TabManager>;
   let mcpServer: SqlPreviewMcpServer;
   let clock: sinon.SinonFakeTimers;
 
@@ -14,7 +16,11 @@ describe('MCP Server Timeout Logic Test Suite', () => {
     sandbox = sinon.createSandbox();
     mockResultsProvider = sandbox.createStubInstance(ResultsViewProvider);
     mockResultsProvider.log.returns();
-    mcpServer = new SqlPreviewMcpServer(mockResultsProvider as unknown as ResultsViewProvider);
+    mockTabManager = sandbox.createStubInstance(TabManager);
+    mcpServer = new SqlPreviewMcpServer(
+      mockResultsProvider as unknown as ResultsViewProvider,
+      mockTabManager as unknown as TabManager
+    );
     clock = sandbox.useFakeTimers();
   });
 
@@ -32,8 +38,8 @@ describe('MCP Server Timeout Logic Test Suite', () => {
     const callHandler = serverStub.args.find(arg => arg[0] === CallToolRequestSchema)?.[1];
     assert.ok(callHandler, 'Handler should be registered');
 
-    mockResultsProvider.getActiveTabId.returns('tab-1');
-    mockResultsProvider.getTabData.returns({
+    sandbox.stub(mockTabManager, 'activeTabId').get(() => 'tab-1');
+    mockTabManager.getTab.returns({
       id: 'tab-1',
       title: 'Loading Tab',
       query: 'SELECT 1',
@@ -60,7 +66,7 @@ describe('MCP Server Timeout Logic Test Suite', () => {
     (mcpServer as any).setupHandlers();
     const callHandler = serverStub.args.find(arg => arg[0] === CallToolRequestSchema)?.[1];
 
-    mockResultsProvider.getActiveTabId.returns('tab-1');
+    sandbox.stub(mockTabManager, 'activeTabId').get(() => 'tab-1');
 
     // First call returns loading
     const loadingState = {
@@ -80,7 +86,7 @@ describe('MCP Server Timeout Logic Test Suite', () => {
       rows: [[1]],
     };
 
-    const getTabDataStub = mockResultsProvider.getTabData;
+    const getTabDataStub = mockTabManager.getTab;
     getTabDataStub.returns(loadingState as any);
 
     // After 1 second (5 polls of 200ms), switch to success
@@ -110,8 +116,8 @@ describe('MCP Server Timeout Logic Test Suite', () => {
     (mcpServer as any).setupHandlers();
     const callHandler = serverStub.args.find(arg => arg[0] === CallToolRequestSchema)?.[1];
 
-    mockResultsProvider.getActiveTabId.returns('tab-1');
-    mockResultsProvider.getTabData.returns({
+    sandbox.stub(mockTabManager, 'activeTabId').get(() => 'tab-1');
+    mockTabManager.getTab.returns({
       id: 'tab-1',
       title: 'Tab',
       query: 'SELECT 1',

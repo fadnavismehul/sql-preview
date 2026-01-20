@@ -1,11 +1,12 @@
 import { AuthManager } from './AuthManager';
-import { QueryExecutor } from './QueryExecutor';
+import { QueryExecutor } from '../core/execution/QueryExecutor';
 import { ResultsViewProvider } from '../resultsViewProvider';
 import { TabManager } from './TabManager';
 import { ExportService } from './ExportService';
-import { ConnectorRegistry } from './connectors/ConnectorRegistry';
-import { TrinoConnector } from './connectors/TrinoConnector';
+import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
+import { TrinoConnector } from '../connectors/trino/TrinoConnector';
 import { QuerySessionRegistry } from './QuerySessionRegistry';
+import { Logger, LogLevel } from '../core/logging/Logger';
 import * as vscode from 'vscode';
 
 import { ConnectionManager } from './ConnectionManager';
@@ -28,8 +29,8 @@ export class ServiceContainer {
 
     // Initialize Registry and Connectors
     this.connectorRegistry = new ConnectorRegistry();
-    this.connectorRegistry.register('trino', new TrinoConnector());
-    // Future: this.connectorRegistry.register('postgres', new PostgresConnector());
+    this.connectorRegistry.register(new TrinoConnector());
+    // Future: this.connectorRegistry.register(new PostgresConnector());
 
     this.queryExecutor = new QueryExecutor(this.connectorRegistry, this.connectionManager);
     this.tabManager = new TabManager();
@@ -49,6 +50,11 @@ export class ServiceContainer {
 
   public static initialize(context: vscode.ExtensionContext): ServiceContainer {
     if (!ServiceContainer.instance) {
+      // Initialize logging early
+      Logger.initialize({
+        outputChannelName: 'SQL Preview',
+        logLevel: LogLevel.INFO,
+      });
       ServiceContainer.instance = new ServiceContainer(context);
     }
     return ServiceContainer.instance;
