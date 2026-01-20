@@ -50,16 +50,52 @@ export interface TabData {
 /**
  * Configuration for a connector.
  */
+/**
+ * Connection Configuration Types
+ */
+export type ConnectorType = 'trino' | 'postgres';
+
+export interface BaseConnectionProfile {
+  id: string;
+  name: string;
+  type: ConnectorType;
+  host: string;
+  port: number;
+  user: string;
+  password?: string; // Optional: runtime only, not persisted plain-text in some contexts
+  ssl: boolean;
+  sslVerify?: boolean; // Defaults to true
+}
+
+export interface TrinoConnectionProfile extends BaseConnectionProfile {
+  type: 'trino';
+  catalog?: string;
+  schema?: string;
+  customAuthHeader?: string;
+}
+
+export interface PostgresConnectionProfile extends BaseConnectionProfile {
+  type: 'postgres';
+  database: string;
+}
+
+export type ConnectionProfile = TrinoConnectionProfile | PostgresConnectionProfile;
+
+/**
+ * Legacy Configuration for backward compatibility (maps to Trino)
+ */
 export interface ConnectorConfig {
   host: string;
   port: number;
   user: string;
-  catalog?: string | undefined;
-  schema?: string | undefined;
+  catalog?: string;
+  schema?: string;
   ssl: boolean;
   sslVerify: boolean;
   maxRows: number;
-  password?: string | undefined;
+  password?: string;
+  // New: Source Profile ID
+  connectionId?: string;
 }
 
 // --- Messages ---
@@ -79,7 +115,11 @@ export type WebviewToExtensionMessage =
       query?: string | undefined;
     }
   | { command: 'tabSelected'; tabId: string }
-  | { command: 'cancelQuery'; tabId: string };
+  | { command: 'tabSelected'; tabId: string }
+  | { command: 'cancelQuery'; tabId: string }
+  | { command: 'refreshConnections' }
+  | { command: 'saveConnection'; profile: ConnectionProfile }
+  | { command: 'deleteConnection'; id: string };
 
 export type ExtensionToWebviewMessage =
   | {
@@ -112,4 +152,5 @@ export type ExtensionToWebviewMessage =
   | { type: 'closeAllTabs' }
   | { type: 'updateFontSize'; fontSize: string }
   | { type: 'filterTabs'; fileUri?: string | undefined; fileName?: string | undefined }
-  | { type: 'updateRowHeight'; density: string };
+  | { type: 'updateRowHeight'; density: string }
+  | { type: 'updateConnections'; connections: ConnectionProfile[] };

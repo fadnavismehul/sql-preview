@@ -187,6 +187,10 @@ window.addEventListener('message', event => {
         case 'filterTabs':
             filterTabsByFile(message.fileUri, message.fileName);
             break;
+        case 'updateConnections':
+            updateConnectionList(message.connections);
+            break;
+        case 'updateGridDensity':
             updateGridDensity(message.density);
             break;
     }
@@ -1075,7 +1079,7 @@ function updateTabWithError(tabId, error, query, title) {
 
     tab.content.innerHTML = `
         <div class="error-container">
-            <div class="error-icon">✕</div>
+
             <h3>Query Failed</h3>
             <p class="error-message">${escapeHtml(error.message)}</p>
             ${error.details ? `<pre class="error-details">${escapeHtml(error.details)}</pre>` : ''}
@@ -1237,8 +1241,198 @@ function updateGridDensity(density) {
             }
             if (typeof api.setHeaderHeight === 'function') {
                 api.setHeaderHeight(headH);
+
             }
         }
+
     }
+}
+
+// --- Connection Manager Logic ---
+// --- View Management ---
+
+const mainView = document.getElementById('main-view');
+const settingsView = document.getElementById('settings-view');
+
+const connectionsButton = document.getElementById('connections-button'); // Gear Icon
+const closeSettingsBtn = document.getElementById('close-settings');
+
+// Settings Form Elements
+const saveSettingsBtn = document.getElementById('save-settings-btn');
+const copyMcpConfigBtn = document.getElementById('copy-mcp-config');
+const setPasswordBtn = document.getElementById('set-password-btn');
+const clearPasswordBtn = document.getElementById('clear-password-btn');
+
+// Navigation Logic
+
+// 1. Open Settings (Main -> Settings)
+if (connectionsButton) {
+    connectionsButton.addEventListener('click', () => {
+        mainView.style.display = 'none';
+        settingsView.style.display = 'flex';
+        // Request latest settings
+        vscode.postMessage({ command: 'refreshSettings' });
+    });
+}
+
+// 2. Close Settings (Settings -> Main)
+if (closeSettingsBtn) {
+    closeSettingsBtn.addEventListener('click', () => {
+        settingsView.style.display = 'none';
+        mainView.style.display = 'flex';
+    });
+}
+
+// Settings Logic
+// Auto-Save Logic
+function saveAllSettings() {
+    const settings = {
+        maxRowsToDisplay: parseInt(document.getElementById('cfg-maxRowsToDisplay').value, 10),
+        fontSize: parseInt(document.getElementById('cfg-fontSize').value, 10),
+        rowHeight: document.getElementById('cfg-rowHeight').value,
+        tabNaming: document.getElementById('cfg-tabNaming').value,
+
+        // Trino Settings
+        host: document.getElementById('cfg-host').value,
+        port: parseInt(document.getElementById('cfg-port').value, 10),
+        user: document.getElementById('cfg-user').value,
+        catalog: document.getElementById('cfg-catalog').value,
+        schema: document.getElementById('cfg-schema').value,
+        ssl: document.getElementById('cfg-ssl').checked,
+        sslVerify: document.getElementById('cfg-sslVerify').checked,
+
+        // Experimental
+        mcpEnabled: document.getElementById('cfg-mcpEnabled').checked,
+        mcpPort: parseInt(document.getElementById('cfg-mcpPort').value, 10)
+    };
+
+    vscode.postMessage({ command: 'saveSettings', settings });
+
+    // Immediate UI updates
+    if (settings.rowHeight && typeof updateGridDensity === 'function') {
+        updateGridDensity(settings.rowHeight);
+        // Also update the global variable so new tabs inherit it
+        currentRowHeightDensity = settings.rowHeight;
+    }
+    if (settings.fontSize) {
+        document.documentElement.style.setProperty('--sql-preview-font-size', `${settings.fontSize}px`); // Custom var?
+        // Check if message handler uses --vscode-editor-font-size
+        // Previous code used --sql-preview-font-size here, but message handler used --vscode-editor-font-size?
+        // I should stick to one. The 'updateFontSize' handler uses --vscode-editor-font-size.
+    }
+}
+
+// Attach listeners to all config inputs
+const configInputs = document.querySelectorAll('input[id^="cfg-"], select[id^="cfg-"]');
+configInputs.forEach(input => {
+    input.addEventListener('change', saveAllSettings);
+});
+
+if (copyMcpConfigBtn) {
+    copyMcpConfigBtn.addEventListener('click', () => {
+        const code = document.querySelector('.code-block').innerText;
+        navigator.clipboard.writeText(code).then(() => {
+            const originalText = copyMcpConfigBtn.textContent;
+            copyMcpConfigBtn.textContent = 'Copied!';
+            setTimeout(() => {
+                copyMcpConfigBtn.textContent = originalText;
+            }, 2000);
+        });
+    });
+}
+
+if (setPasswordBtn) {
+    setPasswordBtn.addEventListener('click', () => {
+        vscode.postMessage({ command: 'setPassword' });
+    });
+}
+
+if (clearPasswordBtn) {
+    clearPasswordBtn.addEventListener('click', () => {
+        vscode.postMessage({ command: 'clearPassword' });
+    });
+}
+
+// Test Connection Logic
+const testConnectionBtn = document.getElementById('test-connection-btn');
+const testConnectionStatus = document.getElementById('test-connection-status');
+
+if (testConnectionBtn) {
+    testConnectionBtn.addEventListener('click', () => {
+        // Collect current UI values
+        const config = {
+            host: document.getElementById('cfg-host').value,
+            port: parseInt(document.getElementById('cfg-port').value, 10),
+            user: document.getElementById('cfg-user').value,
+            catalog: document.getElementById('cfg-catalog').value,
+            schema: document.getElementById('cfg-schema').value,
+            ssl: document.getElementById('cfg-ssl').checked,
+            sslVerify: document.getElementById('cfg-sslVerify').checked
+        };
+
+        testConnectionBtn.textContent = 'Testing...';
+        testConnectionBtn.disabled = true;
+        testConnectionStatus.textContent = '';
+        testConnectionStatus.className = 'status-badge';
+
+        vscode.postMessage({ command: 'testConnection', config });
+    });
+}
+
+// Handle Incoming Settings & Test Results
+window.addEventListener('message', event => {
+    const message = event.data;
+    const command = message.type || message.command;
+    switch (command) {
+        case 'updateConfig':
+            populateSettings(message.config);
+            break;
+        case 'testConnectionResult':
+            if (testConnectionBtn) {
+                testConnectionBtn.disabled = false;
+                testConnectionBtn.textContent = 'Test Connection';
+            }
+            if (message.success) {
+                testConnectionStatus.textContent = 'Success!';
+                testConnectionStatus.className = 'status-badge success';
+                testConnectionStatus.style.color = 'var(--vscode-charts-green)';
+            } else {
+                testConnectionStatus.textContent = 'Failed: ' + message.error;
+                testConnectionStatus.className = 'status-badge error';
+                testConnectionStatus.style.color = 'var(--vscode-errorForeground)';
+            }
+            break;
+    }
+});
+
+function populateSettings(config) {
+    // User Prefs
+    document.getElementById('cfg-maxRowsToDisplay').value = config.maxRowsToDisplay || 500;
+    document.getElementById('cfg-fontSize').value = config.fontSize || 0;
+    document.getElementById('cfg-rowHeight').value = config.rowHeight || 'normal';
+    document.getElementById('cfg-tabNaming').value = config.tabNaming || 'file-sequential';
+
+    // Trino
+    document.getElementById('cfg-host').value = config.host || '';
+    document.getElementById('cfg-port').value = config.port || 8080;
+    document.getElementById('cfg-user').value = config.user || '';
+    document.getElementById('cfg-catalog').value = config.catalog || '';
+    document.getElementById('cfg-schema').value = config.schema || '';
+    document.getElementById('cfg-ssl').checked = config.ssl === true;
+    document.getElementById('cfg-sslVerify').checked = config.sslVerify !== false; // Default true
+
+    // Password Status
+    const pwdStatus = document.getElementById('password-status');
+    if (config.hasPassword) {
+        pwdStatus.textContent = '(Password Set)';
+        pwdStatus.style.color = 'var(--vscode-charts-green)';
+    } else {
+        pwdStatus.textContent = '(No Password)';
+        pwdStatus.style.color = 'var(--vscode-descriptionForeground)';
+    }
+
+    // Experimental
+    document.getElementById('cfg-mcpEnabled').checked = config.mcpEnabled === true;
+    document.getElementById('cfg-mcpPort').value = config.mcpPort || 3000;
 }
 

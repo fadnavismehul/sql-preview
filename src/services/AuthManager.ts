@@ -1,22 +1,25 @@
 import * as vscode from 'vscode';
 
 export class AuthManager {
-  private static readonly PASSWORD_SECRET_KEY = 'sqlPreview.database.password';
+  public static readonly LEGACY_PASSWORD_KEY = 'sqlPreview.database.password';
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   /**
    * Securely retrieves the stored password from VS Code's secret storage
    */
+  /**
+   * Securely retrieves the stored password from VS Code's secret storage
+   */
   async getPassword(): Promise<string | undefined> {
-    return await this.context.secrets.get(AuthManager.PASSWORD_SECRET_KEY);
+    return await this.context.secrets.get(AuthManager.LEGACY_PASSWORD_KEY);
   }
 
   /**
    * Securely stores the password in VS Code's secret storage
    */
   async setPassword(password: string): Promise<void> {
-    await this.context.secrets.store(AuthManager.PASSWORD_SECRET_KEY, password);
+    await this.context.secrets.store(AuthManager.LEGACY_PASSWORD_KEY, password);
     await this.updatePasswordStatus();
   }
 
@@ -24,7 +27,7 @@ export class AuthManager {
    * Clears the stored password from VS Code's secret storage
    */
   async clearPassword(): Promise<void> {
-    await this.context.secrets.delete(AuthManager.PASSWORD_SECRET_KEY);
+    await this.context.secrets.delete(AuthManager.LEGACY_PASSWORD_KEY);
     await this.updatePasswordStatus();
   }
 

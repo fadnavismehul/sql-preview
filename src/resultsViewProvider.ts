@@ -4,6 +4,10 @@ import { StateManager } from './services/StateManager';
 import { TabManager } from './services/TabManager';
 import { ExportService } from './services/ExportService';
 import { QuerySessionRegistry } from './services/QuerySessionRegistry';
+import { ConnectionManager } from './services/ConnectionManager';
+
+import { AuthManager } from './services/AuthManager';
+import { QueryExecutor } from './services/QueryExecutor';
 import { getNonce } from './utils/nonce';
 
 /**
@@ -23,6 +27,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
   private _resultCounter = 1;
   private _activeEditorUri: string | undefined;
   private _stateManager: StateManager;
+  private _authManager: AuthManager;
   private _disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -30,10 +35,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     context: vscode.ExtensionContext,
     private readonly _tabManager: TabManager,
     private readonly _exportService: ExportService,
-    private readonly _querySessionRegistry: QuerySessionRegistry
+    private readonly _querySessionRegistry: QuerySessionRegistry,
+
+    private readonly _connectionManager: ConnectionManager,
+    private readonly _queryExecutor: QueryExecutor
   ) {
     this._outputChannel = vscode.window.createOutputChannel('SQL Preview');
     this._stateManager = new StateManager(context);
+    this._authManager = new AuthManager(context);
 
     // Initialize active editor if already open
     if (
@@ -62,6 +71,15 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           // But if we want to ensure MCP works, we want _activeEditorUri to be preserved.
 
           this._filterTabsByFile(undefined);
+        }
+      })
+    );
+
+    // Listen for configuration changes
+    this._disposables.push(
+      vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('sqlPreview')) {
+          this._refreshSettings().catch(err => this.log(`Error refreshing settings: ${err}`));
         }
       })
     );
@@ -135,7 +153,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
       this._view = undefined;
     });
 
-    webviewView.webview.onDidReceiveMessage(data => {
+    webviewView.webview.onDidReceiveMessage(async data => {
       switch (data.command) {
         case 'alert':
           vscode.window.showInformationMessage(data.text);
@@ -154,6 +172,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           const config = vscode.workspace.getConfiguration('sqlPreview');
           const density = config.get<string>('rowHeight', 'normal');
           this._postMessage({ type: 'updateRowHeight', density });
+          this._refreshConnections().catch(console.error);
           return;
         }
         case 'tabClosed':
@@ -189,6 +208,114 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           this._querySessionRegistry.cancelSession(data.tabId);
           return;
         }
+        case 'testConnection': {
+          const config = data.config;
+          const pwd = await this._authManager.getPassword();
+          const authHeader = pwd
+            ? `Basic ${Buffer.from(`${config.user}:${pwd}`).toString('base64')}`
+            : undefined;
+
+          // Construct connector config
+          const testConfig = {
+            host: config.host,
+            port: parseInt(config.port, 10),
+            user: config.user,
+            catalog: config.catalog,
+            schema: config.schema,
+            ssl: config.ssl,
+            sslVerify: config.sslVerify,
+            maxRows: 1,
+          };
+
+          const result = await this._queryExecutor.testConnection('trino', testConfig, authHeader);
+          this._postMessage({
+            type: 'testConnectionResult',
+            success: result.success,
+            error: result.error,
+          } as any);
+          return;
+        }
+        case 'refreshSettings': {
+          await this._refreshSettings();
+          return;
+        }
+        case 'saveSettings': {
+          const s = data.settings;
+          // Determine scope: if we have a workspace, write to it. Else Global.
+          // Or just let VS Code decide (defaults to Workspace if open).
+          // However, if we want to force "user settings" (Global), we pass Global.
+          // BUT if the user has a Workspace setting overriding it, Global writes are ignored.
+          // SO we should pass undefined to let it write to Workspace, overriding the current workspace setting.
+
+          let resource: vscode.Uri | undefined;
+          if (this._activeEditorUri) {
+            try {
+              resource = vscode.Uri.parse(this._activeEditorUri);
+            } catch (e) {
+              // Ignore invalid URIs
+            }
+          } else {
+            const folders = vscode.workspace.workspaceFolders;
+            if (folders && folders.length > 0) {
+              resource = folders[0]?.uri;
+            }
+          }
+
+          const config = vscode.workspace.getConfiguration('sqlPreview', resource);
+
+          // Helper to write to correct target (Global Default, Workspace Override Maintenance)
+          const writeConfig = async (key: string, value: any) => {
+            const inspect = config.inspect(key);
+            const target =
+              inspect?.workspaceValue !== undefined
+                ? vscode.ConfigurationTarget.Workspace
+                : vscode.ConfigurationTarget.Global;
+            await config.update(key, value, target);
+          };
+
+          // Batch updates
+          await Promise.all([
+            writeConfig('maxRowsToDisplay', s.maxRowsToDisplay),
+            writeConfig('fontSize', s.fontSize),
+            writeConfig('rowHeight', s.rowHeight),
+            writeConfig('tabNaming', s.tabNaming),
+
+            writeConfig('host', s.host),
+            writeConfig('port', s.port),
+            writeConfig('user', s.user),
+            writeConfig('catalog', s.catalog),
+            writeConfig('schema', s.schema),
+            writeConfig('ssl', s.ssl),
+            writeConfig('sslVerify', s.sslVerify),
+
+            writeConfig('mcpEnabled', s.mcpEnabled),
+            writeConfig('mcpPort', s.mcpPort),
+          ]);
+
+          // Refresh settings to confirm
+          const hasPassword = (await this._authManager.getPassword()) !== undefined;
+          this._postMessage({
+            type: 'updateConfig',
+            config: {
+              ...s,
+              hasPassword,
+            },
+          } as any);
+
+          vscode.window.setStatusBarMessage('SQL Preview settings saved.', 2000);
+          return;
+        }
+        case 'setPassword':
+          vscode.commands.executeCommand('sql.setPassword').then(() => {
+            // Refresh after delay to pick up change
+            setTimeout(() => {
+              this._view?.webview.postMessage({ command: 'refreshSettings' }); // Hacky loopback
+            }, 1000);
+          });
+          return;
+        case 'clearPassword':
+          vscode.commands.executeCommand('sql.clearPassword');
+          return;
       }
     });
   }
@@ -475,6 +602,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async _refreshConnections() {
+    const connections = await this._connectionManager.getConnections();
+    // Passwords are not returned by getConnections (except maybe empty/placeholder? No, service handles it)
+    // Actually getConnections calls with true (includePassword)? No, we check ConnectionManager.
+    // getConnections(includePassword = false) is default. We don't want passwords in UI.
+    this._postMessage({ type: 'updateConnections', connections });
+  }
+
   private async _saveState() {
     await this._stateManager.saveState(this._tabManager.tabs, this._resultCounter);
   }
@@ -590,6 +725,49 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async _refreshSettings(): Promise<void> {
+    let resource: vscode.Uri | undefined;
+    if (this._activeEditorUri) {
+      try {
+        resource = vscode.Uri.parse(this._activeEditorUri);
+      } catch (e) {
+        // ignore
+      }
+    } else if (vscode.window.activeTextEditor) {
+      resource = vscode.window.activeTextEditor.document.uri;
+    } else {
+      const folders = vscode.workspace.workspaceFolders;
+      if (folders && folders.length > 0) {
+        resource = folders[0]?.uri;
+      }
+    }
+
+    const config = vscode.workspace.getConfiguration('sqlPreview', resource);
+    const hasPassword = (await this._authManager.getPassword()) !== undefined;
+
+    // Debugging
+
+    this._postMessage({
+      type: 'updateConfig',
+      config: {
+        maxRowsToDisplay: config.get('maxRowsToDisplay'),
+        fontSize: config.get('fontSize'),
+        rowHeight: config.get('rowHeight'),
+        tabNaming: config.get('tabNaming'),
+        host: config.get('host'),
+        port: config.get('port'),
+        user: config.get('user'),
+        catalog: config.get('catalog'),
+        schema: config.get('schema'),
+        ssl: config.get('ssl'),
+        sslVerify: config.get('sslVerify'),
+        mcpEnabled: config.get('mcpEnabled'),
+        mcpPort: config.get('mcpPort'),
+        hasPassword,
+      },
+    } as any);
+  }
+
   private _getHtmlForWebview(webview: vscode.Webview): string {
     const nonce = getNonce();
     // Reverting to AG Grid Community (Enterprise features removed per user request)
@@ -635,15 +813,162 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 			<title>SQL Preview Results</title>
 		</head>
 		<body>
-			<div id="tab-container" class="tab-container">
-				<div id="tab-list" class="tab-list"></div>
-                <div id="active-file-indicator" class="active-file-indicator" style="display:none;"></div>
-			</div>
-			<div id="tab-content-container" class="tab-content-container">
-				<div id="no-tabs-message" class="no-tabs-message">
-					<p>Execute a SQL query to create your first results tab</p>
-				</div>
-			</div>
+			<!-- Main View: Tabs and Results -->
+            <div id="main-view" class="view-container">
+                <div id="tab-container" class="tab-container">
+                    <div id="tab-list" class="tab-list"></div>
+                    <div id="active-file-indicator" class="active-file-indicator" style="display:none;"></div>
+                    <button id="connections-button" class="icon-button" title="Manage Connections" style="background:none;border:none;color:var(--vscode-foreground);cursor:pointer;padding:4px;">
+                        <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.4h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM8 11c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z"/></svg>
+                    </button>
+                </div>
+                
+                <div id="tab-content-container" class="tab-content-container">
+                    <div id="no-tabs-message" class="no-tabs-message">
+                        <p>Execute a SQL query to create your first results tab</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settings-view" class="view-container" style="display:none;">
+                <div class="settings-view-content">
+                    <div class="manager-header">
+                        <div style="display:flex;align-items:center;gap:15px;">
+                            <button id="close-settings" class="icon-button" title="Back to Results">
+                                <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.78 2.22a.75.75 0 0 1 0 1.06L4.56 6.5h8.69a.75.75 0 0 1 0 1.5H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 0z"/></svg>
+                            </button>
+                            <h2>Settings</h2>
+                        </div>
+                    </div>
+                    <div class="settings-grid">
+                        <!-- Left Column: User Preferences -->
+                        <div class="settings-column">
+                            <h3>User Preferences</h3>
+                            
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1;">
+                                    <label>Max Rows</label>
+                                    <input type="number" id="cfg-maxRowsToDisplay" placeholder="500">
+                                </div>
+                                <div class="form-group" style="flex:1;">
+                                    <label>Font Size (px)</label>
+                                    <input type="number" id="cfg-fontSize" placeholder="Inherit">
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1;">
+                                    <label>Row Height</label>
+                                    <select id="cfg-rowHeight">
+                                        <option value="compact">Compact</option>
+                                        <option value="normal">Normal</option>
+                                        <option value="comfortable">Comfortable</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="flex:1;">
+                                    <label>Tab Naming</label>
+                                    <select id="cfg-tabNaming">
+                                        <option value="query-snippet">Query Content</option>
+                                        <option value="file-sequential">Sequential</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Right Column: System Settings -->
+                        <div class="settings-column">
+                            <h3>System Settings</h3>
+                            
+                            <!-- Trino Connection Card -->
+                            <div class="settings-card">
+                                <div class="card-header">
+                                    <h4>Trino Connection</h4>
+                                    <span class="card-subtitle">Configure your default connection.</span>
+                                </div>
+                                
+                                <div class="card-content">
+                                    <div class="form-group">
+                                        <label>Host</label>
+                                        <input type="text" id="cfg-host" placeholder="localhost">
+                                    </div>
+                                    
+                                    <div class="form-row">
+                                        <div class="form-group" style="flex:1;">
+                                            <label>Port</label>
+                                            <input type="number" id="cfg-port" value="8080">
+                                        </div>
+                                        <div class="form-group" style="flex:2;">
+                                            <label>User</label>
+                                            <input type="text" id="cfg-user" placeholder="admin">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group" style="flex:1;">
+                                            <label>Catalog</label>
+                                            <input type="text" id="cfg-catalog" placeholder="Optional">
+                                        </div>
+                                        <div class="form-group" style="flex:1;">
+                                            <label>Schema</label>
+                                            <input type="text" id="cfg-schema" placeholder="Optional">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Password</label>
+                                        <div class="input-with-actions">
+                                            <span id="password-status" class="status-badge">(Checking...)</span>
+                                            <button id="set-password-btn" class="secondary-button small">Set</button>
+                                            <button id="clear-password-btn" class="danger-button small">Clear</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="checkbox-row">
+                                        <label><input type="checkbox" id="cfg-ssl"> Enable SSL</label>
+                                        <label><input type="checkbox" id="cfg-sslVerify"> Verify Cert</label>
+                                    </div>
+
+                                    <div class="form-group" style="margin-top: 15px;">
+                                        <button id="test-connection-btn" class="secondary-button" style="width: auto;">Test Connection</button>
+                                        <span id="test-connection-status" class="status-badge" style="margin-left: 10px;"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Experimental Features Card -->
+                            <div class="settings-card experimental">
+                                <div class="card-header">
+                                    <h4>Experimental Features</h4>
+                                </div>
+                                <div class="card-content">
+                                    <div class="warning-callout">
+                                        <span class="icon">⚠️</span>
+                                        <p>These features are in beta and may be unstable.</p>
+                                    </div>
+
+                                    <div class="form-row align-center" style="margin-top:10px;">
+                                        <label class="toggle-label"><input type="checkbox" id="cfg-mcpEnabled"> Enable MCP Server</label>
+                                        <div class="form-group horizontal" style="margin-left:auto;">
+                                            <label>Port</label>
+                                            <input type="number" id="cfg-mcpPort" value="3000" style="width:80px;">
+                                        </div>
+                                    </div>
+
+                                    <div class="mcp-info">
+                                        <p>Add to <code>mcp.json</code>:</p>
+                                        <div class="code-snippet">
+                                            <pre>"preview": { "url": "http://localhost:3000/sse" }</pre>
+                                            <button id="copy-mcp-config" class="icon-button" title="Copy">📋</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div id="tab-context-menu" class="context-menu">
                 <div class="context-menu-item" id="ctx-copy-query">Copy Query</div>
                 <div class="context-menu-separator" style="height:1px; background:var(--vscode-menu-separatorBackground); margin:4px 0;"></div>

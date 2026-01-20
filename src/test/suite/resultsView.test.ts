@@ -41,7 +41,13 @@ describe('ResultsViewProvider Tests', () => {
       mockContext,
       tabManager,
       exportService,
-      querySessionRegistry
+      querySessionRegistry,
+      {
+        getConnections: jest.fn().mockResolvedValue([]),
+        saveConnection: jest.fn(),
+        deleteConnection: jest.fn(),
+      } as any,
+      { testConnection: jest.fn() } as any
     );
 
     resultsViewProvider.resolveWebviewView(mockWebviewView);

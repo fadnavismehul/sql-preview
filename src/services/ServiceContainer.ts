@@ -8,10 +8,13 @@ import { TrinoConnector } from './connectors/TrinoConnector';
 import { QuerySessionRegistry } from './QuerySessionRegistry';
 import * as vscode from 'vscode';
 
+import { ConnectionManager } from './ConnectionManager';
+
 export class ServiceContainer {
   private static instance: ServiceContainer;
 
   public readonly authManager: AuthManager;
+  public readonly connectionManager: ConnectionManager;
   public readonly connectorRegistry: ConnectorRegistry;
   public readonly queryExecutor: QueryExecutor;
   public readonly tabManager: TabManager;
@@ -21,13 +24,14 @@ export class ServiceContainer {
 
   private constructor(context: vscode.ExtensionContext) {
     this.authManager = new AuthManager(context);
+    this.connectionManager = new ConnectionManager(context);
 
     // Initialize Registry and Connectors
     this.connectorRegistry = new ConnectorRegistry();
     this.connectorRegistry.register('trino', new TrinoConnector());
     // Future: this.connectorRegistry.register('postgres', new PostgresConnector());
 
-    this.queryExecutor = new QueryExecutor(this.authManager, this.connectorRegistry);
+    this.queryExecutor = new QueryExecutor(this.connectorRegistry, this.connectionManager);
     this.tabManager = new TabManager();
     this.exportService = new ExportService(this.queryExecutor);
 
@@ -37,7 +41,9 @@ export class ServiceContainer {
       context,
       this.tabManager,
       this.exportService,
-      this.querySessionRegistry
+      this.querySessionRegistry,
+      this.connectionManager,
+      this.queryExecutor
     );
   }
 

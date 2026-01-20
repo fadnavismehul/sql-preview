@@ -6,9 +6,8 @@ Feature Requests
 
 Aspirations
 
-- Copy paste 5 rows to paste into LLM for context
+- Profile Manager: Support multiple named connection profiles (Prod, Staging, Local) defined globally, with simple project-level selection.
 - Connect to hubble and get documentation directly in the side panel
-- Find similar queries from presto user query database to have reference
 
 Done
 

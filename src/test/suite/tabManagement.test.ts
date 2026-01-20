@@ -63,7 +63,13 @@ describe('Tab Management Tests', () => {
       mockContext,
       tabManager,
       exportService,
-      querySessionRegistry
+      querySessionRegistry,
+      {
+        getConnections: sinon.stub().resolves([]),
+        saveConnection: sinon.stub(),
+        deleteConnection: sinon.stub(),
+      } as any,
+      { testConnection: jest.fn() } as any
     );
     resultsViewProvider.resolveWebviewView(mockWebviewView);
   });
@@ -211,7 +217,13 @@ describe('Tab Management Tests', () => {
         mockContext,
         new TabManager(),
         new ExportService(mockQueryExecutor),
-        new QuerySessionRegistry()
+        new QuerySessionRegistry(),
+        {
+          getConnections: sinon.stub().resolves([]),
+          saveConnection: sinon.stub(),
+          deleteConnection: sinon.stub(),
+        } as any,
+        { testConnection: jest.fn() } as any
       );
 
       // Should not throw
@@ -233,7 +245,13 @@ describe('Tab Management Tests', () => {
         mockContext,
         new TabManager(),
         new ExportService(mockQueryExecutor),
-        new QuerySessionRegistry()
+        new QuerySessionRegistry(),
+        {
+          getConnections: sinon.stub().resolves([]),
+          saveConnection: sinon.stub(),
+          deleteConnection: sinon.stub(),
+        } as any,
+        { testConnection: jest.fn() } as any
       );
 
       const tabId = providerWithoutWebview.getOrCreateActiveTabId('SELECT 1', 'Test');

@@ -60,7 +60,13 @@ describe('ResultsViewProvider Persistence', () => {
       mockContext,
       tabManager,
       exportService,
-      querySessionRegistry
+      querySessionRegistry,
+      {
+        getConnections: jest.fn().mockReturnValue(Promise.resolve([])),
+        saveConnection: jest.fn(),
+        deleteConnection: jest.fn(),
+      } as any,
+      { testConnection: jest.fn() } as any
     );
   });
 
@@ -116,7 +122,13 @@ describe('ResultsViewProvider Persistence', () => {
       mockContext,
       tabManager,
       exportService,
-      querySessionRegistry
+      querySessionRegistry,
+      {
+        getConnections: jest.fn().mockReturnValue(Promise.resolve([])),
+        saveConnection: jest.fn(),
+        deleteConnection: jest.fn(),
+      } as any,
+      { testConnection: jest.fn() } as any
     );
 
     // Wait for async loadState

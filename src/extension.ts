@@ -25,8 +25,12 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   try {
-    // Initialize Services via ServiceContainer
+    // Initialize Services
     serviceContainer = ServiceContainer.initialize(context);
+
+    // Try migrating legacy settings
+    // We do this in the background so it doesn't block startup
+    serviceContainer.connectionManager.migrateLegacySettings().catch(console.error);
 
     // Register Webview Provider
     context.subscriptions.push(
@@ -215,6 +219,20 @@ export function activate(context: vscode.ExtensionContext) {
       if (enabled && autoHandover && state.focused) {
         // Focus Gained: Request Port ownership
         await startMcpServer();
+      }
+    })
+  );
+
+  // Watch for Configuration Changes to Toggle MCP Server
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(async e => {
+      if (e.affectsConfiguration('sqlPreview.mcpEnabled')) {
+        const config = vscode.workspace.getConfiguration('sqlPreview');
+        if (config.get<boolean>('mcpEnabled', false)) {
+          await startMcpServer();
+        } else {
+          await stopMcpServer();
+        }
       }
     })
   );
