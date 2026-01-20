@@ -6,6 +6,30 @@
 // Initialize VS Code API
 const vscode = acquireVsCodeApi();
 
+// --- Logging & Error Handling ---
+function logToHost(level, message) {
+    vscode.postMessage({ command: 'logMessage', level, message });
+}
+
+window.addEventListener('error', (event) => {
+    if (event.message === 'ResizeObserver loop limit exceeded') return; // Ignore harmless ResizeObserver errors
+
+    // Resource loading errors (img, script, css)
+    if (event.target && (event.target.tagName === 'IMG' || event.target.tagName === 'SCRIPT' || event.target.tagName === 'LINK')) {
+        const url = event.target.src || event.target.href;
+        logToHost('error', `Resource failed to load: ${url}`);
+        return;
+    }
+
+    logToHost('error', `Global Error: ${event.message} at ${event.filename}:${event.lineno}`);
+}, true); // Capture phase to catch resource errors
+
+window.addEventListener('unhandledrejection', (event) => {
+    logToHost('error', `Unhandled Rejection: ${event.reason}`);
+});
+
+logToHost('info', 'Webview script initialized.');
+
 // --- State ---
 const tabs = new Map();
 

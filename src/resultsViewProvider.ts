@@ -125,6 +125,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     };
 
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+    this.log('Webview HTML requested and set.');
 
     // Listen for configuration changes
     const configListener = vscode.workspace.onDidChangeConfiguration(e => {
@@ -172,6 +173,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           const config = vscode.workspace.getConfiguration('sqlPreview');
           const density = config.get<string>('rowHeight', 'normal');
           this._postMessage({ type: 'updateRowHeight', density });
+          // eslint-disable-next-line no-console
           this._refreshConnections().catch(console.error);
           return;
         }
@@ -315,6 +317,9 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           return;
         case 'clearPassword':
           vscode.commands.executeCommand('sql.clearPassword');
+          return;
+        case 'logMessage':
+          this.log(`[Webview ${data.level.toUpperCase()}] ${data.message}`);
           return;
       }
     });
@@ -770,19 +775,35 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 
   private _getHtmlForWebview(webview: vscode.Webview): string {
     const nonce = getNonce();
-    // Reverting to AG Grid Community (Enterprise features removed per user request)
-    const agGridScriptUri =
-      'https://unpkg.com/ag-grid-community@31.3.2/dist/ag-grid-community.min.js';
-    const agGridStylesUri = 'https://unpkg.com/ag-grid-community@31.3.2/styles/ag-grid.css';
-    const agGridThemeStylesUri =
-      'https://unpkg.com/ag-grid-community@31.3.2/styles/ag-theme-quartz.css';
+    // Local Vendor Assets for AG Grid (Community)
+    const agGridScriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(
+        this._extensionUri,
+        'media',
+        'vendor',
+        'ag-grid',
+        'ag-grid-community.min.js'
+      )
+    );
+    const agGridStylesUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'vendor', 'ag-grid', 'ag-grid.min.css')
+    );
+    const agGridThemeStylesUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(
+        this._extensionUri,
+        'media',
+        'vendor',
+        'ag-grid',
+        'ag-theme-quartz.min.css'
+      )
+    );
 
     const csp = `
         default-src 'none'; 
-        script-src 'nonce-${nonce}' https://unpkg.com;
-        style-src ${webview.cspSource} 'unsafe-inline' https://unpkg.com;
-        font-src ${webview.cspSource} https://unpkg.com https: data:;
-        img-src ${webview.cspSource} https://unpkg.com https: data:;
+        script-src 'nonce-${nonce}' ${webview.cspSource};
+        style-src ${webview.cspSource} 'unsafe-inline';
+        font-src ${webview.cspSource} https: data:;
+        img-src ${webview.cspSource} https: data:;
         connect-src https://sentry.io ${webview.cspSource};
     `;
 

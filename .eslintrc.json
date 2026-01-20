@@ -30,5 +30,5 @@
       }
     }
   ],
-  "ignorePatterns": ["out", "dist", "coverage", "**/*.d.ts", "webviews/**/*.js"]
+  "ignorePatterns": ["out", "dist", "coverage", "**/*.d.ts", "webviews/**/*.js", "media/**"]
 }
