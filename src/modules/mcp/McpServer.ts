@@ -76,14 +76,7 @@ export class SqlPreviewMcpServer {
           {
             uri: uri,
             mimeType: 'application/json',
-            text: JSON.stringify(
-              tabData,
-              (_key, value) => {
-                // Basic BigInt handling if any slipped through
-                return typeof value === 'bigint' ? value.toString() : value;
-              },
-              2
-            ),
+            text: JSON.stringify(tabData, null, 2),
           },
         ],
       };
