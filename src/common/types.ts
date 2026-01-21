@@ -53,7 +53,7 @@ export interface TabData {
 /**
  * Connection Configuration Types
  */
-export type ConnectorType = 'trino' | 'postgres';
+export type ConnectorType = 'trino' | 'postgres' | 'sqlite';
 
 export interface BaseConnectionProfile {
   id: string;
@@ -79,7 +79,18 @@ export interface PostgresConnectionProfile extends BaseConnectionProfile {
   database: string;
 }
 
-export type ConnectionProfile = TrinoConnectionProfile | PostgresConnectionProfile;
+export interface SQLiteConnectionProfile {
+  id: string;
+  name: string;
+  type: 'sqlite';
+  databasePath: string;
+  password?: string; // Optional: some sqlite builds support encryption
+}
+
+export type ConnectionProfile =
+  | TrinoConnectionProfile
+  | PostgresConnectionProfile
+  | SQLiteConnectionProfile;
 
 /**
  * Legacy Configuration for backward compatibility (maps to Trino)

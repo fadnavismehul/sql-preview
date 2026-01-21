@@ -1341,6 +1341,10 @@ function saveAllSettings() {
         rowHeight: document.getElementById('cfg-rowHeight').value,
         tabNaming: document.getElementById('cfg-tabNaming').value,
 
+        // Connector Settings
+        defaultConnector: document.getElementById('cfg-defaultConnector').value,
+        databasePath: document.getElementById('cfg-databasePath').value,
+
         // Trino Settings
         host: document.getElementById('cfg-host').value,
         port: parseInt(document.getElementById('cfg-port').value, 10),
@@ -1376,6 +1380,12 @@ const configInputs = document.querySelectorAll('input[id^="cfg-"], select[id^="c
 configInputs.forEach(input => {
     input.addEventListener('change', saveAllSettings);
 });
+
+// Specific listener for connector toggle
+const connectorSelect = document.getElementById('cfg-defaultConnector');
+if (connectorSelect) {
+    connectorSelect.addEventListener('change', updateConnectorVisibility);
+}
 
 if (copyMcpConfigBtn) {
     copyMcpConfigBtn.addEventListener('click', () => {
@@ -1461,6 +1471,10 @@ function populateSettings(config) {
     document.getElementById('cfg-rowHeight').value = config.rowHeight || 'normal';
     document.getElementById('cfg-tabNaming').value = config.tabNaming || 'file-sequential';
 
+    // Connector
+    document.getElementById('cfg-defaultConnector').value = config.defaultConnector || 'trino';
+    document.getElementById('cfg-databasePath').value = config.databasePath || '';
+
     // Trino
     document.getElementById('cfg-host').value = config.host || '';
     document.getElementById('cfg-port').value = config.port || 8080;
@@ -1469,6 +1483,8 @@ function populateSettings(config) {
     document.getElementById('cfg-schema').value = config.schema || '';
     document.getElementById('cfg-ssl').checked = config.ssl === true;
     document.getElementById('cfg-sslVerify').checked = config.sslVerify !== false; // Default true
+
+    updateConnectorVisibility();
 
     // Password Status
     const pwdStatus = document.getElementById('password-status');
@@ -1485,3 +1501,16 @@ function populateSettings(config) {
     document.getElementById('cfg-mcpPort').value = config.mcpPort || 3000;
 }
 
+function updateConnectorVisibility() {
+    const connector = document.getElementById('cfg-defaultConnector').value;
+    const trinoGroup = document.getElementById('cfg-group-trino');
+    const sqliteGroup = document.getElementById('cfg-group-sqlite');
+
+    if (connector === 'sqlite') {
+        trinoGroup.style.display = 'none';
+        sqliteGroup.style.display = 'block';
+    } else {
+        trinoGroup.style.display = 'block';
+        sqliteGroup.style.display = 'none';
+    }
+}

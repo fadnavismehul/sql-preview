@@ -294,7 +294,38 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 
             writeConfig('mcpEnabled', s.mcpEnabled),
             writeConfig('mcpPort', s.mcpPort),
+            writeConfig('defaultConnector', s.defaultConnector),
+            writeConfig('databasePath', s.databasePath),
           ]);
+
+          // Sync with ConnectionManager (Default Profile)
+          const existing = await this._connectionManager.getConnections();
+          const profileId =
+            existing.length > 0 && existing[0] ? existing[0].id : 'default-' + Date.now();
+
+          let profile: import('./common/types').ConnectionProfile;
+          if (s.defaultConnector === 'sqlite') {
+            profile = {
+              id: profileId,
+              name: 'Default Connection',
+              type: 'sqlite',
+              databasePath: s.databasePath || '',
+            };
+          } else {
+            profile = {
+              id: profileId,
+              name: 'Default Connection',
+              type: 'trino',
+              host: s.host || 'localhost',
+              port: s.port || 8080,
+              user: s.user || 'user',
+              catalog: s.catalog,
+              schema: s.schema,
+              ssl: s.ssl || false,
+              sslVerify: s.sslVerify !== false,
+            };
+          }
+          await this._connectionManager.saveConnection(profile);
 
           // Refresh settings to confirm
           const hasPassword = (await this._authManager.getPassword()) !== undefined;
@@ -758,6 +789,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         ssl: config.get('ssl'),
         sslVerify: config.get('sslVerify'),
         mcpPort: config.get('mcpPort'),
+        defaultConnector: config.get('defaultConnector'),
+        databasePath: config.get('databasePath'),
         hasPassword,
       },
     });
@@ -896,53 +929,73 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                         <div class="settings-column">
                             <h3>System Settings</h3>
                             
-                            <!-- Trino Connection Card -->
+                            <!-- Connection Card -->
                             <div class="settings-card">
                                 <div class="card-header">
-                                    <h4>Trino Connection</h4>
+                                    <h4>Database Connection</h4>
                                     <span class="card-subtitle">Configure your default connection.</span>
                                 </div>
                                 
                                 <div class="card-content">
                                     <div class="form-group">
-                                        <label>Host</label>
-                                        <input type="text" id="cfg-host" placeholder="localhost">
+                                        <label>Connector Type</label>
+                                        <select id="cfg-defaultConnector">
+                                            <option value="trino">Trino / Presto</option>
+                                            <option value="sqlite">SQLite</option>
+                                        </select>
                                     </div>
-                                    
-                                    <div class="form-row">
-                                        <div class="form-group" style="flex:1;">
-                                            <label>Port</label>
-                                            <input type="number" id="cfg-port" value="8080">
+
+                                    <!-- Trino Fields -->
+                                    <div id="cfg-group-trino" class="connector-group">
+                                        <div class="form-group">
+                                            <label>Host</label>
+                                            <input type="text" id="cfg-host" placeholder="localhost">
                                         </div>
-                                        <div class="form-group" style="flex:2;">
-                                            <label>User</label>
-                                            <input type="text" id="cfg-user" placeholder="admin">
+
+                                        <div class="form-row">
+                                            <div class="form-group" style="flex:1;">
+                                                <label>Port</label>
+                                                <input type="number" id="cfg-port" value="8080">
+                                            </div>
+                                            <div class="form-group" style="flex:2;">
+                                                <label>User</label>
+                                                <input type="text" id="cfg-user" placeholder="admin">
+                                            </div>
+                                        </div>
+
+                                        <div class="form-row">
+                                            <div class="form-group" style="flex:1;">
+                                                <label>Catalog</label>
+                                                <input type="text" id="cfg-catalog" placeholder="Optional">
+                                            </div>
+                                            <div class="form-group" style="flex:1;">
+                                                <label>Schema</label>
+                                                <input type="text" id="cfg-schema" placeholder="Optional">
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label>Password</label>
+                                            <div class="input-with-actions">
+                                                <span id="password-status" class="status-badge">(Checking...)</span>
+                                                <button id="set-password-btn" class="secondary-button small">Set</button>
+                                                <button id="clear-password-btn" class="danger-button small">Clear</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="checkbox-row">
+                                            <label><input type="checkbox" id="cfg-ssl"> Enable SSL</label>
+                                            <label><input type="checkbox" id="cfg-sslVerify"> Verify Cert</label>
                                         </div>
                                     </div>
 
-                                    <div class="form-row">
-                                        <div class="form-group" style="flex:1;">
-                                            <label>Catalog</label>
-                                            <input type="text" id="cfg-catalog" placeholder="Optional">
+                                    <!-- SQLite Fields -->
+                                    <div id="cfg-group-sqlite" class="connector-group" style="display:none;">
+                                        <div class="form-group">
+                                            <label>Database Path</label>
+                                            <input type="text" id="cfg-databasePath" placeholder="/path/to/database.db">
+                                            <small style="color:var(--vscode-descriptionForeground);display:block;margin-top:4px;">Absolute path to the SQLite file.</small>
                                         </div>
-                                        <div class="form-group" style="flex:1;">
-                                            <label>Schema</label>
-                                            <input type="text" id="cfg-schema" placeholder="Optional">
-                                        </div>
-                                    </div>
-
-                                    <div class="form-group">
-                                        <label>Password</label>
-                                        <div class="input-with-actions">
-                                            <span id="password-status" class="status-badge">(Checking...)</span>
-                                            <button id="set-password-btn" class="secondary-button small">Set</button>
-                                            <button id="clear-password-btn" class="danger-button small">Clear</button>
-                                        </div>
-                                    </div>
-
-                                    <div class="checkbox-row">
-                                        <label><input type="checkbox" id="cfg-ssl"> Enable SSL</label>
-                                        <label><input type="checkbox" id="cfg-sslVerify"> Verify Cert</label>
                                     </div>
 
                                     <div class="form-group" style="margin-top: 15px;">

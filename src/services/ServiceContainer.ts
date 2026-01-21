@@ -5,6 +5,7 @@ import { TabManager } from './TabManager';
 import { ExportService } from './ExportService';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { TrinoConnector } from '../connectors/trino/TrinoConnector';
+import { SQLiteConnector } from '../connectors/sqlite/SQLiteConnector';
 import { QuerySessionRegistry } from './QuerySessionRegistry';
 import { Logger, LogLevel } from '../core/logging/Logger';
 import * as vscode from 'vscode';
@@ -30,6 +31,7 @@ export class ServiceContainer {
     // Initialize Registry and Connectors
     this.connectorRegistry = new ConnectorRegistry();
     this.connectorRegistry.register(new TrinoConnector());
+    this.connectorRegistry.register(new SQLiteConnector());
     // Future: this.connectorRegistry.register(new PostgresConnector());
 
     this.queryExecutor = new QueryExecutor(this.connectorRegistry, this.connectionManager);
