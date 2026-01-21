@@ -7,7 +7,7 @@ const jsonBig = JSONBig({ storeAsString: true, strict: true });
  * Robust JSON parser that handles BigInts by preserving them as strings.
  * This is crucial for Trino/Presto query results which often contain 64-bit integers.
  */
-export function safeJsonParse<T = any>(text: string): T {
+export function safeJsonParse<T = unknown>(text: string): T {
   try {
     return jsonBig.parse(text) as T;
   } catch (error) {
@@ -21,7 +21,7 @@ export function safeJsonParse<T = any>(text: string): T {
 /**
  * Robust JSON stringifier that handles BigInts correctly.
  */
-export function safeJsonStringify(value: any): string {
+export function safeJsonStringify(value: unknown): string {
   // JSONBig.stringify handles BigInts automatically
   return jsonBig.stringify(value);
 }

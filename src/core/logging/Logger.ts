@@ -56,7 +56,7 @@ export class Logger {
   private formatMessage(
     level: LogLevel,
     message: string,
-    data?: any,
+    data?: unknown,
     correlationId?: string
   ): string {
     const timestamp = new Date().toISOString();
@@ -85,28 +85,28 @@ export class Logger {
     return logMsg;
   }
 
-  public debug(message: string, data?: any, correlationId?: string): void {
+  public debug(message: string, data?: unknown, correlationId?: string): void {
     if (this.shouldLog(LogLevel.DEBUG)) {
       const msg = this.formatMessage(LogLevel.DEBUG, message, data, correlationId);
       this.outputChannel.appendLine(msg);
     }
   }
 
-  public info(message: string, data?: any, correlationId?: string): void {
+  public info(message: string, data?: unknown, correlationId?: string): void {
     if (this.shouldLog(LogLevel.INFO)) {
       const msg = this.formatMessage(LogLevel.INFO, message, data, correlationId);
       this.outputChannel.appendLine(msg);
     }
   }
 
-  public warn(message: string, error?: any, correlationId?: string): void {
+  public warn(message: string, error?: unknown, correlationId?: string): void {
     if (this.shouldLog(LogLevel.WARN)) {
       const msg = this.formatMessage(LogLevel.WARN, message, error, correlationId);
       this.outputChannel.appendLine(msg);
     }
   }
 
-  public error(message: string, error?: any, correlationId?: string): void {
+  public error(message: string, error?: unknown, correlationId?: string): void {
     if (this.shouldLog(LogLevel.ERROR)) {
       const msg = this.formatMessage(LogLevel.ERROR, message, error, correlationId);
       this.outputChannel.appendLine(msg);

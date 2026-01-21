@@ -2,6 +2,8 @@ import * as path from 'path';
 import Mocha from 'mocha';
 import * as fs from 'fs';
 
+/* eslint-disable no-console */
+
 export async function run(): Promise<void> {
   // Create the mocha test
   const mocha = new Mocha({

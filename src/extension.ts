@@ -30,7 +30,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Try migrating legacy settings
     // We do this in the background so it doesn't block startup
-    serviceContainer.connectionManager.migrateLegacySettings().catch(console.error);
+    serviceContainer.connectionManager
+      .migrateLegacySettings()
+      .catch(err => outputChannel.appendLine(`Migration error: ${err}`));
 
     // Register Webview Provider
     context.subscriptions.push(
@@ -319,8 +321,8 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     const contextUri = sourceUri ? vscode.Uri.parse(sourceUri) : undefined;
     const generator = queryExecutor.execute(sql, contextUri);
     let totalRows = 0;
-    let columns: any[] = [];
-    const allRows: any[] = [];
+    let columns: import('./common/types').ColumnDef[] = [];
+    const allRows: unknown[][] = [];
 
     const config = vscode.workspace.getConfiguration('sqlPreview');
     const maxRows = config.get<number>('maxRowsToDisplay', 1000);
@@ -352,8 +354,10 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     };
 
     resultsViewProvider.showResultsForTab(tabId, results);
-  } catch (error: any) {
-    resultsViewProvider.showErrorForTab(tabId, error.message, error.stack, sql, title);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    resultsViewProvider.showErrorForTab(tabId, message, stack, sql, title);
   }
 }
 

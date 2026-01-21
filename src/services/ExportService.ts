@@ -103,8 +103,9 @@ export class ExportService {
                 vscode.commands.executeCommand('revealFileInOS', saveUri);
               }
             });
-        } catch (err: any) {
-          vscode.window.showErrorMessage(`Export failed: ${err.message}`);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          vscode.window.showErrorMessage(`Export failed: ${message}`);
         } finally {
           stream.end();
         }
@@ -112,7 +113,7 @@ export class ExportService {
     );
   }
 
-  private _escapeCsv(val: any, separator: string): string {
+  private _escapeCsv(val: unknown, separator: string): string {
     if (val === null || val === undefined) {
       return '';
     }

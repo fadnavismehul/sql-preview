@@ -85,9 +85,9 @@ jest.mock('vscode', () => ({
     },
   },
   EventEmitter: class {
-    private _listeners: Array<(e: any) => any> = [];
+    private _listeners: Array<(e: unknown) => unknown> = [];
     get event() {
-      return (listener: (e: any) => any) => {
+      return (listener: (e: unknown) => unknown) => {
         this._listeners.push(listener);
         return {
           dispose: () => {
@@ -96,7 +96,7 @@ jest.mock('vscode', () => ({
         };
       };
     }
-    fire(data: any) {
+    fire(data: unknown) {
       this._listeners.forEach(l => l(data));
     }
   },

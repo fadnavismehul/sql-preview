@@ -11,10 +11,13 @@ interface TrinoResponse {
   nextUri?: string;
   columns?: Array<{ name: string; type: string }>;
   data?: unknown[][];
-  error?: any;
+  error?: {
+    message?: string;
+    [key: string]: unknown;
+  };
   stats?: {
     state: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -76,10 +79,11 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
     }
 
     // Configure axios safely
-    const axiosConfig = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const axiosConfig: any = {
       headers,
       httpsAgent,
-      transformResponse: [(data: any) => safeJsonParse(data)],
+      transformResponse: [(data: unknown) => safeJsonParse(data as string)],
       signal: abortSignal,
     };
 
@@ -87,7 +91,7 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
     let nextUri: string | undefined;
     try {
       // Cast config to any to avoid strict Axios typing issues with custom transform response
-      const response = await axios.post<TrinoResponse>(statementUrl, query, axiosConfig as any);
+      const response = await axios.post<TrinoResponse>(statementUrl, query, axiosConfig);
       const result = response.data;
 
       if (result.error) {
@@ -109,7 +113,8 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
         id: result.id || undefined,
         stats: result.stats || undefined,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((axios as any).isCancel(error)) {
         return; // Stopped by user
       }
@@ -123,7 +128,7 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
       }
 
       try {
-        const response = await axios.get<TrinoResponse>(nextUri, axiosConfig as any);
+        const response = await axios.get<TrinoResponse>(nextUri, axiosConfig);
         const result = response.data;
 
         if (result.error) {
@@ -146,7 +151,8 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
             stats: result.stats || undefined,
           };
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if ((axios as any).isCancel(error)) {
           return;
         }
@@ -155,18 +161,36 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
     }
   }
 
-  private handleError(error: any, query: string): never {
+  private handleError(error: unknown, query: string): never {
     if (error instanceof QueryError) {
       throw error;
     }
-    const msg = error.response?.data?.error?.message || error.message;
 
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    let msg = 'Unknown error';
+    let status: number | undefined;
+    let code: string | undefined;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((axios as any).isAxiosError(error)) {
+      // Try to get message from Trino error response first
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const axiosError = error as any;
+      const trinoError = axiosError.response?.data?.error;
+      msg = trinoError?.message || axiosError.message;
+      status = axiosError.response?.status;
+      code = axiosError.code;
+    } else if (error instanceof Error) {
+      msg = error.message;
+    } else {
+      msg = String(error);
+    }
+
+    if (status === 401 || status === 403) {
       throw new AuthenticationError(`Authentication failed: ${msg}`);
     }
 
-    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
-      throw new ConnectionError(`Connection failed: ${msg}`, error.code);
+    if (code === 'ECONNREFUSED' || code === 'ENOTFOUND') {
+      throw new ConnectionError(`Connection failed: ${msg}`, code);
     }
 
     throw new QueryError(`Query failed: ${msg}`, query);

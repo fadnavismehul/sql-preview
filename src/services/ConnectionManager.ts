@@ -89,20 +89,22 @@ export class ConnectionManager {
     // Import crypto for UUID if available, or simple random string
     const id = 'default-trino-' + Date.now();
 
-    const defaultProfile: any = {
-      // using any momentarily to avoid strict type issues with discriminators if types are strict
+    const catalog = config.get<string>('catalog');
+    const schema = config.get<string>('schema');
+
+    const defaultProfile: import('../common/types').TrinoConnectionProfile = {
       id,
       name: 'Default Connection (Imported)',
       type: 'trino',
       host: config.get<string>('host', 'localhost'),
       port: config.get<number>('port', 8080),
       user: config.get<string>('user', 'user'),
-      catalog: config.get<string>('catalog') || undefined,
-      schema: config.get<string>('schema') || undefined,
+      ...(catalog ? { catalog } : {}),
+      ...(schema ? { schema } : {}),
       ssl: config.get<boolean>('ssl', false),
       sslVerify: config.get<boolean>('sslVerify', true),
-      password: legacyPassword,
-    };
+      ...(legacyPassword ? { password: legacyPassword } : {}),
+    } as import('../common/types').TrinoConnectionProfile;
 
     if (defaultProfile.password) {
       await this.saveConnection(defaultProfile);

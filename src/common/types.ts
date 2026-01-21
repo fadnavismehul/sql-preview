@@ -12,7 +12,7 @@ export interface QueryPage {
   stats?:
     | {
         state: string;
-        [key: string]: any;
+        [key: string]: unknown;
       }
     | undefined;
 }
@@ -115,11 +115,16 @@ export type WebviewToExtensionMessage =
       query?: string | undefined;
     }
   | { command: 'tabSelected'; tabId: string }
-  | { command: 'tabSelected'; tabId: string }
   | { command: 'cancelQuery'; tabId: string }
   | { command: 'refreshConnections' }
   | { command: 'saveConnection'; profile: ConnectionProfile }
-  | { command: 'deleteConnection'; id: string };
+  | { command: 'deleteConnection'; id: string }
+  | { command: 'testConnection'; config: unknown } // Config is effectively loose for test
+  | { command: 'refreshSettings' }
+  | { command: 'saveSettings'; settings: unknown }
+  | { command: 'setPassword' }
+  | { command: 'clearPassword' }
+  | { command: 'logMessage'; level: string; message: string };
 
 export type ExtensionToWebviewMessage =
   | {
@@ -153,4 +158,6 @@ export type ExtensionToWebviewMessage =
   | { type: 'updateFontSize'; fontSize: string }
   | { type: 'filterTabs'; fileUri?: string | undefined; fileName?: string | undefined }
   | { type: 'updateRowHeight'; density: string }
-  | { type: 'updateConnections'; connections: ConnectionProfile[] };
+  | { type: 'updateConnections'; connections: ConnectionProfile[] }
+  | { type: 'testConnectionResult'; success: boolean; error?: string }
+  | { type: 'updateConfig'; config: unknown };

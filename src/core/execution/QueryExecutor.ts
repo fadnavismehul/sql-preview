@@ -41,7 +41,11 @@ export class QueryExecutor {
     }
 
     // Use the first connection for now (Active Profile selection to be added)
-    const profile = await this.connectionManager.getConnection(connections[0]!.id);
+    const firstConnection = connections[0];
+    if (!firstConnection) {
+      throw new Error('No connection profile found.');
+    }
+    const profile = await this.connectionManager.getConnection(firstConnection.id);
     if (!profile) {
       throw new Error('Failed to load connection profile.');
     }
@@ -77,7 +81,7 @@ export class QueryExecutor {
     try {
       yield* connector.runQuery(query, connectorConfig, authHeader, abortSignal);
       this.logger.info(`Query execution completed`, undefined, correlationId);
-    } catch (e: any) {
+    } catch (e: unknown) {
       this.logger.error(`Query execution failed`, e, correlationId);
       throw e;
     }
@@ -103,8 +107,9 @@ export class QueryExecutor {
       // Attempt to fetch first page to validate connection & auth
       await iterator.next();
       return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e.message || String(e) };
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      return { success: false, error: message };
     }
   }
 }

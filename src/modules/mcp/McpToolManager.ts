@@ -44,7 +44,7 @@ export class McpToolManager {
     ];
   }
 
-  public async handleToolCall(name: string, args: any) {
+  public async handleToolCall(name: string, args: unknown) {
     switch (name) {
       case 'run_query':
         return this.handleRunQuery(args);
@@ -55,10 +55,11 @@ export class McpToolManager {
     }
   }
 
-  private async handleRunQuery(args: any) {
+  private async handleRunQuery(args: unknown) {
     try {
-      const sql = (args?.sql as string)?.trim();
-      const newTab = args?.newTab !== false; // Default to true
+      const typedArgs = args as { sql?: string; newTab?: boolean } | undefined;
+      const sql = typedArgs?.sql?.trim();
+      const newTab = typedArgs?.newTab !== false; // Default to true
 
       if (!sql) {
         throw new Error('SQL query is required');
@@ -90,7 +91,7 @@ export class McpToolManager {
 
         commandPromise.then(
           () => void 0,
-          (err: any) => {
+          (err: unknown) => {
             // eslint-disable-next-line no-console
             console.error('Failed to trigger query command:', err);
           }
@@ -110,25 +111,28 @@ export class McpToolManager {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       return {
         isError: true,
-        content: [{ type: 'text', text: `Error running query: ${error.message}` }],
+        content: [{ type: 'text', text: `Error running query: ${message}` }],
       };
     }
   }
 
-  private async handleGetActiveTabInfo(args: any) {
+  private async handleGetActiveTabInfo(args: unknown) {
     try {
+      const typedArgs = args as { timeout?: number } | undefined;
       // timeout in seconds, default to 0 for backward compatibility
-      const timeoutSec = typeof args?.timeout === 'number' && args.timeout > 0 ? args.timeout : 0;
+      const timeoutSec =
+        typeof typedArgs?.timeout === 'number' && typedArgs.timeout > 0 ? typedArgs.timeout : 0;
 
       const startTime = Date.now();
       const timeoutMs = timeoutSec * 1000;
       const pollInterval = 200; // 200ms
 
       let activeTabId: string | undefined;
-      let tabData: any;
+      let tabData: import('../../common/types').TabData | undefined;
 
       // Polling loop
       let isDone = false;
@@ -190,10 +194,11 @@ export class McpToolManager {
           },
         ],
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       return {
         isError: true,
-        content: [{ type: 'text', text: `Error getting active tab info: ${error.message}` }],
+        content: [{ type: 'text', text: `Error getting active tab info: ${message}` }],
       };
     }
   }
