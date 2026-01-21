@@ -118,7 +118,7 @@ export class ExportService {
       return '';
     }
     const str = String(val);
-    if (str.includes(separator) || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+    if (new RegExp(`["${separator}\\n\\r]`).test(str)) {
       return `"${str.replace(/"/g, '""')}"`;
     }
     return str;
