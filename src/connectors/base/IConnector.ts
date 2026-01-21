@@ -4,7 +4,7 @@ import { QueryPage } from '../../common/types';
  * Generic configuration object for any connector.
  * Connectors are responsible for validating their own config.
  */
-export type ConnectorConfig = Record<string, any>;
+export type ConnectorConfig = Record<string, unknown>;
 
 export interface IConnector<TConfig = ConnectorConfig> {
   /**

@@ -174,8 +174,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           const density = config.get<string>('rowHeight', 'normal');
           this._postMessage({ type: 'updateRowHeight', density });
           // eslint-disable-next-line no-console
-          // eslint-disable-next-line no-console
-          this._refreshConnections().catch(console.error);
+          this._refreshConnections().catch(err => this.log(String(err)));
           return;
         }
         case 'tabClosed':
@@ -212,7 +211,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         case 'testConnection': {
-          const config = data.config;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const config = data.config as any;
           const pwd = await this._authManager.getPassword();
           const authHeader = pwd
             ? `Basic ${Buffer.from(`${config.user}:${pwd}`).toString('base64')}`
@@ -234,9 +234,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           this._postMessage({
             type: 'testConnectionResult',
             success: result.success,
-            error: result.error,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any);
+            ...(result.error ? { error: result.error } : {}),
+          } as ExtensionToWebviewMessage);
           return;
         }
         case 'refreshSettings': {
@@ -244,7 +243,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         case 'saveSettings': {
-          const s = data.settings;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const s = data.settings as any;
           // Determine scope: if we have a workspace, write to it. Else Global.
           // Or just let VS Code decide (defaults to Workspace if open).
           // However, if we want to force "user settings" (Global), we pass Global.
@@ -268,7 +268,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           const config = vscode.workspace.getConfiguration('sqlPreview', resource);
 
           // Helper to write to correct target (Global Default, Workspace Override Maintenance)
-          const writeConfig = async (key: string, value: any) => {
+          const writeConfig = async (key: string, value: unknown) => {
             const inspect = config.inspect(key);
             const target =
               inspect?.workspaceValue !== undefined
@@ -304,8 +304,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
               ...s,
               hasPassword,
             },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any);
+          });
 
           vscode.window.setStatusBarMessage('SQL Preview settings saved.', 2000);
           return;
@@ -491,23 +490,11 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public showResults(data: any) {
+  public showResults(data: QueryResults) {
     // Compatibility wrapper for tests
-    // Need to map 'any' to QueryResults strictly
     const activeId = this._tabManager.activeTabId;
     if (activeId) {
-      const strictData: QueryResults = {
-        columns: data.columns,
-        rows: data.rows,
-        query: data.query,
-        wasTruncated: data.wasTruncated || false,
-        totalRowsInFirstBatch: data.totalRowsInFirstBatch || data.rows.length,
-        queryId: data.queryId,
-        infoUri: data.infoUri,
-        nextUri: data.nextUri,
-      };
-      this.showResultsForTab(activeId, strictData);
+      this.showResultsForTab(activeId, data);
     }
   }
 
@@ -773,8 +760,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         mcpPort: config.get('mcpPort'),
         hasPassword,
       },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
+    });
   }
 
   private _getHtmlForWebview(webview: vscode.Webview): string {

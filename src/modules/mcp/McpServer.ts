@@ -9,6 +9,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import express from 'express';
 import cors from 'cors';
+import * as http from 'http';
 import * as vscode from 'vscode';
 import { ResultsViewProvider } from '../../resultsViewProvider';
 import { McpToolManager } from './McpToolManager';
@@ -17,7 +18,7 @@ import { TabManager } from '../../services/TabManager';
 export class SqlPreviewMcpServer {
   private server: Server;
   private app: express.Express;
-  private httpServer: any; // Store http server instance to close it later
+  private httpServer: http.Server | null | undefined; // Store http server instance to close it later
   private toolManager: McpToolManager;
 
   constructor(
@@ -126,6 +127,7 @@ export class SqlPreviewMcpServer {
       // Store transport by sessionId (exposed in newer SDKs, or we can use the ref)
       // Actually, we can just use the transport's own internal session management
       // but we need to find it again in the POST handler.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sessionId = (transport as any)['sessionId'];
       transports.set(sessionId, transport);
 
@@ -155,9 +157,10 @@ export class SqlPreviewMcpServer {
 
       try {
         await transport.handlePostMessage(req, res);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(`Error handling message for session ${sessionId}:`, err);
-        res.status(500).send(err.message);
+        const message = err instanceof Error ? err.message : String(err);
+        res.status(500).send(message);
       }
     };
 
@@ -177,16 +180,18 @@ export class SqlPreviewMcpServer {
             console.log(`MCP Server listening on port ${startPort} (127.0.0.1)`);
             resolve();
           });
-          this.httpServer.on('error', (err: any) => {
+          this.httpServer.on('error', (err: unknown) => {
             reject(err);
           });
         });
         break;
-      } catch (err: any) {
+      } catch (err: unknown) {
         // If start failed, ensure we don't hold a reference to a dead server
         this.httpServer = null;
 
-        if (err.code === 'EADDRINUSE') {
+        const code = (err as { code?: string }).code;
+
+        if (code === 'EADDRINUSE') {
           // Port busy, wait and retry SAME port to allow other window to release it
           console.log(`Port ${startPort} busy, retrying... (${retries})`);
           await new Promise(r => setTimeout(r, 500));
@@ -205,10 +210,11 @@ export class SqlPreviewMcpServer {
   async stop() {
     if (this.httpServer) {
       await new Promise<void>((resolve, reject) => {
-        this.httpServer?.close((err: any) => {
+        this.httpServer?.close((err: unknown) => {
           if (err) {
             // If server is not running, close() throws. We consider this a success (it's stopped).
-            if (err.code === 'ERR_SERVER_NOT_RUNNING') {
+            const code = (err as { code?: string }).code;
+            if (code === 'ERR_SERVER_NOT_RUNNING') {
               resolve();
             } else {
               reject(err);

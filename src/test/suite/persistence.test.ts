@@ -137,8 +137,9 @@ describe('ResultsViewProvider Persistence', () => {
     provider.resolveWebviewView(mockWebview);
 
     // Simulate webview loaded message
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const messageHandler = (mockWebview.webview.onDidReceiveMessage as jest.Mock).mock
-      .calls[0]![0] as (msg: any) => void;
+      .calls[0]![0] as (msg: unknown) => void;
     messageHandler({ command: 'webviewLoaded' });
 
     // Check if restore messages were sent
