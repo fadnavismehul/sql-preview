@@ -10,7 +10,7 @@ This document serves as a guide for AI Agents contributing to the **SQL Preview*
 sql-preview/
 ├── src/
 │   ├── core/           # Core domain logic (Logging, Execution Engine)
-│   ├── connectors/     # Data source integrations (Trino, Generic Interface)
+│   ├── connectors/     # Data source integrations (Trino, SQLite, Generic Interface)
 │   ├── modules/        # Functional modules (MCP Server)
 │   └── ...
 ├── webviews/           # Front-end assets (HTML/CSS/JS) for extension views
@@ -37,6 +37,8 @@ sql-preview/
 - **Styling**:
   - Use `webviews/results/theme.css` for centralized styling.
   - Respect VS Code theme variables (`var(--vscode-...)`) to ensure the extension looks native.
+- **Native Modules**:
+  - When using native modules (e.g., `sqlite3`), use **lazy loading** (`require` inside methods) to prevent extension activation failures in environments where bindings are missing or mismatched.
 
 ### 3. Quality Assurance
 

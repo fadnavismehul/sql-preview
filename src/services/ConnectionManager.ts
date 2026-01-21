@@ -76,43 +76,48 @@ export class ConnectionManager {
     }
 
     const config = vscode.workspace.getConfiguration('sqlPreview');
+    const connectorType = config.get<string>('defaultConnector', 'trino');
 
-    // Basic check to see if there is meaningful config to migrate
-    // If users have default 'localhost' we still migrate it to a default profile
-    // to ensure the UI is not empty.
-
-    // Retrieve legacy password using exposed key string from AuthManager (or hardcoded string to avoid circular dependency if AuthManager logic changes)
-    // Hardcoding the key here to avoid depending on AuthManager's internal constant which might change for new implementation
-    const legacyPassword = await this.context.secrets.get('sqlPreview.database.password');
-
-    // Create Default Profile
-    // Import crypto for UUID if available, or simple random string
-    const id = 'default-trino-' + Date.now();
-
-    const catalog = config.get<string>('catalog');
-    const schema = config.get<string>('schema');
-
-    const defaultProfile: import('../common/types').TrinoConnectionProfile = {
-      id,
-      name: 'Default Connection (Imported)',
-      type: 'trino',
-      host: config.get<string>('host', 'localhost'),
-      port: config.get<number>('port', 8080),
-      user: config.get<string>('user', 'user'),
-      ...(catalog ? { catalog } : {}),
-      ...(schema ? { schema } : {}),
-      ssl: config.get<boolean>('ssl', false),
-      sslVerify: config.get<boolean>('sslVerify', true),
-      ...(legacyPassword ? { password: legacyPassword } : {}),
-    } as import('../common/types').TrinoConnectionProfile;
-
-    if (defaultProfile.password) {
+    if (connectorType === 'sqlite') {
+      const defaultProfile: import('../common/types').SQLiteConnectionProfile = {
+        id: 'default-sqlite-' + Date.now(),
+        name: 'Default SQLite',
+        type: 'sqlite',
+        databasePath: config.get<string>('databasePath', ''),
+      };
       await this.saveConnection(defaultProfile);
     } else {
-      // Save without password field if undefined
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, ...safeProfile } = defaultProfile;
-      await this.saveConnection(safeProfile);
+      // Retrieve legacy password using exposed key string from AuthManager
+      const legacyPassword = await this.context.secrets.get('sqlPreview.database.password');
+
+      // Create Default Profile
+      const id = 'default-trino-' + Date.now();
+
+      const catalog = config.get<string>('catalog');
+      const schema = config.get<string>('schema');
+
+      const defaultProfile: import('../common/types').TrinoConnectionProfile = {
+        id,
+        name: 'Default Connection (Imported)',
+        type: 'trino',
+        host: config.get<string>('host', 'localhost'),
+        port: config.get<number>('port', 8080),
+        user: config.get<string>('user', 'user'),
+        ...(catalog ? { catalog } : {}),
+        ...(schema ? { schema } : {}),
+        ssl: config.get<boolean>('ssl', false),
+        sslVerify: config.get<boolean>('sslVerify', true),
+        ...(legacyPassword ? { password: legacyPassword } : {}),
+      } as import('../common/types').TrinoConnectionProfile;
+
+      if (defaultProfile.password) {
+        await this.saveConnection(defaultProfile);
+      } else {
+        // Save without password field if undefined
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { password, ...safeProfile } = defaultProfile;
+        await this.saveConnection(safeProfile);
+      }
     }
 
     // Optional: clear legacy password?

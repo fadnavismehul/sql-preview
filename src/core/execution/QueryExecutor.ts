@@ -58,7 +58,8 @@ export class QueryExecutor {
       ...profile,
       maxRows: config.get<number>('maxRowsToDisplay', 500),
       // Default sslVerify to true if undefined, but respect profile setting
-      sslVerify: profile.sslVerify !== undefined ? profile.sslVerify : true,
+      sslVerify:
+        'sslVerify' in profile && profile.sslVerify !== undefined ? profile.sslVerify : true,
     };
 
     // Validation (Connector Self-Validation)
@@ -74,7 +75,7 @@ export class QueryExecutor {
     }
 
     let authHeader: string | undefined;
-    if (profile.password) {
+    if ('password' in profile && profile.password && 'user' in profile) {
       authHeader = 'Basic ' + Buffer.from(`${profile.user}:${profile.password}`).toString('base64');
     }
 

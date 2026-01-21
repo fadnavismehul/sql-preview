@@ -60,7 +60,7 @@ describe('ConnectionManager Test Suite', () => {
 
     const connections = await connectionManager.getConnections();
     assert.strictEqual(connections.length, 1);
-    const saved = connections[0];
+    const saved = connections[0] as TrinoConnectionProfile;
     assert.ok(saved);
     assert.strictEqual(saved.id, mockProfile.id);
     assert.strictEqual(saved.user, mockProfile.user);
@@ -80,7 +80,7 @@ describe('ConnectionManager Test Suite', () => {
 
     const connections = await connectionManager.getConnections();
     assert.strictEqual(connections.length, 1);
-    const saved = connections[0];
+    const saved = connections[0] as TrinoConnectionProfile;
     assert.ok(saved);
     assert.strictEqual(saved.user, 'new-user');
 
