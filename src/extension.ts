@@ -331,7 +331,11 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
         columns = page.columns;
       }
       if (page.data) {
-        allRows.push(...page.data);
+        // Push in chunks to avoid stack overflow with spread operator on large arrays
+        const CHUNK_SIZE = 10000;
+        for (let i = 0; i < page.data.length; i += CHUNK_SIZE) {
+          allRows.push(...page.data.slice(i, i + CHUNK_SIZE));
+        }
         totalRows += page.data.length;
       }
 
