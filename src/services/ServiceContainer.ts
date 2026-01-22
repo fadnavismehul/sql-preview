@@ -6,17 +6,20 @@ import { ExportService } from './ExportService';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { TrinoConnector } from '../connectors/trino/TrinoConnector';
 import { SQLiteConnector } from '../connectors/sqlite/SQLiteConnector';
+import { PostgreSQLConnector } from '../connectors/postgres/PostgreSQLConnector';
 import { QuerySessionRegistry } from './QuerySessionRegistry';
 import { Logger, LogLevel } from '../core/logging/Logger';
 import * as vscode from 'vscode';
 
 import { ConnectionManager } from './ConnectionManager';
+import { DriverManager } from './DriverManager';
 
 export class ServiceContainer {
   private static instance: ServiceContainer;
 
   public readonly authManager: AuthManager;
   public readonly connectionManager: ConnectionManager;
+  public readonly driverManager: DriverManager;
   public readonly connectorRegistry: ConnectorRegistry;
   public readonly queryExecutor: QueryExecutor;
   public readonly tabManager: TabManager;
@@ -27,12 +30,13 @@ export class ServiceContainer {
   private constructor(context: vscode.ExtensionContext) {
     this.authManager = new AuthManager(context);
     this.connectionManager = new ConnectionManager(context);
+    this.driverManager = new DriverManager(context);
 
     // Initialize Registry and Connectors
     this.connectorRegistry = new ConnectorRegistry();
     this.connectorRegistry.register(new TrinoConnector());
     this.connectorRegistry.register(new SQLiteConnector());
-    // Future: this.connectorRegistry.register(new PostgresConnector());
+    this.connectorRegistry.register(new PostgreSQLConnector(this.driverManager));
 
     this.queryExecutor = new QueryExecutor(this.connectorRegistry, this.connectionManager);
     this.tabManager = new TabManager();
