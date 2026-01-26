@@ -2,7 +2,7 @@
   "name": "sql-preview",
   "displayName": "SQL Preview",
   "description": "Run SQL queries directly from VS Code with tabbed results",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "mehul",
   "icon": "media/icon.png",
   "repository": {

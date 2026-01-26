@@ -343,9 +343,12 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
 
   resultsViewProvider.showLoadingForTab(tabId, sql, title);
 
+  // Create cancellation session
+  const controller = serviceContainer.querySessionRegistry.createSession(tabId);
+
   try {
     const contextUri = sourceUri ? vscode.Uri.parse(sourceUri) : undefined;
-    const generator = queryExecutor.execute(sql, contextUri);
+    const generator = queryExecutor.execute(sql, contextUri, controller.signal);
     let totalRows = 0;
     let columns: import('./common/types').ColumnDef[] = [];
     const allRows: unknown[][] = [];
@@ -388,6 +391,10 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
     resultsViewProvider.showErrorForTab(tabId, message, stack, sql, title);
+  } finally {
+    // Cleanup session if it wasn't aborted (if aborted, it's already removed/handled?)
+    // Actually registry.clearSession just removes it.
+    serviceContainer.querySessionRegistry.clearSession(tabId);
   }
 }
 

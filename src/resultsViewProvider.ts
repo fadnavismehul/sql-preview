@@ -212,25 +212,44 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         }
         case 'testConnection': {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const config = data.config as any;
-          const pwd = await this._authManager.getPassword();
-          const authHeader = pwd
-            ? `Basic ${Buffer.from(`${config.user}:${pwd}`).toString('base64')}`
-            : undefined;
+          const config = data.config;
 
-          // Construct connector config
-          const testConfig = {
-            host: config.host,
-            port: parseInt(config.port, 10),
-            user: config.user,
-            catalog: config.catalog,
-            schema: config.schema,
-            ssl: config.ssl,
-            sslVerify: config.sslVerify,
-            maxRows: 1,
-          };
+          const workspaceConfig = vscode.workspace.getConfiguration('sqlPreview');
+          const connectorType = workspaceConfig.get<string>('defaultConnector', 'trino');
 
-          const result = await this._queryExecutor.testConnection('trino', testConfig, authHeader);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let testConfig: any;
+          let authHeader: string | undefined;
+
+          if (connectorType === 'sqlite') {
+            testConfig = {
+              databasePath: config.databasePath,
+            };
+            // SQLite doesn't use auth header usually
+          } else {
+            // Trino
+            const pwd = await this._authManager.getPassword();
+            authHeader = pwd
+              ? `Basic ${Buffer.from(`${config.user}:${pwd}`).toString('base64')}`
+              : undefined;
+
+            testConfig = {
+              host: config.host,
+              port: parseInt(config.port, 10),
+              user: config.user,
+              catalog: config.catalog,
+              schema: config.schema,
+              ssl: config.ssl,
+              sslVerify: config.sslVerify,
+              maxRows: 1,
+            };
+          }
+
+          const result = await this._queryExecutor.testConnection(
+            connectorType,
+            testConfig,
+            authHeader
+          );
           this._postMessage({
             type: 'testConnectionResult',
             success: result.success,

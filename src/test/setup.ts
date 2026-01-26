@@ -56,6 +56,8 @@ jest.mock(
       showWarningMessage: jest.fn(),
       showInputBox: jest.fn(),
       activeTextEditor: undefined,
+      showSaveDialog: jest.fn(),
+      withProgress: jest.fn(),
       createOutputChannel: jest.fn(() => ({
         appendLine: jest.fn(),
         show: jest.fn(),
@@ -79,12 +81,18 @@ jest.mock(
     workspace: {
       getConfiguration: jest.fn(() => mockWorkspaceConfig),
       workspaceFolders: [],
+      getWorkspaceFolder: jest.fn(),
       onDidChangeConfiguration: jest.fn(() => ({ dispose: jest.fn() })),
       fs: {
         createDirectory: jest.fn().mockResolvedValue(undefined as never),
         writeFile: jest.fn().mockResolvedValue(undefined as never),
         readFile: jest.fn().mockResolvedValue(Buffer.from('{}') as never),
       },
+    },
+    ProgressLocation: {
+      SourceControl: 1,
+      Window: 10,
+      Notification: 15,
     },
     EventEmitter: class {
       private _listeners: Array<(e: unknown) => unknown> = [];

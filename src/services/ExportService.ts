@@ -55,6 +55,7 @@ export class ExportService {
         try {
           const generator = this.queryExecutor.execute(tab.query, contextUri);
           let firstPage = true;
+          let columns: import('../common/types').ColumnDef[] | undefined;
 
           if (format === 'json') {
             stream.write('[\n');
@@ -65,22 +66,47 @@ export class ExportService {
               break;
             }
 
-            if (page.columns && firstPage && (format === 'csv' || format === 'tsv')) {
+            if (page.columns) {
+              columns = page.columns;
+            }
+
+            if (columns && firstPage && (format === 'csv' || format === 'tsv')) {
               const separator = format === 'csv' ? ',' : '\t';
               const header =
-                page.columns.map(c => this._escapeCsv(c.name, separator)).join(separator) + '\n';
+                columns.map(c => this._escapeCsv(c.name, separator)).join(separator) + '\n';
               stream.write(header);
+              firstPage = false;
+            } else if (page.columns && firstPage) {
+              // Ensure firstPage flag is flipped for other formats if columns arrived
               firstPage = false;
             }
 
             if (page.data) {
               const separator = format === 'csv' ? ',' : '\t';
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const currentColumns = columns;
+
               for (const row of page.data) {
                 if (format === 'json') {
                   const prefix = rowCount > 0 ? ',\n' : '';
-                  stream.write(prefix + JSON.stringify(row));
+                  let item: unknown = row;
+                  if (currentColumns) {
+                    const obj: Record<string, unknown> = {};
+                    currentColumns.forEach((col, idx) => {
+                      // Safety check for row length?
+                      // The row should match columns.
+                      // row is unknown[] actually, let's cast
+                      const vals = row as unknown[];
+                      obj[col.name] = vals[idx];
+                    });
+                    item = obj;
+                  }
+                  stream.write(prefix + JSON.stringify(item));
                 } else {
-                  const line = row.map(v => this._escapeCsv(v, separator)).join(separator) + '\n';
+                  // CSV/TSV
+                  // cast row to unknown[]
+                  const vals = row as unknown[];
+                  const line = vals.map(v => this._escapeCsv(v, separator)).join(separator) + '\n';
                   stream.write(line);
                 }
                 rowCount++;

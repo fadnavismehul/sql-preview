@@ -116,4 +116,21 @@ describe('ConnectionManager Test Suite', () => {
     const retrieved = await connectionManager.getConnection(mockProfile.id);
     assert.strictEqual(retrieved?.password, undefined);
   });
+
+  test('Save Connection with Empty Password Clears It', async () => {
+    await connectionManager.saveConnection(mockProfile);
+
+    // Save with empty password
+    const updatedProfile = { ...mockProfile, password: '' };
+    await connectionManager.saveConnection(updatedProfile);
+
+    const retrieved = await connectionManager.getConnection(mockProfile.id);
+    // Ideally this should be undefined or empty string, but currently it keeps the old password
+    // We assert stricter expectation: it SHOULD be cleared (undefined)
+    assert.strictEqual(
+      retrieved?.password,
+      undefined,
+      'Password should be cleared when saving empty string'
+    );
+  });
 });

@@ -30,8 +30,13 @@ export class ConnectionManager {
 
     await this.context.globalState.update(ConnectionManager.STORAGE_KEY, connections);
 
-    if (password) {
-      await this.setPassword(profile.id, password);
+    if (password !== undefined) {
+      if (password) {
+        await this.setPassword(profile.id, password);
+      } else {
+        // Clear password if empty string provided
+        await this.deletePassword(profile.id);
+      }
     }
   }
 

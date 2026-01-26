@@ -40,17 +40,23 @@ export class QueryExecutor {
       );
     }
 
-    // Use the first connection for now (Active Profile selection to be added)
-    const firstConnection = connections[0];
-    if (!firstConnection) {
+    // active connection or defaulting to the type specified in settings
+    const config = vscode.workspace.getConfiguration('sqlPreview', contextUri);
+    const defaultType = config.get<string>('defaultConnector', 'trino');
+
+    // 1. Try to find a connection matching the configured default type
+    const matchingConnection = connections.find(c => c.type === defaultType);
+
+    // 2. Fallback to the first available connection if no match found
+    const activeConnection = matchingConnection || connections[0];
+
+    if (!activeConnection) {
       throw new Error('No connection profile found.');
     }
-    const profile = await this.connectionManager.getConnection(firstConnection.id);
+    const profile = await this.connectionManager.getConnection(activeConnection.id);
     if (!profile) {
       throw new Error('Failed to load connection profile.');
     }
-
-    const config = vscode.workspace.getConfiguration('sqlPreview', contextUri);
 
     // Generic Config Construction: Spread profile properties
     // This allows any connector-specific fields (catalog, dbName, etc.) to pass through

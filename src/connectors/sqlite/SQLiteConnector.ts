@@ -58,6 +58,7 @@ export class SQLiteConnector implements IConnector<SQLiteConfig> {
       // We use a queue to buffer rows from db.each
       // This allows us to yield pages
       const queue: unknown[] = [];
+      let columns: ColumnDef[] | undefined;
       let error: Error | undefined;
       let completed = false;
       let resolveNext: (() => void) | undefined;
@@ -119,23 +120,28 @@ export class SQLiteConnector implements IConnector<SQLiteConfig> {
         const batch = queue.splice(0, batchSize);
 
         if (batch.length > 0) {
-          // Infer columns from the first row of the batch
-          const firstRow = batch[0] as Record<string, unknown>;
-          const columns: ColumnDef[] = Object.keys(firstRow).map(key => ({
-            name: key,
-            type: typeof firstRow[key], // rough type inference
-          }));
+          if (!columns) {
+            // Infer columns from the first row of the first batch
+            const firstRow = batch[0] as Record<string, unknown>;
+            columns = Object.keys(firstRow).map(key => ({
+              name: key,
+              type: typeof firstRow[key], // rough type inference
+            }));
+          }
 
           // Convert rows to array of values (if that's what QueryPage expects)
-          const data = batch.map(row => {
-            const r = row as Record<string, unknown>;
-            return columns.map(col => r[col.name]);
-          });
+          if (columns) {
+            const currentColumns = columns; // Capture for closure if needed, though map is sync
+            const data = batch.map(row => {
+              const r = row as Record<string, unknown>;
+              return currentColumns.map(col => r[col.name]);
+            });
 
-          yield {
-            columns,
-            data,
-          };
+            yield {
+              columns,
+              data,
+            };
+          }
         }
       }
     } finally {
