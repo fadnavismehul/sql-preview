@@ -11,9 +11,6 @@ module.exports = {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testEnvironment: 'node',
   setupFiles: ['./src/test/setup.ts'],
-  moduleNameMapper: {
-    '^vscode$': '@vscode/test-electron',
-  },
   collectCoverage: true,
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],

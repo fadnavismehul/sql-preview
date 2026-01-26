@@ -98,4 +98,22 @@ describe('ConnectionManager Test Suite', () => {
     const retrieved = await connectionManager.getConnection(mockProfile.id);
     assert.strictEqual(retrieved, undefined);
   });
+
+  test('Update Password Directly', async () => {
+    await connectionManager.saveConnection(mockProfile);
+
+    await connectionManager.updatePassword(mockProfile.id, 'updated-password');
+
+    const retrieved = await connectionManager.getConnection(mockProfile.id);
+    assert.strictEqual(retrieved?.password, 'updated-password');
+  });
+
+  test('Clear Password Directly', async () => {
+    await connectionManager.saveConnection(mockProfile);
+
+    await connectionManager.clearPasswordForConnection(mockProfile.id);
+
+    const retrieved = await connectionManager.getConnection(mockProfile.id);
+    assert.strictEqual(retrieved?.password, undefined);
+  });
 });

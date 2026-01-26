@@ -49,7 +49,10 @@ export class DriverManager {
     // Create a dummy package.json if it doesn't exist to avoid warnings or search up tree
     const packageJsonPath = path.join(this.storagePath, 'package.json');
     if (!fs.existsSync(packageJsonPath)) {
-      fs.writeFileSync(packageJsonPath, JSON.stringify({ name: 'sql-preview-drivers', dependencies: {} }));
+      fs.writeFileSync(
+        packageJsonPath,
+        JSON.stringify({ name: 'sql-preview-drivers', dependencies: {} })
+      );
     }
 
     return await vscode.window.withProgress(
@@ -59,7 +62,7 @@ export class DriverManager {
         cancellable: false,
       },
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      async (_progress) => {
+      async _progress => {
         return new Promise<void>((resolve, reject) => {
           Logger.getInstance().info(`Installing driver: ${packageName} in ${this.storagePath}`);
 
@@ -70,18 +73,26 @@ export class DriverManager {
             env: process.env, // Pass current env to ensure path to node/npm is found
           });
 
-          child.on('error', (err) => {
+          child.on('error', err => {
             Logger.getInstance().error(`Failed to start npm: ${err.message}`);
-            reject(new Error(`Failed to start npm. Please ensure Node.js and npm are installed. Error: ${err.message}`));
+            reject(
+              new Error(
+                `Failed to start npm. Please ensure Node.js and npm are installed. Error: ${err.message}`
+              )
+            );
           });
 
-          child.on('close', (code) => {
+          child.on('close', code => {
             if (code === 0) {
               Logger.getInstance().info(`Successfully installed ${packageName}`);
               resolve();
             } else {
               Logger.getInstance().error(`npm install failed with code ${code}`);
-              reject(new Error(`Failed to install driver '${packageName}'. Exit code: ${code}. Check logs for details.`));
+              reject(
+                new Error(
+                  `Failed to install driver '${packageName}'. Exit code: ${code}. Check logs for details.`
+                )
+              );
             }
           });
         });

@@ -68,14 +68,14 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
       const result: QueryResult = await client.query(query);
 
       if (result.rows.length > 0) {
-        const columns: ColumnDef[] = result.fields.map((f) => ({
+        const columns: ColumnDef[] = result.fields.map(f => ({
           name: f.name,
           type: this.mapPostgresType(f.dataTypeID),
         }));
 
         // Convert rows to arrays
-        const data = result.rows.map((row) => {
-          return columns.map((col) => row[col.name]);
+        const data = result.rows.map(row => {
+          return columns.map(col => row[col.name]);
         });
 
         yield {
@@ -89,7 +89,7 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
       } else {
         // Yield structure even if empty
         yield {
-          columns: result.fields.map((f) => ({
+          columns: result.fields.map(f => ({
             name: f.name,
             type: this.mapPostgresType(f.dataTypeID),
           })),

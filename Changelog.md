@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.3.9] - Unreleased
+
+### Added
+
+- **Open Source Preparation**:
+  - Added MIT License and updated copyright year to 2026.
+  - Added Security Policy (`SECURITY.md`) and Code of Conduct (`CODE_OF_CONDUCT.md`).
+  - Created Contribution Guidelines (`CONTRIBUTING.md`) and Developer Guide (`ARCHITECTURE.md`).
+  - Added GitHub Issue and Pull Request templates.
+  - configured GitHub Actions for CI/CD (lint, test, build).
+  - Added Dependabot configuration.
+- **Testing & Quality**:
+  - Added `test:coverage` script for test coverage reporting.
+  - Improved unit test reliability (password management tests).
+  - Adopted strict linting and formatting standards.
+- **Codebase**:
+  - Replaced console logs with structured `Logger` in MCP Server.
+  - Cleaned up unused dependencies (`body-parser`, `glob`, etc.).
+
 ## [0.3.8] - 2026-01-20
 
 ### Added

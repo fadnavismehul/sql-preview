@@ -183,6 +183,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Auth/Password Commands
   context.subscriptions.push(
     vscode.commands.registerCommand('sql.setPassword', async () => {
+      if (!serviceContainer) {
+        return;
+      }
       const password = await vscode.window.showInputBox({
         prompt: 'Enter your database password',
         password: true,
@@ -190,18 +193,41 @@ export function activate(context: vscode.ExtensionContext) {
       if (password !== undefined) {
         if (password === '') {
           await serviceContainer.authManager.clearPassword();
+          // Sync with ConnectionManager
+          const connections = await serviceContainer.connectionManager.getConnections();
+          if (connections.length > 0 && connections[0]) {
+            await serviceContainer.connectionManager.clearPasswordForConnection(connections[0].id);
+          }
+
           vscode.window.showInformationMessage('Database password cleared.');
         } else {
           await serviceContainer.authManager.setPassword(password);
+          // Sync with ConnectionManager
+          const connections = await serviceContainer.connectionManager.getConnections();
+          if (connections.length > 0 && connections[0]) {
+            await serviceContainer.connectionManager.updatePassword(connections[0].id, password);
+          }
+
           vscode.window.showInformationMessage('Database password stored securely.');
         }
       }
     }),
     vscode.commands.registerCommand('sql.clearPassword', async () => {
+      if (!serviceContainer) {
+        return;
+      }
       await serviceContainer.authManager.clearPassword();
+      // Sync with ConnectionManager
+      const connections = await serviceContainer.connectionManager.getConnections();
+      if (connections.length > 0 && connections[0]) {
+        await serviceContainer.connectionManager.clearPasswordForConnection(connections[0].id);
+      }
       vscode.window.showInformationMessage('Database password cleared.');
     }),
     vscode.commands.registerCommand('sql.setPasswordFromSettings', async () => {
+      if (!serviceContainer) {
+        return;
+      }
       const password = await vscode.window.showInputBox({
         prompt: 'Enter your database password',
         password: true,

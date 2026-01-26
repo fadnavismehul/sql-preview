@@ -25,6 +25,7 @@ const mockContext = {
   },
   extensionPath: '/mock/extension/path',
   extensionUri: vscode.Uri.file('/mock/extension/path'),
+  globalStorageUri: vscode.Uri.file('/mock/storage/path'),
   asAbsolutePath: (relativePath: string) => `/mock/extension/path/${relativePath}`,
 };
 
@@ -65,9 +66,15 @@ describe('Password Security Tests', () => {
   test('should store password securely when set', async () => {
     const context = mockContext as unknown as vscode.ExtensionContext;
     const testPassword = 'test-secure-password';
+    const mockConnectionId = 'test-conn-id';
 
     // Mock user input
     (vscode.window.showInputBox as jest.Mock).mockResolvedValue(testPassword);
+
+    // Mock existing connections so ConnectionManager has something to update
+    (mockContext.globalState.get as jest.Mock).mockReturnValue([
+      { id: mockConnectionId, name: 'Test Conn', type: 'trino' },
+    ]);
 
     await activate(context);
 
@@ -79,11 +86,18 @@ describe('Password Security Tests', () => {
     // Execute the set password command
     await setPasswordFunction();
 
-    // Verify password was stored securely
+    // Verify password was stored securely (Legacy Key)
     expect(context.secrets.store).toHaveBeenCalledWith(
       'sqlPreview.database.password',
       testPassword
     );
+
+    // Verify password was stored for the active connection (New Sync Logic)
+    expect(context.secrets.store).toHaveBeenCalledWith(
+      `sqlPreview.password.${mockConnectionId}`,
+      testPassword
+    );
+
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
       'Database password stored securely.'
     );
@@ -91,9 +105,15 @@ describe('Password Security Tests', () => {
 
   test('should clear password when empty string is provided', async () => {
     const context = mockContext as unknown as vscode.ExtensionContext;
+    const mockConnectionId = 'test-conn-id';
 
     // Mock user input with empty string
     (vscode.window.showInputBox as jest.Mock).mockResolvedValue('');
+
+    // Mock existing connections
+    (mockContext.globalState.get as jest.Mock).mockReturnValue([
+      { id: mockConnectionId, name: 'Test Conn', type: 'trino' },
+    ]);
 
     await activate(context);
 
@@ -105,13 +125,22 @@ describe('Password Security Tests', () => {
     // Execute the set password command
     await setPasswordFunction();
 
-    // Verify password was cleared
+    // Verify password was cleared (Legacy Key)
     expect(context.secrets.delete).toHaveBeenCalledWith('sqlPreview.database.password');
+    // Verify password was cleared for connection (New Sync Logic)
+    expect(context.secrets.delete).toHaveBeenCalledWith(`sqlPreview.password.${mockConnectionId}`);
+
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('Database password cleared.');
   });
 
   test('should clear password when clear command is called', async () => {
     const context = mockContext as unknown as vscode.ExtensionContext;
+    const mockConnectionId = 'test-conn-id';
+
+    // Mock existing connections
+    (mockContext.globalState.get as jest.Mock).mockReturnValue([
+      { id: mockConnectionId, name: 'Test Conn', type: 'trino' },
+    ]);
 
     await activate(context);
 
@@ -123,8 +152,11 @@ describe('Password Security Tests', () => {
     // Execute the clear password command
     await clearPasswordFunction();
 
-    // Verify password was cleared
+    // Verify password was cleared (Legacy Key)
     expect(context.secrets.delete).toHaveBeenCalledWith('sqlPreview.database.password');
+    // Verify password was cleared for connection (New Sync Logic)
+    expect(context.secrets.delete).toHaveBeenCalledWith(`sqlPreview.password.${mockConnectionId}`);
+
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('Database password cleared.');
   });
 

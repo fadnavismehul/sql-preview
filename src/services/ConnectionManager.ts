@@ -52,6 +52,14 @@ export class ConnectionManager {
     return undefined;
   }
 
+  public async updatePassword(id: string, password: string): Promise<void> {
+    await this.setPassword(id, password);
+  }
+
+  public async clearPasswordForConnection(id: string): Promise<void> {
+    await this.deletePassword(id);
+  }
+
   // --- Secret Storage ---
 
   private async getPassword(id: string): Promise<string | undefined> {
