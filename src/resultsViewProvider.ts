@@ -9,6 +9,7 @@ import { ConnectionManager } from './services/ConnectionManager';
 import { AuthManager } from './services/AuthManager';
 import { QueryExecutor } from './core/execution/QueryExecutor';
 import { getNonce } from './utils/nonce';
+import type { SqlPreviewMcpServer } from './modules/mcp/McpServer';
 
 /**
  * Manages the webview panel for displaying query results.
@@ -29,6 +30,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
   private _stateManager: StateManager;
   private _authManager: AuthManager;
   private _disposables: vscode.Disposable[] = [];
+  private _mcpServer: SqlPreviewMcpServer | undefined;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -145,6 +147,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         const density = config.get<string>('rowHeight', 'normal');
         this._postMessage({ type: 'updateRowHeight', density });
       }
+
+      // Listen for MCP changes to update Status instantly
+      if (
+        e.affectsConfiguration('sqlPreview.mcpEnabled') ||
+        e.affectsConfiguration('sqlPreview.mcpPort')
+      ) {
+        this._refreshSettings();
+      }
     });
 
     // Initial configuration is sent when 'webviewLoaded' is received
@@ -164,6 +174,16 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           // but we can trigger the command.
           vscode.commands.executeCommand('sql.runQueryNewTab');
           return;
+        case 'lockMcpPort': {
+          const target = vscode.ConfigurationTarget.Workspace;
+          await vscode.workspace
+            .getConfiguration('sqlPreview')
+            .update('mcpPort', data.port, target);
+          vscode.window.showInformationMessage(
+            `MCP Port locked to ${data.port} for this workspace.`
+          );
+          return;
+        }
         case 'webviewLoaded': {
           this._restoreTabsToWebview();
           if (this._activeEditorUri) {
@@ -259,6 +279,24 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         }
         case 'refreshSettings': {
           await this._refreshSettings();
+          return;
+        }
+        case 'testMcpServer': {
+          if (!this._mcpServer) {
+            this._postMessage({
+              type: 'testMcpResult',
+              success: false,
+              error: 'MCP Server not initialized internally.',
+            });
+            return;
+          }
+          const connectivity = await this._mcpServer.validateConnectivity();
+          this._postMessage({
+            type: 'testMcpResult',
+            success: connectivity.success,
+            error: connectivity.success ? undefined : connectivity.message,
+            message: connectivity.message,
+          });
           return;
         }
         case 'saveSettings': {
@@ -640,6 +678,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  public setMcpServer(server: SqlPreviewMcpServer | undefined) {
+    this._mcpServer = server;
+    // Trigger status update to UI
+    this._refreshSettings().catch(err =>
+      this.log(`Error refreshing settings on MCP update: ${err}`)
+    );
+  }
+
   // --- Private ---
 
   private _ensureVisible() {
@@ -811,6 +857,11 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         defaultConnector: config.get('defaultConnector'),
         databasePath: config.get('databasePath'),
         hasPassword,
+        mcpStatus: {
+          running: !!this._mcpServer && !!this._mcpServer.port,
+          port: this._mcpServer?.port,
+          error: !this._mcpServer && config.get('mcpEnabled'), // heuristic
+        },
       },
     });
   }
@@ -1039,7 +1090,10 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                         <label class="toggle-label"><input type="checkbox" id="cfg-mcpEnabled"> Enable MCP Server</label>
                                         <div class="form-group horizontal" style="margin-left:auto;">
                                             <label for="cfg-mcpPort">Port</label>
-                                            <input type="number" id="cfg-mcpPort" value="3000" style="width:80px;">
+                                            <div style="display:flex; align-items:center;">
+                                                <input type="number" id="cfg-mcpPort" value="3000" style="width:70px;">
+                                                <button id="lock-mcp-port" class="icon-button" title="Lock Port to Workspace" style="margin-left:5px; display:none;">🔒</button>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -1049,6 +1103,11 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                             <pre>"preview": { "url": "http://localhost:3000/sse" }</pre>
                                             <button id="copy-mcp-config" class="icon-button" title="Copy" aria-label="Copy MCP Config">📋</button>
                                         </div>
+                                    </div>
+                                    
+                                    <div class="form-group" style="margin-top: 15px;">
+                                        <button id="test-mcp-btn" class="secondary-button" style="width: auto;">Test MCP Server</button>
+                                        <span id="test-mcp-status" class="status-badge" style="margin-left: 10px;"></span>
                                     </div>
                                 </div>
                             </div>

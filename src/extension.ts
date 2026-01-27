@@ -80,37 +80,49 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     if (mcpServer) {
-      await mcpServer.stop();
-      mcpServer = undefined;
+      // Already running? Check if we need to restart?
+      // Ideally we just keep running.
+      if (mcpServer.port) {
+        mcpStatusBarItem.text = `$(server) MCP Active (${mcpServer.port})`;
+        mcpStatusBarItem.show();
+        return;
+      }
     }
 
     outputChannel.appendLine('Initializing MCP Server...');
-    outputChannel.appendLine('Initializing MCP Server...');
     try {
-      mcpServer = new SqlPreviewMcpServer(
-        serviceContainer.resultsViewProvider,
-        serviceContainer.tabManager
-      );
-      await mcpServer.start();
-      mcpStatusBarItem.text = `$(server) MCP Active`;
-      mcpStatusBarItem.show();
-    } catch (err) {
-      // If start failed (e.g. port still busy after retries), we notify user
-      outputChannel.appendLine(`ERROR: Failed to start MCP Server: ${err}`);
-      mcpStatusBarItem.text = `$(error) MCP Port Busy`;
-      mcpStatusBarItem.show();
-      mcpServer = undefined;
+      if (!mcpServer) {
+        mcpServer = new SqlPreviewMcpServer(
+          serviceContainer.resultsViewProvider,
+          serviceContainer.tabManager
+        );
+      }
 
-      vscode.window
-        .showErrorMessage(
-          'SQL Preview MCP Server could not bind to port 3000. Do you have the production extension running? Please disable it.',
-          'Retry'
-        )
-        .then(sel => {
-          if (sel === 'Retry') {
-            startMcpServer();
-          }
-        });
+      await mcpServer.start();
+
+      // Pass the initialized server to the results view provider so it can run tests
+      if (serviceContainer.resultsViewProvider) {
+        serviceContainer.resultsViewProvider.setMcpServer(mcpServer);
+      }
+
+      const port = mcpServer.port;
+      outputChannel.appendLine(`MCP Server started on port ${port}`);
+      mcpStatusBarItem.text = `$(server) MCP Active (${port})`;
+      mcpStatusBarItem.show();
+
+      if (port !== config.get<number>('mcpPort', 3000)) {
+        vscode.window.showInformationMessage(
+          `SQL Preview MCP Server started on alternative port: ${port} (Default was busy)`
+        );
+      }
+    } catch (err) {
+      outputChannel.appendLine(`ERROR: Failed to start MCP Server: ${err}`);
+      mcpStatusBarItem.text = `$(error) MCP Error`;
+      mcpStatusBarItem.tooltip = String(err);
+      mcpStatusBarItem.show();
+      mcpServer = undefined; // Reset so we retry cleanly next time
+
+      vscode.window.showErrorMessage(`SQL Preview MCP Server failed to start: ${err}`);
     }
   };
 
@@ -143,6 +155,29 @@ export function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('sql.mcp.stop', async () => {
       await stopMcpServer();
+    }),
+    vscode.commands.registerCommand('sql.mcp.testConnection', async () => {
+      if (!mcpServer || !mcpServer.port) {
+        vscode.window.showErrorMessage('MCP Server is not running.');
+        return;
+      }
+
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Testing MCP Connection...',
+          cancellable: false,
+        },
+        async () => {
+          return await mcpServer!.validateConnectivity();
+        }
+      );
+
+      if (result.success) {
+        vscode.window.showInformationMessage(result.message);
+      } else {
+        vscode.window.showErrorMessage(result.message);
+      }
     })
   );
 
