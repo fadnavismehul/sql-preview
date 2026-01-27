@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.2] - 2026-01-27
+
+### Added
+
+- **Filter Improvements**: Added a "Select All" checkbox to the column set filter, enabling easier bulk selection and deselection of visible items.
+
+### Fixed
+
+- **Data Parsing Integrity**: Fixed a critical issue where high-precision decimal numbers (e.g. `1932.53...`) were incorrectly parsed as "Invalid Number" or strings. The parser now intelligently handles BigInts while preserving standard floating point numbers for correct display and sorting.
+
 ## [0.3.9] - Unreleased
 
 ### Added

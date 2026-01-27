@@ -544,6 +544,12 @@ class CustomSetFilter {
             <div class="custom-set-filter-search">
                 <input type="text" placeholder="Search..." id="${idPrefix}-search">
             </div>
+            <div class="custom-set-filter-select-all" style="padding: 4px 8px; border-bottom: 1px solid var(--vscode-dropdown-border);">
+                <label style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="${idPrefix}-select-all"> 
+                    <span style="margin-left: 4px; font-style: italic;">(Select All)</span>
+                </label>
+            </div>
             <div class="custom-set-filter-list" id="${idPrefix}-list"></div>
             <div class="custom-set-filter-actions">
                 <button id="${idPrefix}-apply" class="primary">Apply</button>
@@ -552,6 +558,7 @@ class CustomSetFilter {
         `;
 
         this.eFilterText = this.gui.querySelector(`#${idPrefix}-search`);
+        this.eSelectAll = this.gui.querySelector(`#${idPrefix}-select-all`);
         this.eFilterList = this.gui.querySelector(`#${idPrefix}-list`);
         this.btnApply = this.gui.querySelector(`#${idPrefix}-apply`);
         this.btnClear = this.gui.querySelector(`#${idPrefix}-clear`);
@@ -587,6 +594,23 @@ class CustomSetFilter {
         // Event Listeners
         this.eFilterText.addEventListener('input', this.onSearchInput.bind(this));
 
+        this.eSelectAll.addEventListener('change', (e) => {
+            const isChecked = e.target.checked;
+            const filterTerm = this.eFilterText.value.toLowerCase();
+
+            this.sortedValues.forEach(value => {
+                // Only affect visible items
+                if (value.toLowerCase().indexOf(filterTerm) >= 0) {
+                    if (isChecked) {
+                        this.selectedValues.add(value);
+                    } else {
+                        this.selectedValues.delete(value);
+                    }
+                }
+            });
+            this.renderList();
+        });
+
         this.btnApply.addEventListener('click', () => {
             if (this.params.filterChangedCallback) {
                 this.params.filterChangedCallback();
@@ -608,14 +632,21 @@ class CustomSetFilter {
         this.eFilterList.innerHTML = '';
         const filterTerm = this.eFilterText.value.toLowerCase();
 
+        let visibleCount = 0;
+        let selectedVisibleCount = 0;
+
         this.sortedValues.forEach(value => {
             if (value.toLowerCase().indexOf(filterTerm) >= 0) {
+                visibleCount++;
+                const isSelected = this.selectedValues.has(value);
+                if (isSelected) selectedVisibleCount++;
+
                 const item = document.createElement('div');
                 item.className = 'custom-set-filter-item';
 
                 const checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.checked = this.selectedValues.has(value);
+                checkbox.checked = isSelected;
                 checkbox.value = value;
 
                 // Toggle selection
@@ -625,6 +656,8 @@ class CustomSetFilter {
                     } else {
                         this.selectedValues.delete(value);
                     }
+                    // Update Select All state without full re-render
+                    this.updateSelectAllState();
                 });
 
                 const label = document.createElement('span');
@@ -636,6 +669,28 @@ class CustomSetFilter {
                 this.eFilterList.appendChild(item);
             }
         });
+
+        // Update Select All Checkbox State
+        this.eSelectAll.checked = visibleCount > 0 && selectedVisibleCount === visibleCount;
+        this.eSelectAll.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleCount;
+    }
+
+    updateSelectAllState() {
+        const filterTerm = this.eFilterText.value.toLowerCase();
+        let visibleCount = 0;
+        let selectedVisibleCount = 0;
+
+        this.sortedValues.forEach(value => {
+            if (value.toLowerCase().indexOf(filterTerm) >= 0) {
+                visibleCount++;
+                if (this.selectedValues.has(value)) {
+                    selectedVisibleCount++;
+                }
+            }
+        });
+
+        this.eSelectAll.checked = visibleCount > 0 && selectedVisibleCount === visibleCount;
+        this.eSelectAll.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleCount;
     }
 
     onSearchInput() {
