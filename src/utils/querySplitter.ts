@@ -1,7 +1,7 @@
 /**
  * Tokenizes SQL text into statements and their ranges.
  */
-function* iterateSqlStatements(
+export function* iterateSqlStatements(
   text: string
 ): Generator<{ statement: string; start: number; end: number }> {
   let currentStart = 0;

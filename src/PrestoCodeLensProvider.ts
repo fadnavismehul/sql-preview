@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { splitSqlQueries } from './utils/querySplitter';
+import { iterateSqlStatements } from './utils/querySplitter';
 
 /**
  * Provides CodeLens actions (like "Run Query") above SQL statements.
@@ -23,27 +23,23 @@ export class PrestoCodeLensProvider implements vscode.CodeLensProvider {
     const codeLenses: vscode.CodeLens[] = [];
     const text = document.getText();
 
-    // Use robust splitter that handles comments and strings correctly
-    const queries = splitSqlQueries(text);
-
-    let currentOffset = 0;
-    for (const query of queries) {
-      const trimmedQuery = query.trim();
+    // Use robust splitter that handles comments and strings correctly and provides ranges
+    for (const { statement: trimmedQuery, start, end } of iterateSqlStatements(text)) {
       if (trimmedQuery.length === 0) {
         continue;
       }
 
-      // Find the start offset of this query
-      // Note: This simple indexOf approach might still be slightly fragile if the same query appears multiple times
-      // but since we update currentOffset, it should find the next occurrence.
-      // Ideally splitSqlQueries would return ranges, but this is a good improvement over regex.
-      const startOffset = text.indexOf(trimmedQuery, currentOffset);
-      if (startOffset === -1) {
-        // Could not find query segment offset. Skipping CodeLens.
-        // This shouldn't happen if splitter works correctly, but safety first.
-        currentOffset += query.length;
+      // Find the start offset of this query within the identified range
+      // We already know the range [start, end] contains the query, we just need to skip leading whitespace.
+      const chunk = text.substring(start, end);
+      const relativeStart = chunk.indexOf(trimmedQuery);
+
+      if (relativeStart === -1) {
+        // Should not happen as trimmedQuery comes from chunk
         continue;
       }
+
+      const startOffset = start + relativeStart;
       const endOffset = startOffset + trimmedQuery.length;
 
       const startPos = document.positionAt(startOffset);
@@ -86,9 +82,6 @@ export class PrestoCodeLensProvider implements vscode.CodeLensProvider {
         new vscode.Position(adjustedStartPos.line, adjustedStartPos.character + 1)
       );
       codeLenses.push(new vscode.CodeLens(newTabLensRange, runNewTabCommand));
-
-      // Update offset for the next search
-      currentOffset = endOffset;
     }
 
     return codeLenses;
