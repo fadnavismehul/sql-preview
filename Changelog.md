@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.3] - 2026-01-27
+
+### Fixed
+
+- **Connection Robustness**: Enhanced input sanitization for Trino connections. It now automatically strips protocols (`http://`, `https://`) and duplicative port numbers from the Host field, resolving common `ENOTFOUND` and connection timeout errors caused by copy-pasting full URLs.
+
 ## [0.4.2] - 2026-01-27
 
 ### Added
