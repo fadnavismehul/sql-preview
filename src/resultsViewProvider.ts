@@ -885,7 +885,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                 <div id="tab-container" class="tab-container">
                     <div id="tab-list" class="tab-list"></div>
                     <div id="active-file-indicator" class="active-file-indicator" style="display:none;"></div>
-                    <button id="connections-button" class="icon-button" title="Manage Connections" style="background:none;border:none;color:var(--vscode-foreground);cursor:pointer;padding:4px;">
+                    <button id="connections-button" class="icon-button" title="Manage Connections" aria-label="Manage Connections" style="background:none;border:none;color:var(--vscode-foreground);cursor:pointer;padding:4px;">
                         <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.4h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM8 11c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z"/></svg>
                     </button>
                 </div>
@@ -902,7 +902,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                 <div class="settings-view-content">
                     <div class="manager-header">
                         <div style="display:flex;align-items:center;gap:15px;">
-                            <button id="close-settings" class="icon-button" title="Back to Results">
+                            <button id="close-settings" class="icon-button" title="Back to Results" aria-label="Back to Results">
                                 <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.78 2.22a.75.75 0 0 1 0 1.06L4.56 6.5h8.69a.75.75 0 0 1 0 1.5H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 0z"/></svg>
                             </button>
                             <h2>Settings</h2>
@@ -915,18 +915,18 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                             
                             <div class="form-row">
                                 <div class="form-group" style="flex:1;">
-                                    <label>Max Rows</label>
+                                    <label for="cfg-maxRowsToDisplay">Max Rows</label>
                                     <input type="number" id="cfg-maxRowsToDisplay" placeholder="500">
                                 </div>
                                 <div class="form-group" style="flex:1;">
-                                    <label>Font Size (px)</label>
+                                    <label for="cfg-fontSize">Font Size (px)</label>
                                     <input type="number" id="cfg-fontSize" placeholder="Inherit">
                                 </div>
                             </div>
                             
                             <div class="form-row">
                                 <div class="form-group" style="flex:1;">
-                                    <label>Row Height</label>
+                                    <label for="cfg-rowHeight">Row Height</label>
                                     <select id="cfg-rowHeight">
                                         <option value="compact">Compact</option>
                                         <option value="normal">Normal</option>
@@ -934,7 +934,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                     </select>
                                 </div>
                                 <div class="form-group" style="flex:1;">
-                                    <label>Tab Naming</label>
+                                    <label for="cfg-tabNaming">Tab Naming</label>
                                     <select id="cfg-tabNaming">
                                         <option value="query-snippet">Query Content</option>
                                         <option value="file-sequential">Sequential</option>
@@ -957,7 +957,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                 
                                 <div class="card-content">
                                     <div class="form-group">
-                                        <label>Connector Type</label>
+                                        <label for="cfg-defaultConnector">Connector Type</label>
                                         <select id="cfg-defaultConnector">
                                             <option value="trino">Trino / Presto</option>
                                             <option value="sqlite">SQLite</option>
@@ -967,28 +967,28 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                     <!-- Trino Fields -->
                                     <div id="cfg-group-trino" class="connector-group">
                                         <div class="form-group">
-                                            <label>Host</label>
+                                            <label for="cfg-host">Host</label>
                                             <input type="text" id="cfg-host" placeholder="localhost">
                                         </div>
 
                                         <div class="form-row">
                                             <div class="form-group" style="flex:1;">
-                                                <label>Port</label>
+                                                <label for="cfg-port">Port</label>
                                                 <input type="number" id="cfg-port" value="8080">
                                             </div>
                                             <div class="form-group" style="flex:2;">
-                                                <label>User</label>
+                                                <label for="cfg-user">User</label>
                                                 <input type="text" id="cfg-user" placeholder="admin">
                                             </div>
                                         </div>
 
                                         <div class="form-row">
                                             <div class="form-group" style="flex:1;">
-                                                <label>Catalog</label>
+                                                <label for="cfg-catalog">Catalog</label>
                                                 <input type="text" id="cfg-catalog" placeholder="Optional">
                                             </div>
                                             <div class="form-group" style="flex:1;">
-                                                <label>Schema</label>
+                                                <label for="cfg-schema">Schema</label>
                                                 <input type="text" id="cfg-schema" placeholder="Optional">
                                             </div>
                                         </div>
@@ -1011,7 +1011,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                     <!-- SQLite Fields -->
                                     <div id="cfg-group-sqlite" class="connector-group" style="display:none;">
                                         <div class="form-group">
-                                            <label>Database Path</label>
+                                            <label for="cfg-databasePath">Database Path</label>
                                             <input type="text" id="cfg-databasePath" placeholder="/path/to/database.db">
                                             <small style="color:var(--vscode-descriptionForeground);display:block;margin-top:4px;">Absolute path to the SQLite file.</small>
                                         </div>
@@ -1038,7 +1038,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                     <div class="form-row align-center" style="margin-top:10px;">
                                         <label class="toggle-label"><input type="checkbox" id="cfg-mcpEnabled"> Enable MCP Server</label>
                                         <div class="form-group horizontal" style="margin-left:auto;">
-                                            <label>Port</label>
+                                            <label for="cfg-mcpPort">Port</label>
                                             <input type="number" id="cfg-mcpPort" value="3000" style="width:80px;">
                                         </div>
                                     </div>
@@ -1047,7 +1047,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                         <p>Add to <code>mcp.json</code>:</p>
                                         <div class="code-snippet">
                                             <pre>"preview": { "url": "http://localhost:3000/sse" }</pre>
-                                            <button id="copy-mcp-config" class="icon-button" title="Copy">📋</button>
+                                            <button id="copy-mcp-config" class="icon-button" title="Copy" aria-label="Copy MCP Config">📋</button>
                                         </div>
                                     </div>
                                 </div>
