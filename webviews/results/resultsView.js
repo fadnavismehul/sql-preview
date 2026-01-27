@@ -1493,6 +1493,35 @@ if (testConnectionBtn) {
     });
 }
 
+function updateConnectionList(connections) {
+    // Placeholder: This function handles UI updates for saved connections
+    // Currently no specific list element is implemented in the settings panel
+    console.log('[Webview] Received updated connections:', connections);
+}
+
+// Test MCP Logic
+const testMcpBtn = document.getElementById('test-mcp-btn');
+const testMcpStatus = document.getElementById('test-mcp-status');
+
+if (testMcpBtn) {
+    testMcpBtn.addEventListener('click', () => {
+        const isEnabled = document.getElementById('cfg-mcpEnabled').checked;
+        if (!isEnabled) {
+            testMcpStatus.textContent = 'Warning: MCP Server is disabled. Enable it above to test.';
+            testMcpStatus.className = 'status-badge';
+            testMcpStatus.style.color = 'var(--vscode-charts-yellow)';
+            return;
+        }
+
+        testMcpBtn.textContent = 'Testing...';
+        testMcpBtn.disabled = true;
+        testMcpStatus.textContent = '';
+        testMcpStatus.className = 'status-badge';
+
+        vscode.postMessage({ command: 'testMcpServer' });
+    });
+}
+
 // Handle Incoming Settings & Test Results
 window.addEventListener('message', event => {
     const message = event.data;
@@ -1514,6 +1543,21 @@ window.addEventListener('message', event => {
                 testConnectionStatus.textContent = 'Failed: ' + message.error;
                 testConnectionStatus.className = 'status-badge error';
                 testConnectionStatus.style.color = 'var(--vscode-errorForeground)';
+            }
+            break;
+        case 'testMcpResult':
+            if (testMcpBtn) {
+                testMcpBtn.disabled = false;
+                testMcpBtn.textContent = 'Test MCP Server';
+            }
+            if (message.success) {
+                testMcpStatus.textContent = 'Success! ' + (message.message || '');
+                testMcpStatus.className = 'status-badge success';
+                testMcpStatus.style.color = 'var(--vscode-charts-green)';
+            } else {
+                testMcpStatus.textContent = 'Failed: ' + (message.error || message.message || 'Unknown error');
+                testMcpStatus.className = 'status-badge error';
+                testMcpStatus.style.color = 'var(--vscode-errorForeground)';
             }
             break;
     }
@@ -1554,6 +1598,84 @@ function populateSettings(config) {
     // Experimental
     document.getElementById('cfg-mcpEnabled').checked = config.mcpEnabled === true;
     document.getElementById('cfg-mcpPort').value = config.mcpPort || 3000;
+
+    // MCP Status Feedback in Config
+    // If we have status info, we could show it.
+    // For now, the port might be dynamic, so let's update placeholder or show a hint?
+    // The config object from extension has 'mcpStatus' which we can use
+    if (config.mcpStatus) {
+        const portContainer = document.getElementById('cfg-mcpPort');
+        if (config.mcpStatus.running && config.mcpStatus.port) {
+            // Update the input to show actual running port if user hasn't touched it?
+            // tailored behavior: show actual port next to it
+            // or just update value if different?
+            // config.mcpPort is the SETTING. config.mcpStatus.port is the RUNTIME.
+
+            // Let's create/update a runtime indicator
+            let mcpStatusInd = document.getElementById('mcp-runtime-status');
+            if (!mcpStatusInd) {
+                mcpStatusInd = document.createElement('span');
+                mcpStatusInd.id = 'mcp-runtime-status';
+                mcpStatusInd.style.marginLeft = '10px';
+                mcpStatusInd.style.fontSize = '0.9em';
+                portContainer.parentNode.appendChild(mcpStatusInd);
+            }
+            mcpStatusInd.textContent = `(Active: ${config.mcpStatus.port} - Window Level)`;
+            mcpStatusInd.style.color = 'var(--vscode-charts-green)';
+            const snippetEl = document.querySelector('.code-snippet pre');
+            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:${config.mcpStatus.port}/sse" }`;
+
+            // Lock Button Logic
+            const lockBtn = document.getElementById('lock-mcp-port');
+            if (lockBtn) {
+                // If the running port is different from the configured/input port, show lock to sync them
+                const configuredPort = parseInt(document.getElementById('cfg-mcpPort').value, 10);
+                if (config.mcpStatus.port !== configuredPort) {
+                    lockBtn.style.display = 'inline-block';
+                    lockBtn.style.color = 'var(--vscode-charts-yellow)';
+                    lockBtn.title = "Current port differs from Workspace Config. Click to Lock.";
+                } else {
+                    lockBtn.style.display = 'inline-block';
+                    lockBtn.style.color = 'var(--vscode-descriptionForeground)';
+                    lockBtn.title = "Port is locked to Workspace Config.";
+                }
+
+                // Remove old listeners by cloning
+                const newLock = lockBtn.cloneNode(true);
+                lockBtn.parentNode.replaceChild(newLock, lockBtn);
+                newLock.addEventListener('click', () => {
+                    // Send lock command
+                    vscode.postMessage({
+                        command: 'lockMcpPort',
+                        port: config.mcpStatus.port
+                    });
+                    // Optimistically update input
+                    document.getElementById('cfg-mcpPort').value = config.mcpStatus.port;
+                    newLock.style.color = 'var(--vscode-descriptionForeground)';
+                });
+            }
+        } else if (config.mcpStatus.error) {
+            let mcpStatusInd = document.getElementById('mcp-runtime-status');
+            if (!mcpStatusInd) {
+                mcpStatusInd = document.createElement('span');
+                mcpStatusInd.id = 'mcp-runtime-status';
+                mcpStatusInd.style.marginLeft = '10px';
+                portContainer.parentNode.appendChild(mcpStatusInd);
+            }
+            mcpStatusInd.textContent = `(Stopped/Error)`;
+            mcpStatusInd.style.color = 'var(--vscode-errorForeground)';
+            const snippetEl = document.querySelector('.code-snippet pre');
+            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:3000/sse" }`;
+        } else {
+            let mcpStatusInd = document.getElementById('mcp-runtime-status');
+            if (mcpStatusInd) {
+                mcpStatusInd.textContent = '(Stopped)';
+                mcpStatusInd.style.color = 'var(--vscode-descriptionForeground)';
+            }
+            const snippetEl = document.querySelector('.code-snippet pre');
+            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:3000/sse" }`;
+        }
+    }
 }
 
 function updateConnectorVisibility() {

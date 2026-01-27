@@ -13,13 +13,21 @@ import * as http from 'http';
 import * as vscode from 'vscode';
 import { ResultsViewProvider } from '../../resultsViewProvider';
 import { McpToolManager } from './McpToolManager';
+
 import { TabManager } from '../../services/TabManager';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
 export class SqlPreviewMcpServer {
   private server: Server;
   private app: express.Express;
   private httpServer: http.Server | null | undefined; // Store http server instance to close it later
   private toolManager: McpToolManager;
+  private _port: number | undefined;
+
+  public get port(): number | undefined {
+    return this._port;
+  }
 
   constructor(
     resultsProvider: ResultsViewProvider,
@@ -163,40 +171,88 @@ export class SqlPreviewMcpServer {
     // Fallback/Redundant endpoint if client is confused (e.g. Cursor POSTing to /sse)
     this.app.post('/sse', handleMessage);
 
-    // Attempt to listen, retrying same port if busy (to allow handover from other window)
-    // Retry for up to 30 seconds to handle TIME_WAIT or slow window switching
-    let retries = 60;
-    while (retries > 0) {
+    // Attempt to listen, incrementing port if busy
+    // Try next 10 ports
+    let attempt = 0;
+    const maxAttempts = 10;
+
+    while (attempt < maxAttempts) {
+      const currentPort = startPort + attempt;
       try {
         await new Promise<void>((resolve, reject) => {
-          this.httpServer = this.app.listen(startPort, '127.0.0.1', () => {
-            console.log(`MCP Server listening on port ${startPort} (127.0.0.1)`);
+          this.httpServer = this.app.listen(currentPort, '127.0.0.1', () => {
+            console.log(`MCP Server listening on port ${currentPort} (127.0.0.1)`);
+            this._port = currentPort;
             resolve();
           });
+
           this.httpServer.on('error', (err: unknown) => {
             reject(err);
           });
         });
+
+        // If we reached here, we successfully bound
         break;
       } catch (err: unknown) {
         // If start failed, ensure we don't hold a reference to a dead server
         this.httpServer = null;
+        this._port = undefined;
 
-        const code = (err as { code?: string }).code;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const code = (err as any).code || (err as any).errno; // errno sometimes used
+        console.log(`[MCP Debug] Start failed on ${currentPort}. Code: ${code}. Err: ${err}`);
 
         if (code === 'EADDRINUSE') {
-          // Port busy, wait and retry SAME port to allow other window to release it
-          console.log(`Port ${startPort} busy, retrying... (${retries})`);
-          await new Promise(r => setTimeout(r, 500));
-          retries--;
+          console.log(`Port ${currentPort} busy, trying next port...`);
+          attempt++;
         } else {
+          console.error(`MCP Start Error on port ${currentPort}:`, err); // DEBUG
           throw err;
         }
       }
     }
 
-    if (retries === 0) {
-      throw new Error(`Could not bind to port ${startPort} after multiple attempts.`);
+    if (!this._port) {
+      throw new Error(
+        `Could not bind to any port from ${startPort} to ${startPort + maxAttempts} after multiple attempts.`
+      );
+    }
+  }
+
+  /**
+   * Verifies that the server is running and responding to MCP protocol messages.
+   * Creates a temporary client to ping the server.
+   */
+  async validateConnectivity(): Promise<{ success: boolean; message: string }> {
+    if (!this._port) {
+      return { success: false, message: 'Server is not running (no port assigned).' };
+    }
+
+    const client = new Client(
+      {
+        name: 'health-check-client',
+        version: '1.0.0',
+      },
+      {
+        capabilities: {},
+      }
+    );
+
+    try {
+      const transport = new SSEClientTransport(new URL(`http://127.0.0.1:${this._port}/sse`));
+      await client.connect(transport);
+
+      // If we connected, try a simple list tools call to verify full protocol loop
+      await client.listTools();
+
+      await client.close();
+      return {
+        success: true,
+        message: `Successfully connected to MCP Server on port ${this._port}`,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, message: `Connection check failed: ${msg}` };
     }
   }
 
@@ -218,6 +274,7 @@ export class SqlPreviewMcpServer {
         });
       });
       this.httpServer = null;
+      this._port = undefined;
       console.log('MCP Server stopped.');
     }
   }

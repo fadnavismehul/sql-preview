@@ -135,6 +135,7 @@ export type WebviewToExtensionMessage =
   | { command: 'saveSettings'; settings: unknown }
   | { command: 'setPassword' }
   | { command: 'clearPassword' }
+  | { command: 'testMcpServer' }
   | { command: 'logMessage'; level: string; message: string };
 
 export type ExtensionToWebviewMessage =
@@ -171,4 +172,10 @@ export type ExtensionToWebviewMessage =
   | { type: 'updateRowHeight'; density: string }
   | { type: 'updateConnections'; connections: ConnectionProfile[] }
   | { type: 'testConnectionResult'; success: boolean; error?: string }
+  | {
+      type: 'testMcpResult';
+      success: boolean;
+      error?: string | undefined;
+      message?: string | undefined;
+    }
   | { type: 'updateConfig'; config: unknown };

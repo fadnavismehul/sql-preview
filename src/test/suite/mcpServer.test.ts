@@ -129,7 +129,7 @@ describe('MCP Server Test Suite', () => {
     } catch (e) {
       // The error is now a custom error message
       assert.ok(e instanceof Error);
-      assert.ok((e as Error).message.includes('Could not bind to port'));
+      assert.ok((e as Error).message.includes('Could not bind to any port'));
     }
   });
 
@@ -194,8 +194,8 @@ describe('MCP Server Test Suite', () => {
     assert.ok(appListenStub.calledTwice, 'Should have attempted to listen twice');
     assert.ok(appListenStub.firstCall.calledWith(3000), 'First attempt should be on port 3000');
     assert.ok(
-      appListenStub.secondCall.calledWith(3000),
-      'Second attempt should be on port 3000 (same port retry)'
+      appListenStub.secondCall.calledWith(3001),
+      'Second attempt should be on next port (3001)'
     );
   });
 });

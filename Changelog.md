@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.4] - 2026-01-27
+
+### Added
+
+- **MCP Feedback**: Added `SQL Preview: Test MCP Server Connection` command to verify server health.
+- **MCP Status**: Updated Status Bar to show the specific port number the MCP server is bound to.
+
+### Changed
+
+- **MCP Reliability**: Implemented port rolling (auto-increment) for MCP server. If port 3000 is busy, it will try 3001, 3002, etc. This enables multiple VS Code windows to run the extension simultaneously without conflict.
+
 ## [0.4.3] - 2026-01-27
 
 ### Fixed

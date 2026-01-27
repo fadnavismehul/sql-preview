@@ -2,7 +2,7 @@
   "name": "sql-preview",
   "displayName": "SQL Preview",
   "description": "Run SQL queries directly from VS Code with tabbed results",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "publisher": "mehul",
   "icon": "media/icon.png",
   "repository": {
@@ -73,6 +73,10 @@
         "command": "sql.setPasswordFromSettings",
         "title": "Set Password",
         "icon": "$(key)"
+      },
+      {
+        "command": "sql.mcp.testConnection",
+        "title": "SQL Preview: Test MCP Server Connection"
       }
     ],
     "viewsContainers": {
@@ -238,7 +242,7 @@
         "sqlPreview.mcpPort": {
           "type": "number",
           "default": 3000,
-          "description": "(Beta) Port for the MCP (Model Context Protocol) server.",
+          "description": "(Beta) Target port for the MCP (Model Context Protocol) server. If busy, the next available port (up to +10) will be used.",
           "minimum": 1024,
           "maximum": 65535,
           "order": 21
