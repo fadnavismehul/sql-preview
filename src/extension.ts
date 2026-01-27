@@ -5,6 +5,7 @@ import { PrestoCodeLensProvider } from './PrestoCodeLensProvider';
 import { getQueryAtOffset } from './utils/querySplitter';
 import { ServiceContainer } from './services/ServiceContainer';
 import { QueryResults } from './common/types';
+import { BaseError } from './common/errors';
 
 // Global instance to allow access in tests/commands if strictly necessary,
 // but preferred to access via ServiceContainer unless legacy.
@@ -389,8 +390,20 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     resultsViewProvider.showResultsForTab(tabId, results);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    const stack = error instanceof Error ? error.stack : undefined;
-    resultsViewProvider.showErrorForTab(tabId, message, stack, sql, title);
+    let details: string | undefined;
+
+    if (error instanceof BaseError) {
+      // Safe errors (like QueryError) that might have user-friendly details
+      details = error.details;
+    } else if (error instanceof Error) {
+      // Unexpected errors - Log stack to output but hide from UI for security
+      if (error.stack) {
+        outputChannel.appendLine(`Stack Trace for error "${message}":\n${error.stack}`);
+      }
+      // details remains undefined to prevent stack leakage
+    }
+
+    resultsViewProvider.showErrorForTab(tabId, message, details, sql, title);
   } finally {
     // Cleanup session if it wasn't aborted (if aborted, it's already removed/handled?)
     // Actually registry.clearSession just removes it.
