@@ -53,8 +53,29 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
     authHeader?: string,
     abortSignal?: AbortSignal
   ): AsyncGenerator<QueryPage, void, unknown> {
+    // Sanitize Host: Strip protocol if accidentally entered by user
+    let cleanHost = config.host;
+    if (cleanHost.startsWith('http://')) {
+      cleanHost = cleanHost.substring(7);
+    } else if (cleanHost.startsWith('https://')) {
+      cleanHost = cleanHost.substring(8);
+    }
+
+    // Remove trailing slashes if any
+    if (cleanHost.endsWith('/')) {
+      cleanHost = cleanHost.slice(0, -1);
+    }
+
+    // Sanitize Host: Strip port if accidentally entered by user (e.g. localhost:8080)
+    // We already have a separate port config.
+    const portMatch = cleanHost.match(/:(\d+)$/);
+    if (portMatch) {
+      cleanHost = cleanHost.substring(0, portMatch.index);
+      // Optional: We could warn or override config.port, but stripping it handles the "double port" error.
+    }
+
     const protocol = config.ssl ? 'https' : 'http';
-    const baseUrl = `${protocol}://${config.host}:${config.port}`;
+    const baseUrl = `${protocol}://${cleanHost}:${config.port}`;
     const statementUrl = `${baseUrl}/v1/statement`;
 
     const httpsAgent = config.ssl

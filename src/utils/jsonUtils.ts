@@ -1,7 +1,46 @@
 import JSONBig from 'json-bigint';
 
-// Use strict mode to throw errors on duplicate keys, but always stringify BigInts
-const jsonBig = JSONBig({ storeAsString: true, strict: true });
+// Configure to return BigNumber objects instead of strings immediately
+const jsonBig = JSONBig({ storeAsString: false, strict: true });
+
+/**
+ * Recursively converts BigNumber objects to native Numbers (if safe) or Strings.
+ */
+function convertBigNumbers(obj: any): any {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(convertBigNumbers);
+  }
+
+  if (typeof obj === 'object') {
+    // Check if it's a BigNumber (duck typing or constructor check)
+    // json-bigint uses bignumber.js instances
+    if (obj.constructor && obj.constructor.name === 'BigNumber') {
+      const str = obj.toString();
+      const num = Number(str);
+      // Check if conversion to Number is lossless
+      // We compare string representations. Note that Number.toString() might canonicalize.
+      // e.g. 1e+20
+      if (String(num) === str) {
+        return num;
+      }
+      return str;
+    }
+
+    const result: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        result[key] = convertBigNumbers(obj[key]);
+      }
+    }
+    return result;
+  }
+
+  return obj;
+}
 
 /**
  * Robust JSON parser that handles BigInts by preserving them as strings.
@@ -9,7 +48,8 @@ const jsonBig = JSONBig({ storeAsString: true, strict: true });
  */
 export function safeJsonParse<T = unknown>(text: string): T {
   try {
-    return jsonBig.parse(text) as T;
+    const parsed = jsonBig.parse(text);
+    return convertBigNumbers(parsed) as T;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`JSON Parse Error: ${error.message}`);
