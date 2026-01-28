@@ -28,7 +28,7 @@ export class DaemonMcpServer {
     });
 
     this.server.setRequestHandler(CallToolRequestSchema, async request => {
-      return this.toolManager.handleToolCall(request.params.name, request.params.arguments);
+      return await this.toolManager.handleToolCall(request.params.name, request.params.arguments);
     });
 
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {

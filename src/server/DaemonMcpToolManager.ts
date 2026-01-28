@@ -151,7 +151,7 @@ export class DaemonMcpToolManager {
     };
   }
 
-  private async handleListSessions() {
+  private handleListSessions() {
     const sessions = this.sessionManager.getAllSessions();
     return {
       content: [
