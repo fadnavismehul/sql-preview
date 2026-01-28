@@ -410,11 +410,22 @@ function createTab(tabId, query, title, sourceFileUri) {
         <div class="spinner"></div>
         <div class="loading-text">Preparing query...</div>
         ${query ? `<div class="query-preview"><pre>${escapeHtml(query)}</pre></div>` : ''}
-        <button class="cancel-button" onclick="cancelQuery('${tabId}')">Cancel Query</button>
+        <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
     </div>
   `;
 
     tabContentContainer.appendChild(contentElement);
+
+    // Attach listener programmatically to avoid CSP inline-script blocking
+    const cancelBtn = contentElement.querySelector(`#cancel-${tabId}`);
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            logToHost('info', `Cancel button clicked for tab ${tabId}`);
+            vscode.postMessage({ command: 'cancelQuery', tabId: tabId });
+        });
+    } else {
+        logToHost('error', `Could not find cancel button for tab ${tabId}`);
+    }
 
     // Store tab reference
     tabs.set(tabId, {
@@ -1205,12 +1216,23 @@ function showLoading(tabId, query, title) {
     // Reset content to loading
     tab.content.innerHTML = `
         <div class="loading-container">
-            <div class="spinner"></div>
-            <div class="loading-text">Running query...</div>
-            <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
-            <button class="cancel-button" onclick="cancelQuery('${tabId}')">Cancel Query</button>
-        </div>
+        <div class="spinner"></div>
+        <div class="loading-text">Running query...</div>
+        <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
+        <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
+    </div>
     `;
+
+    // Attach listener programmatically to avoid CSP inline-script blocking
+    const cancelBtn = tab.content.querySelector(`#cancel-${tabId}`);
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            logToHost('info', `Cancel button clicked for tab ${tabId}`);
+            vscode.postMessage({ command: 'cancelQuery', tabId: tabId });
+        });
+    } else {
+        logToHost('error', `Could not find cancel button for tab ${tabId} in showLoading`);
+    }
 }
 
 
@@ -1423,7 +1445,7 @@ function saveAllSettings() {
         currentRowHeightDensity = settings.rowHeight;
     }
     if (settings.fontSize) {
-        document.documentElement.style.setProperty('--sql-preview-font-size', `${settings.fontSize}px`); // Custom var?
+        document.documentElement.style.setProperty('--sql-preview-font-size', `${settings.fontSize} px`); // Custom var?
         // Check if message handler uses --vscode-editor-font-size
         // Previous code used --sql-preview-font-size here, but message handler used --vscode-editor-font-size?
         // I should stick to one. The 'updateFontSize' handler uses --vscode-editor-font-size.
@@ -1623,7 +1645,7 @@ function populateSettings(config) {
             mcpStatusInd.textContent = `(Active: ${config.mcpStatus.port} - Window Level)`;
             mcpStatusInd.style.color = 'var(--vscode-charts-green)';
             const snippetEl = document.querySelector('.code-snippet pre');
-            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:${config.mcpStatus.port}/sse" }`;
+            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:${config.mcpStatus.port}/sse" } `;
 
             // Lock Button Logic
             const lockBtn = document.getElementById('lock-mcp-port');
@@ -1662,10 +1684,10 @@ function populateSettings(config) {
                 mcpStatusInd.style.marginLeft = '10px';
                 portContainer.parentNode.appendChild(mcpStatusInd);
             }
-            mcpStatusInd.textContent = `(Stopped/Error)`;
+            mcpStatusInd.textContent = `(Stopped / Error)`;
             mcpStatusInd.style.color = 'var(--vscode-errorForeground)';
             const snippetEl = document.querySelector('.code-snippet pre');
-            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:3000/sse" }`;
+            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:3000/sse" } `;
         } else {
             let mcpStatusInd = document.getElementById('mcp-runtime-status');
             if (mcpStatusInd) {
@@ -1673,7 +1695,7 @@ function populateSettings(config) {
                 mcpStatusInd.style.color = 'var(--vscode-descriptionForeground)';
             }
             const snippetEl = document.querySelector('.code-snippet pre');
-            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:3000/sse" }`;
+            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:3000/sse" } `;
         }
     }
 }

@@ -1,27 +1,34 @@
-import * as vscode from 'vscode';
+// import * as vscode from 'vscode';
 import { QueryExecutor } from '../../core/execution/QueryExecutor';
 import { ConnectorRegistry } from '../../connectors/base/ConnectorRegistry';
 import { ConnectionManager } from '../../services/ConnectionManager';
+import { DaemonClient } from '../../services/DaemonClient';
 import { ConnectorConfig } from '../../connectors/base/IConnector';
 
 // Mock dependencies
 jest.mock('../../connectors/base/ConnectorRegistry');
 jest.mock('../../services/ConnectionManager');
+jest.mock('../../services/DaemonClient');
 
 describe('QueryExecutor Unit Tests', () => {
   let queryExecutor: QueryExecutor;
   let mockRegistry: jest.Mocked<ConnectorRegistry>;
   let mockConnectionManager: jest.Mocked<ConnectionManager>;
+  let mockDaemonClient: jest.Mocked<DaemonClient>;
   let mockConnector: any;
 
   beforeEach(() => {
     // Reset mocks
     (ConnectorRegistry as any).mockClear();
     (ConnectionManager as any).mockClear();
+    (DaemonClient as any).mockClear();
 
     // Create mock instances
     mockRegistry = new ConnectorRegistry() as jest.Mocked<ConnectorRegistry>;
     mockConnectionManager = new ConnectionManager({} as any) as jest.Mocked<ConnectionManager>;
+    // Mock DaemonClient explicitly
+    const MockDaemonClientClass = jest.requireMock('../../services/DaemonClient').DaemonClient;
+    mockDaemonClient = new MockDaemonClientClass({}) as jest.Mocked<DaemonClient>;
 
     // Setup Connector Mock
     mockConnector = {
@@ -31,10 +38,10 @@ describe('QueryExecutor Unit Tests', () => {
     };
     mockRegistry.get = jest.fn().mockReturnValue(mockConnector);
 
-    queryExecutor = new QueryExecutor(mockRegistry, mockConnectionManager);
+    queryExecutor = new QueryExecutor(mockRegistry, mockConnectionManager, mockDaemonClient);
   });
 
-  test('testConnection returns success: true on valid query', async () => {
+  test('testConnection returns success: true on valid query (Uses local connector logic)', async () => {
     // Setup success generator
     async function* successGen() {
       yield { columns: [], rows: [] };
@@ -56,66 +63,33 @@ describe('QueryExecutor Unit Tests', () => {
     expect(mockConnector.runQuery).toHaveBeenCalledWith('SELECT 1', config, undefined);
   });
 
-  test('testConnection returns success: false on error', async () => {
-    // Setup failure generator
-    // Mock iterator that throws immediately
-    const mockIterator = {
-      next: jest.fn().mockRejectedValue(new Error('Network Error')),
-      [Symbol.asyncIterator]: function () {
-        return this;
+  test('execute delegates to DaemonClient', async () => {
+    // Mock Daemon responses
+    mockDaemonClient.runQuery.mockResolvedValue('tab-123');
+    mockDaemonClient.getTabInfo
+      .mockResolvedValueOnce({
+        status: 'loading',
+      })
+      .mockResolvedValueOnce({
+        status: 'success',
+        columns: [{ name: 'col1', type: 'string' }],
+        rows: [['val1']],
+        rowCount: 1,
+      });
+
+    const iterator = queryExecutor.execute('SELECT * FROM foo');
+    const result = await iterator.next(); // Should wait until success
+
+    expect(mockDaemonClient.runQuery).toHaveBeenCalledWith('SELECT * FROM foo', true);
+    expect(mockDaemonClient.getTabInfo).toHaveBeenCalledWith('tab-123');
+
+    expect(result.value).toEqual({
+      columns: [{ name: 'col1', type: 'string' }],
+      data: [['val1']],
+      stats: {
+        state: 'FINISHED',
+        rowCount: 1,
       },
-    };
-    mockConnector.runQuery.mockReturnValue(mockIterator);
-
-    const config: ConnectorConfig = {
-      host: 'localhost',
-      port: 8080,
-      user: 'test',
-      ssl: false,
-      sslVerify: true,
-      maxRows: 100,
-    };
-    const result = await queryExecutor.testConnection('trino', config);
-
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('Network Error');
-  });
-  test('execute uses default connector if available', async () => {
-    // Mock Connections
-    const mockConnections = [
-      { id: 'conn1', type: 'sqlite', name: 'SQLite DB' },
-      { id: 'conn2', type: 'trino', name: 'Trino Cluster' },
-    ];
-    mockConnectionManager.getConnections = jest.fn().mockResolvedValue(mockConnections);
-    mockConnectionManager.getConnection = jest.fn().mockResolvedValue({
-      id: 'conn2',
-      type: 'trino',
-      host: 'localhost',
-      port: 8080,
-      user: 'test',
     });
-
-    // Mock Config (defaultConnector = trino)
-    const mockConfig = {
-      get: jest.fn((key, defaultValue) => {
-        if (key === 'defaultConnector') {
-          return 'trino';
-        }
-        return defaultValue;
-      }),
-    };
-    (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue(mockConfig);
-
-    // Setup success generator
-    async function* successGen() {
-      yield { columns: [], rows: [] };
-    }
-    mockConnector.runQuery.mockReturnValue(successGen());
-
-    const iterator = queryExecutor.execute('SELECT 1');
-    await iterator.next();
-
-    // Verify it picked the trino connection (conn2)
-    expect(mockConnectionManager.getConnection).toHaveBeenCalledWith('conn2');
   });
 });

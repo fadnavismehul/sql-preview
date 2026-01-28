@@ -1,3 +1,4 @@
+import { Logger } from './core/logging/Logger';
 import * as vscode from 'vscode';
 import { TabData, ExtensionToWebviewMessage, QueryResults } from './common/types';
 import { StateManager } from './services/StateManager';
@@ -13,18 +14,12 @@ import type { SqlPreviewMcpServer } from './modules/mcp/McpServer';
 
 /**
  * Manages the webview panel for displaying query results.
- * It handles:
- * - Creating and initializing the webview HTML.
- * - Receiving messages from the extension (e.g., query results, errors).
- * - Sending messages from the webview back to the extension.
- *
- * Refactored to delegate state management to TabManager and export to ExportService.
  */
 export class ResultsViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'sqlResultsView';
 
   private _view?: vscode.WebviewView | undefined;
-  private _outputChannel: vscode.OutputChannel;
+  // private _outputChannel: vscode.OutputChannel; // Removed
   private _resultCounter = 1;
   private _activeEditorUri: string | undefined;
   private _stateManager: StateManager;
@@ -42,7 +37,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     private readonly _connectionManager: ConnectionManager,
     private readonly _queryExecutor: QueryExecutor
   ) {
-    this._outputChannel = vscode.window.createOutputChannel('SQL Preview');
+    // this._outputChannel = vscode.window.createOutputChannel('SQL Preview'); // Removed
     this._stateManager = new StateManager(context);
     this._authManager = new AuthManager(context);
 
@@ -64,14 +59,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           this._activeEditorUri = editor.document.uri.toString();
           this._filterTabsByFile(this._activeEditorUri);
         } else {
-          // If switching to non-SQL file or no editor, keep the last active SQL context
-          // This allows MCP and the view to persist the relevant tabs (e.g. when using Chat)
-          // this._activeEditorUri = undefined; // REMOVED clearing
-
-          // Optionally update view to reflect we aren't "in" the file anymore?
-          // Current logic: _filterTabsByFile(undefined) invokes "persistence" mode (returns early).
-          // But if we want to ensure MCP works, we want _activeEditorUri to be preserved.
-
           this._filterTabsByFile(undefined);
         }
       })
@@ -85,22 +72,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         }
       })
     );
-  }
-
-  public dispose() {
-    this._disposables.forEach(d => d.dispose());
-    this._disposables = [];
-  }
-
-  public getLastActiveFileUri(): vscode.Uri | undefined {
-    return this._activeEditorUri ? vscode.Uri.parse(this._activeEditorUri) : undefined;
-  }
-
-  /**
-   * Logs a message to the output channel.
-   */
-  public log(message: string) {
-    this._outputChannel.appendLine(message);
   }
 
   /**
@@ -227,7 +198,12 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         }
         case 'cancelQuery': {
           this.log(`Cancelling query for tab: ${data.tabId}`);
-          this._querySessionRegistry.cancelSession(data.tabId);
+          try {
+            this._querySessionRegistry.cancelSession(data.tabId);
+            this.log(`Cancellation signal sent for tab: ${data.tabId}`);
+          } catch (e) {
+            this.log(`Error cancelling session: ${e}`);
+          }
           return;
         }
         case 'testConnection': {
@@ -658,6 +634,22 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
       this._postMessage({ type: 'closeOtherTabs' });
       this._saveState();
     }
+  }
+
+  public getLastActiveFileUri(): vscode.Uri | undefined {
+    return this._activeEditorUri ? vscode.Uri.parse(this._activeEditorUri) : undefined;
+  }
+
+  /**
+   * Logs a message to the output channel.
+   */
+  public log(message: string) {
+    Logger.getInstance().info(message);
+  }
+
+  public dispose() {
+    this._disposables.forEach(d => d.dispose());
+    this._disposables = [];
   }
 
   public closeAllTabs() {

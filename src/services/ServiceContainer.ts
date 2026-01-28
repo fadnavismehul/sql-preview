@@ -14,6 +14,8 @@ import * as vscode from 'vscode';
 import { ConnectionManager } from './ConnectionManager';
 import { DriverManager } from './DriverManager';
 
+import { DaemonClient } from './DaemonClient';
+
 export class ServiceContainer {
   private static instance: ServiceContainer;
 
@@ -26,6 +28,7 @@ export class ServiceContainer {
   public readonly exportService: ExportService;
   public readonly querySessionRegistry: QuerySessionRegistry;
   public readonly resultsViewProvider: ResultsViewProvider;
+  public readonly daemonClient: DaemonClient;
 
   private constructor(context: vscode.ExtensionContext) {
     this.authManager = new AuthManager(context);
@@ -38,7 +41,14 @@ export class ServiceContainer {
     this.connectorRegistry.register(new SQLiteConnector());
     this.connectorRegistry.register(new PostgreSQLConnector(this.driverManager));
 
-    this.queryExecutor = new QueryExecutor(this.connectorRegistry, this.connectionManager);
+    this.daemonClient = new DaemonClient(context);
+
+    // Pass DaemonClient to QueryExecutor
+    this.queryExecutor = new QueryExecutor(
+      this.connectorRegistry,
+      this.connectionManager,
+      this.daemonClient
+    );
     this.tabManager = new TabManager();
     this.exportService = new ExportService(this.queryExecutor);
 
@@ -62,6 +72,10 @@ export class ServiceContainer {
         logLevel: LogLevel.INFO,
       });
       ServiceContainer.instance = new ServiceContainer(context);
+      // Ensure daemon is started?
+      ServiceContainer.instance.daemonClient.start().catch(err => {
+        Logger.getInstance().error('Failed to start daemon', err);
+      });
     }
     return ServiceContainer.instance;
   }
