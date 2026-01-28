@@ -131,6 +131,16 @@ body {
     color: var(--vscode-tab-activeForeground);
 }
 
+.tab:focus-visible {
+    outline: 2px solid var(--vscode-focusBorder);
+    outline-offset: -2px;
+}
+
+.tab-close:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 .new-tab-button {
     display: none;
     /* Hidden as per request */

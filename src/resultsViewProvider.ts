@@ -934,7 +934,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 			<!-- Main View: Tabs and Results -->
             <div id="main-view" class="view-container">
                 <div id="tab-container" class="tab-container">
-                    <div id="tab-list" class="tab-list"></div>
+                    <div id="tab-list" class="tab-list" role="tablist" aria-label="Query Results"></div>
                     <div id="active-file-indicator" class="active-file-indicator" style="display:none;"></div>
                     <button id="connections-button" class="icon-button" title="Manage Connections" aria-label="Manage Connections" style="background:none;border:none;color:var(--vscode-foreground);cursor:pointer;padding:4px;">
                         <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.4h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM8 11c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z"/></svg>
@@ -1092,7 +1092,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                             <label for="cfg-mcpPort">Port</label>
                                             <div style="display:flex; align-items:center;">
                                                 <input type="number" id="cfg-mcpPort" value="3000" style="width:70px;">
-                                                <button id="lock-mcp-port" class="icon-button" title="Lock Port to Workspace" style="margin-left:5px; display:none;">🔒</button>
+                                                <button id="lock-mcp-port" class="icon-button" title="Lock Port to Workspace" aria-label="Lock Port to Workspace" style="margin-left:5px; display:none;">🔒</button>
                                             </div>
                                         </div>
                                     </div>
