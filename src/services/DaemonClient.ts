@@ -3,6 +3,7 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as net from 'net';
 import * as os from 'os';
+import * as fs from 'fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 // We need a transport. Since Client runs in Node (Extension Host), we can use a Socket Client Transport?
 // SDK doesn't export a simple SocketClientTransport usually?
@@ -88,28 +89,65 @@ export class DaemonClient {
   }
 
   public async start() {
+    await this.ensureServerRunning();
+  }
+
+  private async ensureServerRunning() {
     // 1. Try connect
     try {
       await this.connect();
+      return;
     } catch (e) {
-      console.log('Daemon not running, starting...', e);
-      // 2. Start Daemon
-      await this.spawnDaemon();
-      // 3. Retry connect
-      await new Promise(r => setTimeout(r, 1000)); // Wait for startup
-      await this.connect();
+      // Ignore error, proceed to start
     }
+
+    console.log('Daemon not running or unreachable, starting...');
+
+    // 2. Clean up stale socket
+    if (fs.existsSync(this.socketPath)) {
+      try {
+        fs.unlinkSync(this.socketPath);
+      } catch (e) {
+        console.warn('Failed to unlink stale socket:', e);
+      }
+    }
+
+    // 3. Start Daemon
+    await this.spawnDaemon();
+
+    // 4. Wait for socket (Poll)
+    const timeout = 10000;
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      if (fs.existsSync(this.socketPath)) {
+        try {
+          await this.connect();
+          console.log('Successfully connected to new daemon instance.');
+          return;
+        } catch (e) {
+          // Socket exists but maybe not listening yet
+        }
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    throw new Error('Timed out waiting for daemon to start.');
   }
 
   private async spawnDaemon() {
     // Path to Daemon.js
-    // If running in dev: src/server/Daemon.ts (via ts-node?) - No, we compile to out/
-    // out/server/Daemon.js
+    // If running in dev with ts-node, we might need adjustments,
+    // but assuming compiled 'out' structure for production/standard run.
     const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'Daemon.js');
+
+    const logPath = path.join(os.homedir(), '.sql-preview', 'daemon.log');
+    const out = fs.openSync(logPath, 'a');
+    const err = fs.openSync(logPath, 'a');
 
     this.process = cp.spawn('node', [serverPath], {
       detached: true,
-      stdio: 'ignore',
+      stdio: ['ignore', out, err],
+      env: { ...process.env, SQL_PREVIEW_DAEMON: '1' },
     });
 
     this.process.unref(); // Let it run independently
@@ -130,7 +168,7 @@ export class DaemonClient {
                 name: 'register_session',
                 arguments: {
                   sessionId: this.sessionId,
-                  displayName: 'VS Code Extension',
+                  displayName: this.getSessionDisplayName(),
                   clientType: 'vscode',
                 },
               });
@@ -149,6 +187,13 @@ export class DaemonClient {
     });
   }
 
+  private getSessionDisplayName(): string {
+    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+      return `VS Code - ${vscode.workspace.workspaceFolders[0]?.name}`;
+    }
+    return 'VS Code - Untitled';
+  }
+
   public async runQuery(sql: string, newTab = true, connectionProfile?: any): Promise<string> {
     // Call run_query tool
     const result = await this.client.callTool({
@@ -163,11 +208,11 @@ export class DaemonClient {
 
     // Parse result content for Tab ID
     const content = result.content as { type: string; text: string }[];
-    if (!content || !content[0] || !content[0].text) {
+    if (!content || content.length === 0 || !content[0]!.text) {
       throw new Error('Invalid response from daemon');
     }
 
-    const text = content[0].text;
+    const text = content[0]!.text;
     const match = text.match(/Tab ID: (tab-[^.]+)/);
     if (match && match[1]) {
       return match[1];

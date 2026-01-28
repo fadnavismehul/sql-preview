@@ -4,6 +4,7 @@ import { ResultsViewProvider } from '../../resultsViewProvider';
 import { TabManager } from '../../services/TabManager';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 
 describe('MCP Server Multi-Window Integration Test', () => {
   let sandbox: sinon.SinonSandbox;
@@ -36,7 +37,7 @@ describe('MCP Server Multi-Window Integration Test', () => {
     sandbox.restore();
   });
 
-  test('Automatically finds next available port when default is busy', async () => {
+  it('Automatically finds next available port when default is busy', async () => {
     // Initialize MCP Server
     mcpServer = new SqlPreviewMcpServer(
       mockResultsProvider as unknown as ResultsViewProvider,
@@ -84,14 +85,14 @@ describe('MCP Server Multi-Window Integration Test', () => {
     await mcpServer.start();
 
     // Verify logic
-    expect(listenStub.callCount).toBe(2);
-    expect(listenStub.firstCall.args[0]).toBe(3000); // 1st attempt
-    expect(listenStub.secondCall.args[0]).toBe(3001); // 2nd attempt
+    assert.strictEqual(listenStub.callCount, 2);
+    assert.strictEqual(listenStub.firstCall.args[0], 3000); // 1st attempt
+    assert.strictEqual(listenStub.secondCall.args[0], 3001); // 2nd attempt
 
-    expect(mcpServer.port).toBe(3001);
+    assert.strictEqual(mcpServer.port, 3001);
   });
 
-  test('Skips multiple busy ports to find an open one', async () => {
+  it('Skips multiple busy ports to find an open one', async () => {
     // Initialize MCP Server
     mcpServer = new SqlPreviewMcpServer(
       mockResultsProvider as unknown as ResultsViewProvider,
@@ -141,12 +142,12 @@ describe('MCP Server Multi-Window Integration Test', () => {
     await mcpServer.start();
 
     // Verify logic
-    expect(listenStub.callCount).toBe(4);
-    expect(listenStub.getCall(0).args[0]).toBe(3000);
-    expect(listenStub.getCall(1).args[0]).toBe(3001);
-    expect(listenStub.getCall(2).args[0]).toBe(3002);
-    expect(listenStub.getCall(3).args[0]).toBe(3003);
+    assert.strictEqual(listenStub.callCount, 4);
+    assert.strictEqual(listenStub.getCall(0).args[0], 3000);
+    assert.strictEqual(listenStub.getCall(1).args[0], 3001);
+    assert.strictEqual(listenStub.getCall(2).args[0], 3002);
+    assert.strictEqual(listenStub.getCall(3).args[0], 3003);
 
-    expect(mcpServer.port).toBe(3003);
+    assert.strictEqual(mcpServer.port, 3003);
   });
 });

@@ -79,7 +79,7 @@ describe('Tab Management Tests', () => {
   });
 
   describe('Tab Creation and Management', () => {
-    test('createTabWithId should create tab with specific ID', () => {
+    it('createTabWithId should create tab with specific ID', () => {
       const tabId = 'test-tab-123';
       const query = 'SELECT * FROM test';
       const title = 'Test Query';
@@ -94,7 +94,7 @@ describe('Tab Management Tests', () => {
       assert.strictEqual(message.title, title);
     });
 
-    test('getOrCreateActiveTabId should request active tab from webview', () => {
+    it('getOrCreateActiveTabId should request active tab from webview', () => {
       const query = 'SELECT * FROM test';
       const title = 'Test Query';
 
@@ -113,7 +113,7 @@ describe('Tab Management Tests', () => {
       assert.strictEqual(message.title, title);
     });
 
-    test('closeActiveTab should send closeActiveTab message', () => {
+    it('closeActiveTab should send closeActiveTab message', () => {
       resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'SELECT 1');
       resultsViewProvider.closeActiveTab();
 
@@ -125,7 +125,7 @@ describe('Tab Management Tests', () => {
       assert.strictEqual(closeMsg.args[0].tabId, 'tab-1');
     });
 
-    test('closeOtherTabs should send closeOtherTabs message', () => {
+    it('closeOtherTabs should send closeOtherTabs message', () => {
       resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'SELECT 1');
       resultsViewProvider.createTabWithId('tab-2', 'SELECT 2', 'SELECT 2');
       resultsViewProvider.closeOtherTabs();
@@ -136,7 +136,7 @@ describe('Tab Management Tests', () => {
       assert.ok(closeMsg, 'Should send closeOtherTabs message');
     });
 
-    test('closeAllTabs should send closeAllTabs message', () => {
+    it('closeAllTabs should send closeAllTabs message', () => {
       resultsViewProvider.closeAllTabs();
 
       assert.ok(postMessageStub.calledOnce);
@@ -146,7 +146,7 @@ describe('Tab Management Tests', () => {
   });
 
   describe('Tab Loading and Results', () => {
-    test('showLoadingForTab should show loading for specific tab', () => {
+    it('showLoadingForTab should show loading for specific tab', () => {
       const tabId = 'test-tab-123';
       const query = 'SELECT * FROM test';
       const title = 'Test Query';
@@ -161,7 +161,7 @@ describe('Tab Management Tests', () => {
       assert.strictEqual(message.title, title);
     });
 
-    test('showResultsForTab should show results for specific tab', () => {
+    it('showResultsForTab should show results for specific tab', () => {
       const tabId = 'test-tab-123';
       const data = {
         columns: [
@@ -186,7 +186,7 @@ describe('Tab Management Tests', () => {
       assert.deepStrictEqual(message.data, data);
     });
 
-    test('showErrorForTab should show error for specific tab', () => {
+    it('showErrorForTab should show error for specific tab', () => {
       const tabId = 'test-tab-123';
       const errorMessage = 'SQL syntax error';
       const errorDetails = 'Line 1: Unexpected token';
@@ -207,7 +207,7 @@ describe('Tab Management Tests', () => {
   });
 
   describe('Webview Interaction', () => {
-    test('should handle tab creation without webview gracefully', () => {
+    it('should handle tab creation without webview gracefully', () => {
       const mockQueryExecutor = {
         executeQuery: sinon.stub(),
         cancelQuery: sinon.stub(),
@@ -235,7 +235,7 @@ describe('Tab Management Tests', () => {
       });
     });
 
-    test('getOrCreateActiveTabId should return valid tab ID even without webview', () => {
+    it('getOrCreateActiveTabId should return valid tab ID even without webview', () => {
       const mockQueryExecutor = {
         executeQuery: sinon.stub(),
         cancelQuery: sinon.stub(),

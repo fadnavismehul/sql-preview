@@ -6,7 +6,9 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+// import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'; // Removed
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+
 import { SocketTransport } from './SocketTransport';
 import { SessionManager } from './SessionManager';
 import { FileConnectionManager } from './FileConnectionManager';
@@ -22,16 +24,14 @@ export class Daemon {
   private app: express.Express;
   private httpServer: http.Server | null = null;
   private socketServer: net.Server | null = null;
-  private server: Server;
+  private toolManager: DaemonMcpToolManager;
+  private activeServers = new Map<string, Server>();
+  private activeTransports = new Map<string, SSEServerTransport>();
 
   private sessionManager: SessionManager;
   private connectionManager: FileConnectionManager;
   private connectorRegistry: ConnectorRegistry;
   private queryExecutor: DaemonQueryExecutor;
-
-  // private _mcpServerWrapper: DaemonMcpServer; (Removed)
-
-  private httpTransport: StreamableHTTPServerTransport;
 
   private readonly HTTP_PORT = 8414;
   private readonly SOCKET_PATH: string;
@@ -61,59 +61,98 @@ export class Daemon {
     this.queryExecutor = new DaemonQueryExecutor(this.connectorRegistry, this.connectionManager);
 
     // 4. Initialize Tool Manager
-    const toolManager = new DaemonMcpToolManager(this.sessionManager, this.queryExecutor);
+    this.toolManager = new DaemonMcpToolManager(this.sessionManager, this.queryExecutor);
 
-    // 5. Initialize MCP SDK Server
-    this.server = new Server(
-      {
-        name: 'sql-preview-daemon',
-        version: '1.0.0',
-      },
-      {
-        capabilities: {
-          resources: {},
-          tools: {},
-        },
-      }
-    );
-
-    // 6. Initialize MCP Wrapper (Registers Handlers)
-    // Instantiated purely for side-effects (registering handlers)
-    new DaemonMcpServer(this.server, this.sessionManager, toolManager);
-
-    // 7. Initialize HTTP Transport (Singleton)
-    this.httpTransport = new StreamableHTTPServerTransport();
-    // Connect HTTP Transport
-    // Cast to any to bypass strict optional property checks in Transport interface vs Streamable implementation
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this.server.connect(this.httpTransport as any);
+    // Singleton Server/Transport initialization REMOVED in favor of per-connection logic in setupRoutes
 
     this.setupRoutes();
+    this.setupLifecycle();
   }
 
   private setupRoutes() {
     this.app.use(cors());
+
+    // Request Logging
+    this.app.use((req, res, next) => {
+      console.log(`[Daemon] >> ${req.method} ${req.url}`);
+      res.on('finish', () => {
+        console.log(`[Daemon] << ${req.method} ${req.url} ${res.statusCode}`);
+      });
+      next();
+    });
     // Note: We do NOT use express.json() globally because StreamableTransport might handle raw streams
     // But StreamableHTTPServerTransport.handleRequest handles it.
 
     // Health check
-    this.app.get('/', (_req, res) => {
+    this.app.get('/status', (_req, res) => {
       res.send({ status: 'running', service: 'sql-preview-daemon' });
     });
 
-    // MCP Endpoint (HTTP)
-    // Handles POST /messages (RPC) and GET /messages (SSE) automatically
-    this.app.all('/messages', async (req, res) => {
-      await this.httpTransport.handleRequest(req, res);
+    // MCP Endpoint (HTTP SSE)
+    this.app.get('/sse', async (_req, res) => {
+      this.refreshActivity();
+      console.log('[Daemon] New SSE Connection Request');
+
+      const transport = new SSEServerTransport('/messages', res);
+      const sessionId = transport.sessionId;
+
+      const server = new Server(
+        { name: 'sql-preview-daemon', version: '1.0.0' },
+        { capabilities: { resources: {}, tools: {} } }
+      );
+
+      // Register Handlers
+      new DaemonMcpServer(server, this.sessionManager, this.toolManager);
+
+      this.activeTransports.set(sessionId, transport);
+      this.activeServers.set(sessionId, server);
+
+      transport.onclose = () => {
+        console.log(`[Daemon] SSE Transport Closed: ${sessionId}`);
+        this.activeTransports.delete(sessionId);
+        this.activeServers.delete(sessionId);
+      };
+
+      await server.connect(transport);
     });
 
-    // Alias /sse to /messages for compatibility
-    this.app.all('/sse', async (req, res) => {
-      await this.httpTransport.handleRequest(req, res);
+    // Handle POST Messages
+    this.app.post('/messages', async (req, res) => {
+      this.refreshActivity();
+      const sessionId = req.query['sessionId'] as string;
+      if (!sessionId) {
+        res.status(400).send('Missing sessionId query parameter');
+        return;
+      }
+
+      // const transport = this.activeTransports.get(sessionId);
+      const transport = this.activeTransports.get(sessionId);
+      if (!transport) {
+        res.status(404).send(`Session ${sessionId} not found`);
+        return;
+      }
+
+      await transport.handlePostMessage(req, res);
+    });
+
+    // Alias /sse POST for compatibility if needed (though SSEServerTransport directs to /messages)
+    this.app.post('/sse', async (req, res) => {
+      // Just forward to same logic logic if needed, but strict routing prefers /messages
+      // For safety, let's allow it if they pass sessionId
+      const sessionId = req.query['sessionId'] as string;
+      if (sessionId) {
+        const transport = this.activeTransports.get(sessionId);
+        if (transport) {
+          await transport.handlePostMessage(req, res);
+          return;
+        }
+      }
+      res.status(404).end();
     });
 
     // Session Management API
     this.app.get('/sessions', (_req, res) => {
+      this.refreshActivity();
       res.json(
         this.sessionManager.getAllSessions().map(s => ({
           id: s.id,
@@ -123,9 +162,93 @@ export class Daemon {
         }))
       );
     });
+
+    this.app.get('/sessions/:id/tabs', (req, res) => {
+      this.refreshActivity();
+      const session = this.sessionManager.getSession(req.params.id);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+      res.json(
+        Array.from(session.tabs.values()).map(t => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          rowCount: t.rows?.length || 0,
+        }))
+      );
+    });
+
+    this.app.get('/sessions/:sid/tabs/:tid', (req, res) => {
+      this.refreshActivity();
+      const session = this.sessionManager.getSession(req.params.sid);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+      const tab = session.tabs.get(req.params.tid);
+      if (!tab) {
+        res.status(404).json({ error: 'Tab not found' });
+        return;
+      }
+      res.json({
+        ...tab,
+        // Send a slice of rows if huge? For now send all.
+        // Or if 'offset' query param exists
+      });
+    });
+  }
+
+  private readonly IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+  private lastActivityTime = Date.now();
+  private idleCheckInterval: ReturnType<typeof setInterval> | undefined;
+  private connectedSocketCount = 0;
+
+  private setupLifecycle() {
+    // Graceful Shutdown
+    const shutdown = () => {
+      console.log('Shutting down daemon...');
+      this.stop();
+      process.exit(0);
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
+    // Idle Timeout
+    this.idleCheckInterval = setInterval(() => {
+      const timeSinceActivity = Date.now() - this.lastActivityTime;
+      const hasActiveSessions = this.connectedSocketCount > 0;
+
+      // Only shut down if no sockets connected AND timeout exceeded
+      if (!hasActiveSessions && timeSinceActivity > this.IDLE_TIMEOUT_MS) {
+        console.log(`Idle timeout (${this.IDLE_TIMEOUT_MS}ms) reached. Shutting down.`);
+        shutdown();
+      }
+    }, 60 * 1000); // Check every minute
+  }
+
+  private refreshActivity() {
+    this.lastActivityTime = Date.now();
   }
 
   public async start() {
+    // Write PID File
+    const pidPath = path.join(os.homedir(), '.sql-preview', 'server.pid');
+    try {
+      fs.writeFileSync(pidPath, process.pid.toString());
+    } catch (e) {
+      console.error('Failed to write PID file:', e);
+    }
+
+    // Serve Static UI
+    // Assuming 'out/server/Daemon.js', we go up to 'out/webviews/daemon'
+    const staticDir = path.join(__dirname, '../../webviews/daemon');
+    if (fs.existsSync(staticDir)) {
+      this.app.use(express.static(staticDir));
+    }
+
     // Start HTTP Server
     await new Promise<void>((resolve, reject) => {
       this.httpServer = this.app.listen(this.HTTP_PORT, '127.0.0.1', () => {
@@ -149,10 +272,33 @@ export class Daemon {
       }
     }
 
-    this.socketServer = net.createServer(socket => {
+    this.socketServer = net.createServer(async socket => {
       console.log('Client connected via Socket');
+      this.connectedSocketCount++;
+      this.refreshActivity();
+
       const transport = new SocketTransport(socket);
-      this.server.connect(transport);
+
+      // Create dedicated MCP server for this socket connection
+      const server = new Server(
+        { name: 'sql-preview-daemon-ipc', version: '1.0.0' },
+        { capabilities: { resources: {}, tools: {} } }
+      );
+
+      // Register Handlers
+      new DaemonMcpServer(server, this.sessionManager, this.toolManager);
+
+      // We don't necessarily need to track socket servers in activeServers map unless we want to close them explicitly,
+      // but they will close when socket closes.
+
+      socket.on('close', () => {
+        this.connectedSocketCount--;
+        console.log('Client disconnected from Socket');
+        // socket transport usually handles its own cleanup, but we could explicitly server.close()
+      });
+      socket.on('data', () => this.refreshActivity());
+
+      await server.connect(transport);
     });
 
     return new Promise<void>((resolve, reject) => {
@@ -172,6 +318,26 @@ export class Daemon {
     if (this.socketServer) {
       this.socketServer.close();
       this.socketServer = null;
+    }
+    if (this.idleCheckInterval) {
+      clearInterval(this.idleCheckInterval);
+    }
+
+    // Cleanup PID and Socket
+    const pidPath = path.join(os.homedir(), '.sql-preview', 'server.pid');
+    if (fs.existsSync(pidPath)) {
+      try {
+        fs.unlinkSync(pidPath);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    if (fs.existsSync(this.SOCKET_PATH)) {
+      try {
+        fs.unlinkSync(this.SOCKET_PATH);
+      } catch (e) {
+        /* ignore */
+      }
     }
   }
 }

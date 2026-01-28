@@ -256,6 +256,17 @@ export function deactivate() {
 
 // Prefix unused args with _ to satisfy linter, keeping signature for tests
 // Prefix unused args with _ to satisfy linter, keeping signature for tests
-export function generateTabTitle(): string {
+export function generateTabTitle(sql: string, sourceUri?: string, count = 1): string {
+  const config = vscode.workspace.getConfiguration('sqlPreview');
+  const naming = config.get<string>('tabNaming', 'file-sequential');
+
+  if (naming === 'query-snippet') {
+    return sql.trim().substring(0, 16);
+  }
+
+  // file-sequential
+  if (sourceUri) {
+    return `Result ${count}`;
+  }
   return 'Result';
 }

@@ -18,8 +18,7 @@ module.exports = {
   testPathIgnorePatterns: [
     '/node_modules/',
     '/out/', // Ignore compiled JavaScript files
-    '.*\\.integration\\.test\\.ts$', // Ignore integration tests which require real VS Code
-    '/src/test/suite/integration.test.ts',
+    '/src/test/suite/', // Ignore all integration tests in suite folder
   ],
   modulePathIgnorePatterns: ['<rootDir>/.vscode-test'],
 };

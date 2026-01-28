@@ -10,7 +10,8 @@ import { ConnectionManager } from './services/ConnectionManager';
 import { AuthManager } from './services/AuthManager';
 import { QueryExecutor } from './core/execution/QueryExecutor';
 import { getNonce } from './utils/nonce';
-import type { SqlPreviewMcpServer } from './modules/mcp/McpServer';
+import * as http from 'http';
+// import type { SqlPreviewMcpServer } from './modules/mcp/McpServer'; // Removed
 
 /**
  * Manages the webview panel for displaying query results.
@@ -25,7 +26,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
   private _stateManager: StateManager;
   private _authManager: AuthManager;
   private _disposables: vscode.Disposable[] = [];
-  private _mcpServer: SqlPreviewMcpServer | undefined;
+  // private _mcpServer: SqlPreviewMcpServer | undefined;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -258,21 +259,32 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         case 'testMcpServer': {
-          if (!this._mcpServer) {
+          // Check Daemon Health
+          const req = http.get('http://localhost:8414/status', res => {
+            if (res.statusCode === 200) {
+              this._postMessage({
+                type: 'testMcpResult',
+                success: true,
+                message: 'Daemon is running and reachable.',
+              });
+            } else {
+              this._postMessage({
+                type: 'testMcpResult',
+                success: false,
+                error: `Daemon responded with HTTP ${res.statusCode}`,
+              });
+            }
+          });
+
+          req.on('error', e => {
             this._postMessage({
               type: 'testMcpResult',
               success: false,
-              error: 'MCP Server not initialized internally.',
+              error: `Connection Failed: ${e.message}. Ensure Daemon is running.`,
             });
-            return;
-          }
-          const connectivity = await this._mcpServer.validateConnectivity();
-          this._postMessage({
-            type: 'testMcpResult',
-            success: connectivity.success,
-            error: connectivity.success ? undefined : connectivity.message,
-            message: connectivity.message,
           });
+
+          req.end();
           return;
         }
         case 'saveSettings': {
@@ -670,13 +682,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  public setMcpServer(server: SqlPreviewMcpServer | undefined) {
-    this._mcpServer = server;
-    // Trigger status update to UI
-    this._refreshSettings().catch(err =>
-      this.log(`Error refreshing settings on MCP update: ${err}`)
-    );
-  }
+  // public setMcpServer(server: SqlPreviewMcpServer | undefined) { ... }
 
   // --- Private ---
 
@@ -845,14 +851,15 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         schema: config.get('schema'),
         ssl: config.get('ssl'),
         sslVerify: config.get('sslVerify'),
+        mcpEnabled: config.get('mcpEnabled'),
         mcpPort: config.get('mcpPort'),
         defaultConnector: config.get('defaultConnector'),
         databasePath: config.get('databasePath'),
         hasPassword,
         mcpStatus: {
-          running: !!this._mcpServer && !!this._mcpServer.port,
-          port: this._mcpServer?.port,
-          error: !this._mcpServer && config.get('mcpEnabled'), // heuristic
+          running: !!config.get('mcpEnabled'),
+          port: 8414,
+          error: false,
         },
       },
     });
@@ -1067,39 +1074,33 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                 </div>
                             </div>
 
-                            <!-- Experimental Features Card -->
-                            <div class="settings-card experimental">
+                            <!-- MCP Server Card -->
+                            <div class="settings-card mcp-server">
                                 <div class="card-header">
-                                    <h4>Experimental Features</h4>
+                                    <h4>MCP Server</h4>
                                 </div>
                                 <div class="card-content">
-                                    <div class="warning-callout">
-                                        <span class="icon">⚠️</span>
-                                        <p>These features are in beta and may be unstable.</p>
-                                    </div>
+                                    <!-- No warning callout -->
 
                                     <div class="form-row align-center" style="margin-top:10px;">
                                         <label class="toggle-label"><input type="checkbox" id="cfg-mcpEnabled"> Enable MCP Server</label>
                                         <div class="form-group horizontal" style="margin-left:auto;">
-                                            <label for="cfg-mcpPort">Port</label>
-                                            <div style="display:flex; align-items:center;">
-                                                <input type="number" id="cfg-mcpPort" value="3000" style="width:70px;">
-                                                <button id="lock-mcp-port" class="icon-button" title="Lock Port to Workspace" style="margin-left:5px; display:none;">🔒</button>
-                                            </div>
+                                            <span style="color:var(--vscode-descriptionForeground);">Port: <strong>8414</strong></span>
                                         </div>
                                     </div>
 
                                     <div class="mcp-info">
                                         <p>Add to <code>mcp.json</code>:</p>
                                         <div class="code-snippet">
-                                            <pre>"preview": { "url": "http://localhost:3000/sse" }</pre>
+                                            <pre id="mcp-snippet">"sql-preview": { "url": "http://localhost:8414/sse" }</pre>
                                             <button id="copy-mcp-config" class="icon-button" title="Copy" aria-label="Copy MCP Config">📋</button>
                                         </div>
                                     </div>
                                     
-                                    <div class="form-group" style="margin-top: 15px;">
+                                    <div class="form-group" style="margin-top: 15px; display:flex; gap:10px; align-items:center;">
                                         <button id="test-mcp-btn" class="secondary-button" style="width: auto;">Test MCP Server</button>
-                                        <span id="test-mcp-status" class="status-badge" style="margin-left: 10px;"></span>
+                                        <span id="test-mcp-status" class="status-badge"></span>
+                                        <a href="http://localhost:8414" style="margin-left:auto; font-size:0.9em;">Open Web Dashboard ↗</a>
                                     </div>
                                 </div>
                             </div>

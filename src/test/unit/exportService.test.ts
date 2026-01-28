@@ -42,7 +42,7 @@ describe('ExportService', () => {
     (vscode.commands.executeCommand as jest.Mock) = jest.fn();
   });
 
-  test('should export result as JSON objects', async () => {
+  it('should export result as JSON objects', async () => {
     // Setup Save Dialog to return a .json path
     (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue(
       vscode.Uri.file('/tmp/export.json')

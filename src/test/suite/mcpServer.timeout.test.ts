@@ -29,7 +29,7 @@ describe('MCP Server Timeout Logic Test Suite', () => {
     sandbox.restore();
   });
 
-  test('get_active_tab_info returns immediately if no timeout', async () => {
+  it('get_active_tab_info returns immediately if no timeout', async () => {
     // Re-setup to capture handler
     const serverStub = sandbox.stub((mcpServer as any).server, 'setRequestHandler');
     (mcpServer as any).setupHandlers(); // Re-run setup
@@ -61,7 +61,7 @@ describe('MCP Server Timeout Logic Test Suite', () => {
     assert.strictEqual(content.status, 'loading');
   });
 
-  test('get_active_tab_info waits if timeout provided and status is loading', async () => {
+  it('get_active_tab_info waits if timeout provided and status is loading', async () => {
     const serverStub = sandbox.stub((mcpServer as any).server, 'setRequestHandler');
     (mcpServer as any).setupHandlers();
     const callHandler = serverStub.args.find(arg => arg[0] === CallToolRequestSchema)?.[1];
@@ -111,7 +111,7 @@ describe('MCP Server Timeout Logic Test Suite', () => {
     assert.strictEqual(content.status, 'success');
   });
 
-  test('get_active_tab_info times out if status remains loading', async () => {
+  it('get_active_tab_info times out if status remains loading', async () => {
     const serverStub = sandbox.stub((mcpServer as any).server, 'setRequestHandler');
     (mcpServer as any).setupHandlers();
     const callHandler = serverStub.args.find(arg => arg[0] === CallToolRequestSchema)?.[1];

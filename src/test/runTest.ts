@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as os from 'os';
 // import * as cp from 'child_process'; // Currently unused
 import {
   downloadAndUnzipVSCode,
@@ -15,7 +16,9 @@ async function main() {
     const extensionTestsPath = path.resolve(__dirname, './suite/index');
 
     // Download VS Code, unzip it and run the integration test
-    const vscodeExecutablePath = await downloadAndUnzipVSCode();
+    const vscodeExecutablePath = await downloadAndUnzipVSCode({
+      cachePath: path.resolve(process.env['HOME'] || os.homedir(), '.vscode-test-cache'),
+    });
     const [, ...args] = resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
 
     // Run the integration tests

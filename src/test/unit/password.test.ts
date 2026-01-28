@@ -48,7 +48,7 @@ describe('Password Security Tests', () => {
     });
   });
 
-  test('should register password management commands', async () => {
+  it('should register password management commands', async () => {
     const context = mockContext as unknown as vscode.ExtensionContext;
     await activate(context);
 
@@ -63,7 +63,7 @@ describe('Password Security Tests', () => {
     );
   });
 
-  test('should store password securely when set', async () => {
+  it('should store password securely when set', async () => {
     const context = mockContext as unknown as vscode.ExtensionContext;
     const testPassword = 'test-secure-password';
     const mockConnectionId = 'test-conn-id';
@@ -103,7 +103,7 @@ describe('Password Security Tests', () => {
     );
   });
 
-  test('should clear password when empty string is provided', async () => {
+  it('should clear password when empty string is provided', async () => {
     const context = mockContext as unknown as vscode.ExtensionContext;
     const mockConnectionId = 'test-conn-id';
 
@@ -133,7 +133,7 @@ describe('Password Security Tests', () => {
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('Database password cleared.');
   });
 
-  test('should clear password when clear command is called', async () => {
+  it('should clear password when clear command is called', async () => {
     const context = mockContext as unknown as vscode.ExtensionContext;
     const mockConnectionId = 'test-conn-id';
 
@@ -160,7 +160,7 @@ describe('Password Security Tests', () => {
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith('Database password cleared.');
   });
 
-  test('should retrieve password from secret storage during query execution', async () => {
+  it('should retrieve password from secret storage during query execution', async () => {
     const context = mockContext as unknown as vscode.ExtensionContext;
     const testPassword = 'stored-password';
 

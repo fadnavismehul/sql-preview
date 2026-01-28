@@ -20,7 +20,7 @@ describe('Tab Naming Tests', () => {
     sinon.restore();
   });
 
-  test('should use file-sequential naming by default', () => {
+  it('should use file-sequential naming by default', () => {
     // Mock get to return 'file-sequential'
     mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
       if (key === 'tabNaming') {
@@ -37,7 +37,7 @@ describe('Tab Naming Tests', () => {
     assert.strictEqual(title, 'Result 5');
   });
 
-  test('should use query-snippet naming when configured', () => {
+  it('should use query-snippet naming when configured', () => {
     mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
       if (key === 'tabNaming') {
         return 'query-snippet';
@@ -55,7 +55,7 @@ describe('Tab Naming Tests', () => {
     assert.strictEqual(title, expected);
   });
 
-  test('should handle short query snippets', () => {
+  it('should handle short query snippets', () => {
     mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
       if (key === 'tabNaming') {
         return 'query-snippet';
@@ -68,7 +68,7 @@ describe('Tab Naming Tests', () => {
     assert.strictEqual(title, 'SELECT 1');
   });
 
-  test('should fallback to Result if no sourceUri in sequential mode', () => {
+  it('should fallback to Result if no sourceUri in sequential mode', () => {
     mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
       if (key === 'tabNaming') {
         return 'file-sequential';

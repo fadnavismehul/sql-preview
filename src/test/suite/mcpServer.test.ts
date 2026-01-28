@@ -40,7 +40,7 @@ describe('MCP Server Test Suite', () => {
     }
   });
 
-  test('BigInt serialization in JSON.stringify', async () => {
+  it('BigInt serialization in JSON.stringify', async () => {
     // This test verifies the custom replacer logic we added to McpServer
 
     const dataWithBigInt = {
@@ -63,7 +63,7 @@ describe('MCP Server Test Suite', () => {
     assert.ok(jsonString.includes('"10"'), 'Small BigInt should be serialized to string');
   });
 
-  test('get_active_tab_info tool handles BigInt correctly', async () => {
+  it('get_active_tab_info tool handles BigInt correctly', async () => {
     // Mock activeTabId getters
     sandbox.stub(mockTabManager, 'activeTabId').get(() => 'tab-1');
 
@@ -85,7 +85,7 @@ describe('MCP Server Test Suite', () => {
     assert.strictEqual(retrievedData, bigIntData);
   });
 
-  test('Server startup handles EADDRINUSE gracefully', async () => {
+  it('Server startup handles EADDRINUSE gracefully', async () => {
     // Mock configuration
     const configStub = sandbox.stub(vscode.workspace, 'getConfiguration');
     configStub.returns({
@@ -133,7 +133,7 @@ describe('MCP Server Test Suite', () => {
     }
   });
 
-  test('Server startup retries on EADDRINUSE and succeeds', async () => {
+  it('Server startup retries on EADDRINUSE and succeeds', async () => {
     // Mock configuration
     const configStub = sandbox.stub(vscode.workspace, 'getConfiguration');
     configStub.returns({
