@@ -181,7 +181,9 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     sourceUri = 'sql-preview:scratchpad';
   }
 
-  const title = 'Result'; // Simplified title generation for now
+  // Generate title based on tab naming settings
+  const count = resultsViewProvider.getMaxResultCountForFile(sourceUri) + 1;
+  const title = generateTabTitle(sql, sourceUri, count);
 
   let tabId: string;
   if (newTab) {

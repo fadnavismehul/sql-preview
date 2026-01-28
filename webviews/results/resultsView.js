@@ -214,7 +214,7 @@ window.addEventListener('message', event => {
         case 'updateConnections':
             updateConnectionList(message.connections);
             break;
-        case 'updateGridDensity':
+        case 'updateRowHeight':
             updateGridDensity(message.density);
             break;
     }
