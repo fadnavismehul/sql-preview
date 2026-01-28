@@ -3,7 +3,13 @@
  */
 export function* iterateSqlStatements(
   text: string
-): Generator<{ statement: string; start: number; end: number }> {
+): Generator<{
+  statement: string;
+  start: number;
+  end: number;
+  executionStart: number;
+  executionEnd: number;
+}> {
   let currentStart = 0;
   let inSingleQuote = false;
   let inDoubleQuote = false;
@@ -50,9 +56,27 @@ export function* iterateSqlStatements(
         inDoubleQuote = true;
       } else if (char === ';') {
         // End of statement
-        const statement = text.substring(currentStart, i).trim();
-        if (statement.length > 0) {
-          yield { statement, start: currentStart, end: i };
+        let s = currentStart;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        while (s < i && /\s/.test(text[s]!)) {
+          s++;
+        }
+
+        let e = i;
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        while (e > s && /\s/.test(text[e - 1]!)) {
+          e--;
+        }
+
+        if (s < e) {
+          const statement = text.substring(s, e);
+          yield {
+            statement,
+            start: currentStart,
+            end: i,
+            executionStart: s,
+            executionEnd: e,
+          };
         }
         currentStart = i + 1;
       }
@@ -61,9 +85,28 @@ export function* iterateSqlStatements(
 
   // Yield last statement
   if (currentStart < text.length) {
-    const statement = text.substring(currentStart).trim();
-    if (statement.length > 0) {
-      yield { statement, start: currentStart, end: text.length };
+    let s = currentStart;
+    const end = text.length;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    while (s < end && /\s/.test(text[s]!)) {
+      s++;
+    }
+
+    let e = end;
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    while (e > s && /\s/.test(text[e - 1]!)) {
+      e--;
+    }
+
+    if (s < e) {
+      const statement = text.substring(s, e);
+      yield {
+        statement,
+        start: currentStart,
+        end,
+        executionStart: s,
+        executionEnd: e,
+      };
     }
   }
 }
