@@ -8,7 +8,6 @@ import {
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import express from 'express';
-import cors from 'cors';
 import * as http from 'http';
 import * as vscode from 'vscode';
 import { ResultsViewProvider } from '../../resultsViewProvider';
@@ -114,7 +113,7 @@ export class SqlPreviewMcpServer {
     // Instead, we can apply it only to routes that need it, or let the SDK handle it.
     // The MCP SSEServerTransport.handlePostMessage reads the raw request stream.
 
-    this.app.use(cors());
+    // CORS is explicitly not enabled to prevent cross-origin attacks from malicious websites.
 
     // Health check / info
     this.app.get('/', (_req, res) => {
