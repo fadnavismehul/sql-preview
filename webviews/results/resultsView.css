@@ -258,13 +258,14 @@ body {
 }
 
 .spinner {
-    border: 3px solid var(--vscode-editorWidget-background, #252526);
+    border: 3px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.2));
     border-top: 3px solid var(--vscode-button-background, #0e639c);
     border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    animation: spin 1s linear infinite;
-    margin-right: 8px;
+    width: 24px;
+    height: 24px;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 @keyframes spin {
