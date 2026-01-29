@@ -222,6 +222,8 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
 
       if (allRows.length >= maxRows) {
         wasTruncated = true;
+        // Abort the session to stop any in-flight daemon requests
+        controller.abort();
         break;
       }
     }
