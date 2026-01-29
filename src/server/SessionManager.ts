@@ -1,5 +1,7 @@
 import { TabData } from '../common/types';
 
+import { logger } from './ConsoleLogger';
+
 export interface Session {
   id: string;
   displayName: string;
@@ -21,7 +23,7 @@ export class SessionManager {
     displayName: string,
     clientType: Session['clientType']
   ): Session {
-    console.log(`Registering session: ${id} (${clientType})`);
+    logger.info(`Registering session: ${id} (${clientType})`);
 
     // Resume existing or create new?
     let session = this.sessions.get(id);
@@ -60,7 +62,7 @@ export class SessionManager {
     const toRemove = sorted.slice(0, countToRemove);
 
     for (const s of toRemove) {
-      console.log(`Pruning old session: ${s.id} (Last activity: ${s.lastActivityAt})`);
+      logger.info(`Pruning old session: ${s.id} (Last activity: ${s.lastActivityAt})`);
       this.sessions.delete(s.id);
     }
   }

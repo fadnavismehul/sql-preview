@@ -7,7 +7,6 @@ import * as os from 'os';
 import * as path from 'path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-// import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 
 import { SocketTransport } from './SocketTransport';
 import { SessionManager } from './SessionManager';
@@ -18,7 +17,7 @@ import { DaemonMcpServer } from './DaemonMcpServer';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { TrinoConnector } from '../connectors/trino/TrinoConnector';
 import { SQLiteConnector } from '../connectors/sqlite/SQLiteConnector';
-// import { PostgreSQLConnector } from '../connectors/postgres/PostgreSQLConnector';
+import { logger } from './ConsoleLogger';
 
 export class Daemon {
   private app: express.Express;
@@ -66,7 +65,7 @@ export class Daemon {
     // Singleton Server/Transport initialization REMOVED in favor of per-connection logic in setupRoutes
 
     this.setupRoutes();
-    // this.setupLifecycle();
+    this.setupLifecycle();
   }
 
   private setupRoutes() {
@@ -76,7 +75,7 @@ export class Daemon {
     this.app.use((_req, res, next) => {
       this.refreshActivity();
       res.on('finish', () => {
-        // console.log(`[Daemon] << ${_req.method} ${_req.url} ${res.statusCode}`);
+        // Request finished
       });
       next();
     });
@@ -117,12 +116,12 @@ export class Daemon {
 
     // Legacy /sse alias for compatibility (if needed) or redirect
     this.app.use('/sse', async (req, res) => {
-      console.log('[Daemon] Legacy SSE access, forwarding to MCP transport');
+      logger.info('[Daemon] Legacy SSE access, forwarding to MCP transport');
       await transport.handleRequest(req, res);
     });
 
     this.app.post('/messages', async (req, res) => {
-      console.log('[Daemon] Legacy /messages access, forwarding to MCP transport');
+      logger.info('[Daemon] Legacy /messages access, forwarding to MCP transport');
       // transport.handleRequest handles POST messages too if path matches?
       // StreamableHTTPServerTransport handles raw requests.
       await transport.handleRequest(req, res);
@@ -181,7 +180,7 @@ export class Daemon {
     this.app.use(
       (err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
         void _next;
-        console.error(`[Daemon] Express Error on ${req.method} ${req.url}:`, err);
+        logger.error(`[Daemon] Express Error on ${req.method} ${req.url}:`, err);
         res.status(500).json({
           error: 'Internal Server Error',
           message: err.message || 'Unknown error',
@@ -198,18 +197,18 @@ export class Daemon {
   private setupLifecycle() {
     // 1. Global Error Handlers
     process.on('uncaughtException', error => {
-      console.error('[Daemon] CRITICAL: Uncaught Exception:', error);
+      logger.error('[Daemon] CRITICAL: Uncaught Exception:', error);
       // Give logger a chance to flush
       setTimeout(() => this.stop(), 100).unref();
     });
 
     process.on('unhandledRejection', (reason, promise) => {
-      console.error('[Daemon] CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
+      logger.error(`[Daemon] CRITICAL: Unhandled Rejection at: ${promise} reason: ${reason}`);
     });
 
     // 2. Graceful Shutdown
     const shutdown = (signal: string) => {
-      console.log(`[Daemon] Received ${signal}. Shutting down...`);
+      logger.info(`[Daemon] Received ${signal}. Shutting down...`);
       this.stop();
       // process.exit(0) is called in stop()'s cleanup if needed,
       // but usually let node exit naturally after closing servers.
@@ -226,7 +225,7 @@ export class Daemon {
 
       // Only shut down if no sockets connected AND timeout exceeded
       if (!hasActiveSessions && timeSinceActivity > this.IDLE_TIMEOUT_MS) {
-        console.log(`[Daemon] Idle timeout (${this.IDLE_TIMEOUT_MS}ms) reached. Shutting down.`);
+        logger.info(`[Daemon] Idle timeout (${this.IDLE_TIMEOUT_MS}ms) reached. Shutting down.`);
         shutdown('IDLE_TIMEOUT');
       }
     }, 60 * 1000); // Check every minute
@@ -249,11 +248,11 @@ export class Daemon {
       try {
         // Check if process is actually running
         process.kill(existingPid, 0);
-        console.error(`[Daemon] ERROR: Another instance is already running (PID: ${existingPid})`);
+        logger.error(`[Daemon] ERROR: Another instance is already running (PID: ${existingPid})`);
         process.exit(1);
       } catch (e) {
         // Process is not running, stale PID file
-        console.log(`[Daemon] Cleaning up stale PID file for ${existingPid}`);
+        logger.info(`[Daemon] Cleaning up stale PID file for ${existingPid}`);
         fs.unlinkSync(pidPath);
       }
     }
@@ -262,7 +261,7 @@ export class Daemon {
     try {
       fs.writeFileSync(pidPath, process.pid.toString());
     } catch (e) {
-      console.error('[Daemon] Failed to write PID file:', e);
+      logger.error('[Daemon] Failed to write PID file:', e);
     }
 
     // Serve Static UI
@@ -275,7 +274,7 @@ export class Daemon {
     // Start HTTP Server
     await new Promise<void>((resolve, reject) => {
       this.httpServer = this.app.listen(this.HTTP_PORT, '127.0.0.1', () => {
-        console.log(`Daemon HTTP listening on http://127.0.0.1:${this.HTTP_PORT}`);
+        logger.info(`Daemon HTTP listening on http://127.0.0.1:${this.HTTP_PORT}`);
         resolve();
       });
       this.httpServer.on('error', reject);
@@ -291,12 +290,12 @@ export class Daemon {
       try {
         fs.unlinkSync(this.SOCKET_PATH);
       } catch (e) {
-        console.warn('Failed to clean up socket:', e);
+        logger.warn('Failed to clean up socket:', e);
       }
     }
 
     this.socketServer = net.createServer(async socket => {
-      console.log('Client connected via Socket');
+      logger.info('Client connected via Socket');
       this.connectedSocketCount++;
       this.refreshActivity();
 
@@ -316,7 +315,7 @@ export class Daemon {
 
       socket.on('close', () => {
         this.connectedSocketCount--;
-        console.log('Client disconnected from Socket');
+        logger.info('Client disconnected from Socket');
         // socket transport usually handles its own cleanup, but we could explicitly server.close()
       });
       socket.on('data', () => this.refreshActivity());
@@ -326,7 +325,7 @@ export class Daemon {
 
     return new Promise<void>((resolve, reject) => {
       this.socketServer!.listen(this.SOCKET_PATH, () => {
-        console.log(`Daemon IPC listening on ${this.SOCKET_PATH}`);
+        logger.info(`Daemon IPC listening on ${this.SOCKET_PATH}`);
         resolve();
       });
       this.socketServer!.on('error', reject);
@@ -334,14 +333,14 @@ export class Daemon {
   }
 
   public stop() {
-    console.log('[Daemon] Stopping servers...');
+    logger.info('[Daemon] Stopping servers...');
 
     if (this.httpServer) {
       this.httpServer.close(err => {
         if (err) {
-          console.error('[Daemon] Error closing HTTP server:', err);
+          logger.error('[Daemon] Error closing HTTP server:', err);
         } else {
-          console.log('[Daemon] HTTP server closed.');
+          logger.info('[Daemon] HTTP server closed.');
         }
       });
       this.httpServer = null;
@@ -350,9 +349,9 @@ export class Daemon {
     if (this.socketServer) {
       this.socketServer.close(err => {
         if (err) {
-          console.error('[Daemon] Error closing Socket server:', err);
+          logger.error('[Daemon] Error closing Socket server:', err);
         } else {
-          console.log('[Daemon] Socket server closed.');
+          logger.info('[Daemon] Socket server closed.');
         }
       });
       this.socketServer = null;
@@ -386,7 +385,7 @@ export class Daemon {
 if (require.main === module) {
   const daemon = new Daemon();
   daemon.start().catch(err => {
-    console.error('Failed to start daemon:', err);
+    logger.error('Failed to start daemon:', err);
     process.exit(1);
   });
 }

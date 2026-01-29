@@ -1,4 +1,15 @@
+/* eslint-disable no-console */
+
 export class ConsoleLogger {
+  private static instance: ConsoleLogger;
+
+  public static getInstance(): ConsoleLogger {
+    if (!ConsoleLogger.instance) {
+      ConsoleLogger.instance = new ConsoleLogger();
+    }
+    return ConsoleLogger.instance;
+  }
+
   public info(message: string, data?: unknown) {
     console.log(`[INFO] ${message}`, data ? JSON.stringify(data) : '');
   }
@@ -11,8 +22,12 @@ export class ConsoleLogger {
     console.warn(`[WARN] ${message}`, data ? JSON.stringify(data) : '');
   }
 
-  public debug() {
+  public debug(message: string, data?: unknown) {
     // Only log debug if env var set?
-    // console.debug(`[DEBUG] ${message}`, data ? JSON.stringify(data) : '');
+    if (process.env.DEBUG) {
+      console.debug(`[DEBUG] ${message}`, data ? JSON.stringify(data) : '');
+    }
   }
 }
+
+export const logger = ConsoleLogger.getInstance();

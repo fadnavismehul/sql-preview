@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { ConnectionProfile } from '../common/types';
+import { logger } from './ConsoleLogger';
 
 export interface ServerConfig {
   connections: ConnectionProfile[];
@@ -32,7 +33,7 @@ export class FileConnectionManager {
       const raw = fs.readFileSync(this.configPath, 'utf8');
       return JSON.parse(raw);
     } catch (error) {
-      console.error('Failed to read config:', error);
+      logger.error('Failed to read config:', error);
       return { connections: [] };
     }
   }

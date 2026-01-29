@@ -35,7 +35,7 @@ class SocketClientTransport implements Transport {
             const msg = JSON.parse(line);
             this.onmessage?.(msg);
           } catch (e) {
-            console.error('Failed to parse IPC message', e);
+            // console.error('Failed to parse IPC message', e); // Silent fail or use logger if available
           }
         }
       }
@@ -102,14 +102,14 @@ export class DaemonClient {
       // Ignore error, proceed to start
     }
 
-    console.log('Daemon not running or unreachable, starting...');
+    // console.log('Daemon not running or unreachable, starting...');
 
     // 2. Clean up stale socket
     if (fs.existsSync(this.socketPath)) {
       try {
         fs.unlinkSync(this.socketPath);
       } catch (e) {
-        console.warn('Failed to unlink stale socket:', e);
+        // console.warn('Failed to unlink stale socket:', e);
       }
     }
 
@@ -123,7 +123,7 @@ export class DaemonClient {
       if (fs.existsSync(this.socketPath)) {
         try {
           await this.connect();
-          console.log('Successfully connected to new daemon instance.');
+          // console.log('Successfully connected to new daemon instance.');
           return;
         } catch (e) {
           // Socket exists but maybe not listening yet
@@ -174,7 +174,7 @@ export class DaemonClient {
     });
   }
 
-  public async runQuery(sql: string, newTab = true, connectionProfile?: any): Promise<string> {
+  public async runQuery(sql: string, newTab = true, connectionProfile?: unknown): Promise<string> {
     // Call run_query tool
     const result = await this.client.callTool({
       name: 'run_query',
@@ -192,7 +192,10 @@ export class DaemonClient {
       throw new Error('Invalid response from daemon');
     }
 
-    const text = content[0]!.text;
+    const text = content[0]?.text;
+    if (!text) {
+      throw new Error('Invalid response from daemon');
+    }
     const match = text.match(/Tab ID: (tab-[^.]+)/);
     if (match && match[1]) {
       return match[1];

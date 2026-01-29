@@ -1,6 +1,7 @@
 import { SessionManager } from './SessionManager';
 import { DaemonQueryExecutor } from './DaemonQueryExecutor';
-import { TabData } from '../common/types';
+import { TabData, ConnectionProfile } from '../common/types';
+import { logger } from './ConsoleLogger';
 
 export class DaemonMcpToolManager {
   constructor(
@@ -131,7 +132,7 @@ export class DaemonMcpToolManager {
       // Abort execution
       const controller = session.abortControllers.get(tabId);
       if (controller) {
-        console.log(`Aborting query for tab ${tabId}`);
+        logger.info(`Aborting query for tab ${tabId}`);
         controller.abort();
       }
     }
@@ -169,7 +170,7 @@ export class DaemonMcpToolManager {
             session?: string;
             displayName?: string;
             newTab?: boolean;
-            connectionProfile?: any;
+            connectionProfile?: unknown;
           }
         | undefined;
       const sql = typedArgs?.sql?.trim();
@@ -242,7 +243,7 @@ export class DaemonMcpToolManager {
     sessionId: string,
     tabId: string,
     sql: string,
-    connectionProfile?: any,
+    connectionProfile?: unknown,
     signal?: AbortSignal
   ) {
     const session = this.sessionManager.getSession(sessionId);
@@ -261,7 +262,7 @@ export class DaemonMcpToolManager {
         sessionId,
         undefined,
         signal,
-        connectionProfile
+        connectionProfile as ConnectionProfile
       );
 
       let columns: import('../common/types').ColumnDef[] = [];
