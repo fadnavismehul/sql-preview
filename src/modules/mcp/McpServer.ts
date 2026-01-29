@@ -1,9 +1,19 @@
+/**
+ * @deprecated This file is legacy code from the per-window MCP server architecture.
+ * The extension now uses the Daemon architecture (see src/server/).
+ * This file is retained for test compatibility only and should not be used in production.
+ *
+ * For MCP tool handling, see: src/server/DaemonMcpToolManager.ts
+ * For MCP server, see: src/server/DaemonMcpServer.ts
+ */
+
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+
 /* eslint-disable no-console */
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';

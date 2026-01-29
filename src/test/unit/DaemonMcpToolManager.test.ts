@@ -25,26 +25,81 @@ describe('DaemonMcpToolManager', () => {
     toolManager = new DaemonMcpToolManager(mockSessionManager, mockQueryExecutor);
   });
 
-  it('should return a list of tools', () => {
+  it('should return a list of 4 tools (run_query, get_tab_info, list_sessions, cancel_query)', () => {
     const tools = toolManager.getTools();
-    expect(tools).toHaveLength(5);
-    expect(tools.map(t => t.name)).toContain('run_query');
-    expect(tools.map(t => t.name)).toContain('list_sessions');
+    expect(tools).toHaveLength(4);
+    const toolNames = tools.map(t => t.name);
+    expect(toolNames).toContain('run_query');
+    expect(toolNames).toContain('get_tab_info');
+    expect(toolNames).toContain('list_sessions');
+    expect(toolNames).toContain('cancel_query');
+    // register_session should NOT be in the public tool list
+    expect(toolNames).not.toContain('register_session');
   });
 
-  it('should register a session', async () => {
-    const result = await toolManager.handleToolCall('register_session', {
-      sessionId: 'test-session',
-      displayName: 'Test Client',
-      clientType: 'vscode',
+  it('should auto-register session on run_query if session does not exist', async () => {
+    // First call returns null (session doesn't exist), second call returns the session
+    const mockSession = {
+      id: 'new-session',
+      displayName: 'MCP Client',
+      clientType: 'standalone',
+      tabs: new Map(),
+      activeTabId: undefined,
+      lastActivityAt: new Date(),
+      abortControllers: new Map(),
+    };
+    mockSessionManager.getSession
+      .mockReturnValueOnce(undefined) // First call: not found
+      .mockReturnValueOnce(mockSession as any); // After registration
+
+    mockQueryExecutor.execute.mockImplementation(async function* () {
+      yield { columns: [], data: [] };
+    });
+
+    const result: any = await toolManager.handleToolCall('run_query', {
+      sql: 'SELECT 1',
+      session: 'new-session',
+      displayName: 'My New Session',
+    });
+
+    // Should have auto-registered the session
+    expect(mockSessionManager.registerSession).toHaveBeenCalledWith(
+      'new-session',
+      'My New Session',
+      'standalone'
+    );
+    expect(result.content[0].text).toContain('Query submitted');
+  });
+
+  it('should use default displayName when auto-registering', async () => {
+    const mockSession = {
+      id: 'test-session',
+      displayName: 'MCP Client',
+      clientType: 'standalone',
+      tabs: new Map(),
+      activeTabId: undefined,
+      lastActivityAt: new Date(),
+      abortControllers: new Map(),
+    };
+    mockSessionManager.getSession
+      .mockReturnValueOnce(undefined)
+      .mockReturnValueOnce(mockSession as any);
+
+    mockQueryExecutor.execute.mockImplementation(async function* () {
+      yield { columns: [], data: [] };
+    });
+
+    await toolManager.handleToolCall('run_query', {
+      sql: 'SELECT 1',
+      session: 'test-session',
+      // No displayName provided - should default to 'MCP Client'
     });
 
     expect(mockSessionManager.registerSession).toHaveBeenCalledWith(
       'test-session',
-      'Test Client',
-      'vscode'
+      'MCP Client', // Default value
+      'standalone'
     );
-    expect((result as any).content[0].text).toContain('registered successfully');
   });
 
   it('should handle list_sessions', async () => {
@@ -61,5 +116,15 @@ describe('DaemonMcpToolManager', () => {
 
   it('should throw error for unknown tool', async () => {
     await expect(toolManager.handleToolCall('unknown_tool', {})).rejects.toThrow('Unknown tool');
+  });
+
+  it('should throw error for register_session (no longer a public tool)', async () => {
+    await expect(
+      toolManager.handleToolCall('register_session', {
+        sessionId: 'test',
+        displayName: 'Test',
+        clientType: 'vscode',
+      })
+    ).rejects.toThrow('Unknown tool');
   });
 });

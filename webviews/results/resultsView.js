@@ -1481,12 +1481,13 @@ if (connectorSelect) {
 
 if (copyMcpConfigBtn) {
     copyMcpConfigBtn.addEventListener('click', () => {
-        const code = document.querySelector('.code-block').innerText;
-        navigator.clipboard.writeText(code).then(() => {
-            const originalText = copyMcpConfigBtn.textContent;
-            copyMcpConfigBtn.textContent = 'Copied!';
+        const snippet = document.getElementById('mcp-snippet').textContent;
+        navigator.clipboard.writeText(snippet).then(() => {
+            const originalTitle = copyMcpConfigBtn.title;
+            copyMcpConfigBtn.title = 'Copied!';
+            // Could also change icon briefly
             setTimeout(() => {
-                copyMcpConfigBtn.textContent = originalText;
+                copyMcpConfigBtn.title = originalTitle;
             }, 2000);
         });
     });
@@ -1639,7 +1640,7 @@ function populateSettings(config) {
     // Ensure snippet shows 8414 to match standard
     const snippetEl = document.getElementById('mcp-snippet');
     if (snippetEl) {
-        snippetEl.textContent = `"sql-preview": { "url": "http://localhost:8414/sse" }`;
+        snippetEl.textContent = `http://localhost:8414/mcp`;
     }
 }
 

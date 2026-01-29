@@ -1,3 +1,11 @@
+/**
+ * @deprecated This file is legacy code from the per-window MCP server architecture.
+ * The extension now uses the Daemon architecture (see src/server/).
+ * This file is retained for test compatibility only and should not be used in production.
+ *
+ * For MCP tool handling, see: src/server/DaemonMcpToolManager.ts
+ */
+
 import * as vscode from 'vscode';
 import { ResultsViewProvider } from '../../resultsViewProvider';
 import { TabManager } from '../../services/TabManager';

@@ -12,12 +12,22 @@ export class DaemonMcpToolManager {
     return [
       {
         name: 'run_query',
-        description: 'Execute a SQL query for a specific session.',
+        description:
+          'Execute a SQL query for a specific session. Returns a tab ID immediately; use get_tab_info to check status and retrieve results. If the session does not exist, it will be auto-registered.',
         inputSchema: {
           type: 'object',
           properties: {
             sql: { type: 'string', description: 'The SQL query to execute' },
-            session: { type: 'string', description: 'The Session ID to run this query in.' },
+            session: {
+              type: 'string',
+              description:
+                'The Session ID to run this query in. Use list_sessions to discover existing sessions, or provide a new ID to auto-create a session.',
+            },
+            displayName: {
+              type: 'string',
+              description:
+                'Display name for a new session (only used when auto-registering). Defaults to "MCP Client".',
+            },
             newTab: {
               type: 'boolean',
               description: 'Whether to open in a new tab (default: true)',
@@ -32,45 +42,41 @@ export class DaemonMcpToolManager {
       },
       {
         name: 'get_tab_info',
-        description: 'Get information about a result tab in a session.',
+        description:
+          'Get information about a result tab in a session, including query status and result rows. Use this after run_query to check if execution completed and retrieve data.',
         inputSchema: {
           type: 'object',
           properties: {
-            session: { type: 'string', description: 'The Session ID' },
-            tabId: { type: 'string', description: 'The Tab ID (optional, defaults to active)' },
-            offset: { type: 'number', description: 'Optional row offset to fetch from' },
+            session: {
+              type: 'string',
+              description: 'The Session ID. Use list_sessions to discover available sessions.',
+            },
+            tabId: {
+              type: 'string',
+              description:
+                'The Tab ID to retrieve (optional, defaults to the most recently active tab in the session)',
+            },
+            offset: {
+              type: 'number',
+              description: 'Optional row offset to fetch from (for pagination)',
+            },
           },
           required: ['session'],
         },
       },
       {
         name: 'list_sessions',
-        description: 'List all active sessions managed by the daemon.',
+        description:
+          'List all active sessions managed by the daemon. Use this first to discover existing session IDs before running queries or checking results.',
         inputSchema: {
           type: 'object',
           properties: {},
         },
       },
       {
-        name: 'register_session',
-        description: 'Register a new client session.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            sessionId: { type: 'string', description: 'The Session ID' },
-            displayName: { type: 'string', description: 'Display Name for the session' },
-            clientType: {
-              type: 'string',
-              enum: ['vscode', 'cursor', 'standalone'],
-              description: 'Client Type',
-            },
-          },
-          required: ['sessionId', 'displayName', 'clientType'],
-        },
-      },
-      {
         name: 'cancel_query',
-        description: 'Cancel a running query.',
+        description:
+          'Cancel a running query. Use get_tab_info first to check if a query is still in "loading" state before cancelling.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -91,32 +97,11 @@ export class DaemonMcpToolManager {
         return this.handleGetTabInfo(args);
       case 'list_sessions':
         return this.handleListSessions();
-      case 'register_session':
-        return this.handleRegisterSession(args);
       case 'cancel_query':
         return this.handleCancelQuery(args);
       default:
         throw new Error('Unknown tool');
     }
-  }
-
-  private async handleRegisterSession(args: unknown) {
-    const typedArgs = args as
-      | { sessionId?: string; displayName?: string; clientType?: string }
-      | undefined;
-    const sessionId = typedArgs?.sessionId;
-    const displayName = typedArgs?.displayName || 'Unknown Client';
-    const clientType = (typedArgs?.clientType || 'vscode') as 'vscode' | 'cursor' | 'standalone';
-
-    if (!sessionId) {
-      throw new Error('Session ID is required');
-    }
-
-    this.sessionManager.registerSession(sessionId, displayName, clientType);
-
-    return {
-      content: [{ type: 'text', text: `Session ${sessionId} registered successfully.` }],
-    };
   }
 
   private async handleCancelQuery(args: unknown) {
@@ -174,10 +159,17 @@ export class DaemonMcpToolManager {
   private async handleRunQuery(args: unknown) {
     try {
       const typedArgs = args as
-        | { sql?: string; session?: string; newTab?: boolean; connectionProfile?: any }
+        | {
+            sql?: string;
+            session?: string;
+            displayName?: string;
+            newTab?: boolean;
+            connectionProfile?: any;
+          }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       const sessionId = typedArgs?.session;
+      const displayName = typedArgs?.displayName || 'MCP Client';
       const connectionProfile = typedArgs?.connectionProfile;
 
       if (!sql) {
@@ -187,9 +179,14 @@ export class DaemonMcpToolManager {
         throw new Error('Session ID is required');
       }
 
-      const session = this.sessionManager.getSession(sessionId);
+      // Lazy session registration: auto-create if not found
+      let session = this.sessionManager.getSession(sessionId);
       if (!session) {
-        throw new Error(`Session not found: ${sessionId}`);
+        this.sessionManager.registerSession(sessionId, displayName, 'standalone');
+        session = this.sessionManager.getSession(sessionId);
+        if (!session) {
+          throw new Error(`Failed to auto-register session: ${sessionId}`);
+        }
       }
 
       // Create Tab

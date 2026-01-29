@@ -161,22 +161,8 @@ export class DaemonClient {
         this.transport = new SocketClientTransport(socket);
         this.client
           .connect(this.transport)
-          .then(async () => {
-            // Register Session immediately
-            try {
-              await this.client.callTool({
-                name: 'register_session',
-                arguments: {
-                  sessionId: this.sessionId,
-                  displayName: this.getSessionDisplayName(),
-                  clientType: 'vscode',
-                },
-              });
-              resolve();
-            } catch (e) {
-              console.error('Failed to register session', e);
-              reject(e);
-            }
+          .then(() => {
+            resolve();
           })
           .catch(reject);
       });
@@ -185,13 +171,6 @@ export class DaemonClient {
         reject(err);
       });
     });
-  }
-
-  private getSessionDisplayName(): string {
-    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-      return `VS Code - ${vscode.workspace.workspaceFolders[0]?.name}`;
-    }
-    return 'VS Code - Untitled';
   }
 
   public async runQuery(sql: string, newTab = true, connectionProfile?: any): Promise<string> {

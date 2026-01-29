@@ -1090,10 +1090,19 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                     </div>
 
                                     <div class="mcp-info">
-                                        <p>Add to <code>mcp.json</code>:</p>
-                                        <div class="code-snippet">
-                                            <pre id="mcp-snippet">"sql-preview": { "url": "http://localhost:8414/sse" }</pre>
-                                            <button id="copy-mcp-config" class="icon-button" title="Copy" aria-label="Copy MCP Config">📋</button>
+                                        <div class="form-group" style="margin-bottom: 8px;">
+                                            <label>Connection URL (SSE)</label>
+                                            <div class="code-snippet">
+                                                <pre id="mcp-snippet">http://localhost:8414/mcp</pre>
+                                                <button id="copy-mcp-config" class="icon-button" title="Copy URL" aria-label="Copy MCP Config">📋</button>
+                                            </div>
+                                        </div>
+                                        <p style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin: 8px 0;">
+                                            Connect Claude, Cursor, or other AI agents to this running server. 
+                                            Sessions are automatically registered when you call <code>run_query</code>.
+                                        </p>
+                                        <div style="font-size: 0.8em; opacity: 0.8; margin-top: 4px;">
+                                            <strong>Tools:</strong> run_query, get_tab_info, list_sessions, cancel_query
                                         </div>
                                     </div>
                                     
