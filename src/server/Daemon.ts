@@ -24,6 +24,8 @@ export class Daemon {
   private httpServer: http.Server | null = null;
   private socketServer: net.Server | null = null;
   private toolManager: DaemonMcpToolManager;
+  private mcpServer!: Server;
+  private mcpTransport!: StreamableHTTPServerTransport;
   // private activeServers = new Map<string, Server>();
   // private activeTransports = new Map<string, SSEServerTransport>();
 
@@ -93,25 +95,25 @@ export class Daemon {
     });
 
     // Streamable HTTP Transport (Global)
-    const transport = new StreamableHTTPServerTransport({
+    this.mcpTransport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => {
         return `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       },
     });
 
-    const server = new Server(
+    this.mcpServer = new Server(
       { name: 'sql-preview-daemon', version: '1.0.0' },
       { capabilities: { resources: {}, tools: {} } }
     );
 
     // Register Handlers
-    new DaemonMcpServer(server, this.sessionManager, this.toolManager);
+    new DaemonMcpServer(this.mcpServer, this.sessionManager, this.toolManager);
 
-    server.connect(transport);
+    // Connection moved to start()
 
     // MCP Endpoint
     this.app.use('/mcp', async (req, res) => {
-      await transport.handleRequest(req, res);
+      await this.mcpTransport.handleRequest(req, res);
     });
 
     // Legacy /sse alias removed
@@ -273,6 +275,9 @@ export class Daemon {
 
     // Start Socket Server
     await this.startSocketServer();
+
+    // Connect MCP Transport (Must be awaited to ensure readiness)
+    await this.mcpServer.connect(this.mcpTransport);
   }
 
   private async startSocketServer() {
