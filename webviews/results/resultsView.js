@@ -903,7 +903,6 @@ function updateTabWithResults(tabId, data, title) {
         rowH = 45;
         headH = 52;
     }
-    console.log('[Grid Setup] currentRowHeightDensity:', currentRowHeightDensity, 'rowH:', rowH, 'headH:', headH);
 
     const gridOptions = {
         rowData: data.rows.map(row => {
