@@ -893,6 +893,18 @@ function updateTabWithResults(tabId, data, title) {
     });
 
     // Setup AG Grid
+    // Calculate row and header heights based on current density
+    let rowH = 35;
+    let headH = 42;
+    if (currentRowHeightDensity === 'compact') {
+        rowH = 28;
+        headH = 36;
+    } else if (currentRowHeightDensity === 'comfortable') {
+        rowH = 45;
+        headH = 52;
+    }
+    console.log('[Grid Setup] currentRowHeightDensity:', currentRowHeightDensity, 'rowH:', rowH, 'headH:', headH);
+
     const gridOptions = {
         rowData: data.rows.map(row => {
             // Convert array of values to object {col1: val1, ...} based on columns
@@ -905,6 +917,10 @@ function updateTabWithResults(tabId, data, title) {
         columnDefs: columnDefs,
         pagination: true,
         paginationPageSize: 100,
+
+        // Row height settings
+        rowHeight: rowH,
+        headerHeight: headH,
 
         // Selection Features
         rowSelection: 'multiple',
@@ -1432,8 +1448,8 @@ function saveAllSettings() {
         sslVerify: document.getElementById('cfg-sslVerify').checked,
 
         // Experimental
-        mcpEnabled: document.getElementById('cfg-mcpEnabled').checked,
-        mcpPort: parseInt(document.getElementById('cfg-mcpPort').value, 10)
+        mcpEnabled: document.getElementById('cfg-mcpEnabled')?.checked || false,
+        mcpPort: parseInt(document.getElementById('cfg-mcpPort')?.value || '3000', 10)
     };
 
     vscode.postMessage({ command: 'saveSettings', settings });

@@ -257,13 +257,15 @@ export function deactivate() {
 }
 
 // Prefix unused args with _ to satisfy linter, keeping signature for tests
-// Prefix unused args with _ to satisfy linter, keeping signature for tests
 export function generateTabTitle(sql: string, sourceUri?: string, count = 1): string {
   const config = vscode.workspace.getConfiguration('sqlPreview');
   const naming = config.get<string>('tabNaming', 'file-sequential');
 
   if (naming === 'query-snippet') {
-    return sql.trim().substring(0, 16);
+    // Clean up SQL: remove newlines and extra whitespace
+    const cleanSql = sql.trim().replace(/\s+/g, ' ');
+    // Take first 30 characters and add ellipsis if truncated
+    return cleanSql.length > 30 ? cleanSql.substring(0, 30) + '...' : cleanSql;
   }
 
   // file-sequential

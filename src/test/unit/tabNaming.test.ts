@@ -7,13 +7,6 @@ import { mockWorkspaceConfig } from '../setup';
 describe('Tab Naming Tests', () => {
   beforeEach(() => {
     sinon.restore();
-    // Assuming mockWorkspaceConfig is already set up to mock vscode.workspace.getConfiguration
-    // If setup.ts mocks it globally, we can use it.
-    // If not, we stub it here.
-    if (!mockWorkspaceConfig.get) {
-      // Create stub if not present (although setup.ts usually does)
-      // But here we might need to verify setup.
-    }
   });
 
   afterEach(() => {
@@ -21,7 +14,6 @@ describe('Tab Naming Tests', () => {
   });
 
   it('should use file-sequential naming by default', () => {
-    // Mock get to return 'file-sequential'
     mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
       if (key === 'tabNaming') {
         return 'file-sequential';
@@ -49,13 +41,29 @@ describe('Tab Naming Tests', () => {
     const sourceUri = 'file:///path/to/script.sql';
     const count = 5;
 
-    // Expect first 16 chars
-    const expected = 'SELECT * FROM us';
+    // Expect first 30 chars with ellipsis
+    const expected = 'SELECT * FROM users WHERE id =...';
     const title = generateTabTitle(sql, sourceUri, count);
     assert.strictEqual(title, expected);
   });
 
-  it('should handle short query snippets', () => {
+  it('should clean whitespace in query snippets', () => {
+    mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
+      if (key === 'tabNaming') {
+        return 'query-snippet';
+      }
+      return defaultValue;
+    });
+
+    const sql = `SELECT *
+    FROM users
+    WHERE id = 1`;
+    const title = generateTabTitle(sql, undefined, 1);
+    // Should clean newlines and extra spaces
+    assert.strictEqual(title, 'SELECT * FROM users WHERE id =...');
+  });
+
+  it('should handle short query snippets without ellipsis', () => {
     mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
       if (key === 'tabNaming') {
         return 'query-snippet';
