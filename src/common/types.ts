@@ -15,6 +15,7 @@ export interface QueryPage {
         [key: string]: unknown;
       }
     | undefined;
+  supportsPagination?: boolean | undefined;
 }
 
 export interface QueryResults {
@@ -27,6 +28,7 @@ export interface QueryResults {
   queryId?: string | undefined;
   infoUri?: string | undefined;
   nextUri?: string | undefined;
+  supportsPagination?: boolean | undefined;
 }
 
 export interface TabData {
@@ -45,6 +47,7 @@ export interface TabData {
   nextUri?: string | undefined;
   sourceFileUri?: string | undefined;
   wasDataCleared?: boolean | undefined;
+  supportsPagination?: boolean | undefined;
 }
 
 /**

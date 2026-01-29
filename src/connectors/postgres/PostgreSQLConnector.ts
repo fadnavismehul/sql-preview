@@ -6,6 +6,7 @@ import type { Client, ClientConfig, QueryResult } from 'pg';
 
 export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
   readonly id = 'postgres';
+  readonly supportsPagination = false; // Postgres returns all results at once (currently)
 
   constructor(private readonly driverManager: DriverManager) {}
 

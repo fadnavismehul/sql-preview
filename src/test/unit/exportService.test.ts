@@ -40,6 +40,7 @@ describe('ExportService', () => {
       return callback({ report: jest.fn() }, { isCancellationRequested: false });
     });
     (vscode.commands.executeCommand as jest.Mock) = jest.fn();
+    (vscode.window.showWarningMessage as jest.Mock) = jest.fn().mockResolvedValue('Continue');
   });
 
   it('should export result as JSON objects', async () => {

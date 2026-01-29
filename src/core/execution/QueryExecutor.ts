@@ -88,6 +88,7 @@ export class QueryExecutor {
           yield {
             columns: info.columns,
             data: newRows,
+            supportsPagination: info.supportsPagination,
             stats: {
               state: isComplete && !hasMore ? 'FINISHED' : 'RUNNING',
               rowCount: info.rowCount ?? currentOffset,

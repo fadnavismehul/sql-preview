@@ -279,6 +279,9 @@ export class DaemonMcpToolManager {
         if (page.data && page.data.length > 0) {
           tab.rows.push(...page.data);
         }
+        if (page.supportsPagination !== undefined) {
+          tab.supportsPagination = page.supportsPagination;
+        }
         // Update status to keep UI alive/informed?
         // Actually 'loading' is fine until done.
       }

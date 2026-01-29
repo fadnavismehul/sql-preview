@@ -74,7 +74,13 @@ export class DaemonQueryExecutor {
     }
 
     try {
-      yield* connector.runQuery(query, connectorConfig, authHeader, abortSignal);
+      const generator = connector.runQuery(query, connectorConfig, authHeader, abortSignal);
+      for await (const page of generator) {
+        yield {
+          ...page,
+          supportsPagination: connector.supportsPagination,
+        };
+      }
       this.logger.info(`Query execution completed for session ${sessionId}`);
     } catch (e: unknown) {
       this.logger.error(`Query execution failed`, e);

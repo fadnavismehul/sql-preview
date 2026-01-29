@@ -7,7 +7,6 @@ import { ExportService } from './services/ExportService';
 import { QuerySessionRegistry } from './services/QuerySessionRegistry';
 import { ConnectionManager } from './services/ConnectionManager';
 
-import { AuthManager } from './services/AuthManager';
 import { QueryExecutor } from './core/execution/QueryExecutor';
 import { getNonce } from './utils/nonce';
 import * as http from 'http';
@@ -24,7 +23,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
   private _resultCounter = 1;
   private _activeEditorUri: string | undefined;
   private _stateManager: StateManager;
-  private _authManager: AuthManager;
+
   private _disposables: vscode.Disposable[] = [];
   // private _mcpServer: SqlPreviewMcpServer | undefined;
 
@@ -40,7 +39,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
   ) {
     // this._outputChannel = vscode.window.createOutputChannel('SQL Preview'); // Removed
     this._stateManager = new StateManager(context);
-    this._authManager = new AuthManager(context);
 
     // Initialize active editor if already open
     if (
@@ -225,10 +223,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
             // SQLite doesn't use auth header usually
           } else {
             // Trino
-            const pwd = await this._authManager.getPassword();
-            authHeader = pwd
-              ? `Basic ${Buffer.from(`${config.user}:${pwd}`).toString('base64')}`
-              : undefined;
+            // Legacy password retrieval removed
+            authHeader = undefined;
 
             testConfig = {
               host: config.host,
@@ -373,7 +369,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           await this._connectionManager.saveConnection(profile);
 
           // Refresh settings to confirm
-          const hasPassword = (await this._authManager.getPassword()) !== undefined;
+          const hasPassword = false; // Legacy AuthManager removed
           this._postMessage({
             type: 'updateConfig',
             config: {
@@ -742,8 +738,10 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
             wasTruncated: tab.wasTruncated || false,
             totalRowsInFirstBatch: tab.totalRowsInFirstBatch || tab.rows.length,
             queryId: tab.queryId,
+
             infoUri: tab.infoUri,
             nextUri: tab.nextUri,
+            supportsPagination: tab.supportsPagination,
           };
           this._postMessage({
             type: 'resultData',
@@ -833,7 +831,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
 
     const config = vscode.workspace.getConfiguration('sqlPreview', resource);
-    const hasPassword = (await this._authManager.getPassword()) !== undefined;
+    const hasPassword = false; // Legacy AuthManager removed
 
     // Debugging
 

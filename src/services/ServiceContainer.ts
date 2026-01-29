@@ -1,4 +1,3 @@
-import { AuthManager } from './AuthManager';
 import { QueryExecutor } from '../core/execution/QueryExecutor';
 import { ResultsViewProvider } from '../resultsViewProvider';
 import { TabManager } from './TabManager';
@@ -19,7 +18,6 @@ import { DaemonClient } from './DaemonClient';
 export class ServiceContainer {
   private static instance: ServiceContainer;
 
-  public readonly authManager: AuthManager;
   public readonly connectionManager: ConnectionManager;
   public readonly driverManager: DriverManager;
   public readonly connectorRegistry: ConnectorRegistry;
@@ -31,7 +29,6 @@ export class ServiceContainer {
   public readonly daemonClient: DaemonClient;
 
   private constructor(context: vscode.ExtensionContext) {
-    this.authManager = new AuthManager(context);
     this.connectionManager = new ConnectionManager(context);
     this.driverManager = new DriverManager(context);
 
