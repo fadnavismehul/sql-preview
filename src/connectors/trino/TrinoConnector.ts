@@ -33,6 +33,7 @@ export interface TrinoConfig extends ConnectorConfig {
 
 export class TrinoConnector implements IConnector<TrinoConfig> {
   readonly id = 'trino';
+  readonly supportsPagination = true; // Trino returns results incrementally via nextUri
 
   validateConfig(config: TrinoConfig): string | undefined {
     if (!config.host) {

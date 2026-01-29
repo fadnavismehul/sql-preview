@@ -28,12 +28,12 @@ function convertBigNumbers(obj: any): any {
     ) {
       const str = obj.toString();
       const num = Number(str);
-      // Check if conversion to Number is lossless
-      // We compare string representations. Note that Number.toString() might canonicalize.
-      // e.g. 1e+20
-      if (String(num) === str) {
+      // Use MAX_SAFE_INTEGER check for reliable precision detection
+      // String comparison fails for scientific notation (1e+20 vs 100000000000000000000)
+      if (Number.isFinite(num) && Math.abs(num) <= Number.MAX_SAFE_INTEGER) {
         return num;
       }
+      // Keep as string to preserve precision for very large numbers
       return str;
     }
 

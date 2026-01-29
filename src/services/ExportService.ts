@@ -8,6 +8,18 @@ export class ExportService {
   constructor(private readonly queryExecutor: QueryExecutor) {}
 
   public async exportResults(tab: TabData) {
+    // Warn user that export re-executes the query
+    const proceed = await vscode.window.showWarningMessage(
+      'Export will re-run the query to fetch all results. Data may have changed since the original query.',
+      { modal: false },
+      'Continue',
+      'Cancel'
+    );
+
+    if (proceed !== 'Continue') {
+      return;
+    }
+
     // Resolve context URI for configuration and workspace folder
     const contextUri = tab.sourceFileUri ? vscode.Uri.parse(tab.sourceFileUri) : undefined;
 

@@ -8,6 +8,7 @@ export interface SQLiteConfig extends ConnectorConfig {
 
 export class SQLiteConnector implements IConnector<SQLiteConfig> {
   readonly id = 'sqlite';
+  readonly supportsPagination = false; // SQLite returns all results at once
 
   validateConfig(config: SQLiteConfig): string | undefined {
     if (!config.databasePath) {
