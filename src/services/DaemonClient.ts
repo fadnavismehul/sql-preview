@@ -73,7 +73,8 @@ export class DaemonClient {
   private socketPath: string;
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    this.sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    // Short session ID to save tokens for LLM agents
+    this.sessionId = Math.random().toString(36).substring(2, 10);
 
     // Determine Socket Path (Same as Daemon)
     // TODO: Shared constant

@@ -266,7 +266,7 @@ describe('ResultsViewProvider Tests', () => {
 
     const tabId = resultsViewProvider.getOrCreateActiveTabId(query, title);
 
-    expect(tabId).toMatch(/^tab-/);
+    expect(tabId).toMatch(/^t[a-z0-9]+/);
 
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({

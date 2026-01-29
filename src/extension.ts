@@ -187,7 +187,7 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
 
   let tabId: string;
   if (newTab) {
-    tabId = `tab-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    tabId = `t${Math.random().toString(36).substring(2, 10)}`;
     resultsViewProvider.createTabWithId(tabId, sql, title, sourceUri);
   } else {
     tabId = resultsViewProvider.getOrCreateActiveTabId(sql, title, sourceUri);

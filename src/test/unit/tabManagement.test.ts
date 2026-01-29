@@ -258,7 +258,7 @@ describe('Tab Management Tests', () => {
 
       assert.ok(typeof tabId === 'string');
       assert.ok(tabId.length > 0);
-      assert.ok(tabId.startsWith('tab-'));
+      assert.ok(tabId.startsWith('t'));
     });
   });
 });

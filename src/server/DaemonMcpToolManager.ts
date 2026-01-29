@@ -190,7 +190,7 @@ export class DaemonMcpToolManager {
       }
 
       // Create Tab
-      const tabId = `tab-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const tabId = `t${Math.random().toString(36).substring(2, 10)}`;
       const tabTitle = `Result ${session.tabs.size + 1}`;
 
       const tab: TabData = {

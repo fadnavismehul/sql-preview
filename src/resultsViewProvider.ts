@@ -549,7 +549,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
       // If mismatch, fall through to create new tab
     }
 
-    const newTabId = `tab-${Date.now()}`;
+    const newTabId = `t${Math.random().toString(36).substring(2, 10)}`;
     this.createTabWithId(newTabId, query, title || 'Result', sourceFileUri);
     return newTabId;
   }
@@ -583,7 +583,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 
   /** Creates a new tab (convenience wrapper) - Generates ID automatically */
   public createTab(query: string, title?: string) {
-    const tabId = `tab-${Date.now()}`;
+    const tabId = `t${Math.random().toString(36).substring(2, 10)}`;
     this.createTabWithId(tabId, query, title || 'Query Result');
   }
 
