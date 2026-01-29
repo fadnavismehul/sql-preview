@@ -70,29 +70,30 @@ export class QueryExecutor {
         }
 
         const newRows = info.rows || [];
-        if (newRows.length > 0) {
+        const isComplete = info.status === 'success';
+
+        // Determine if we should yield this iteration
+        // We yield when:
+        // 1. There are new rows to deliver
+        // 2. Query just completed (final yield, even if empty - e.g., DELETE returning 0 rows)
+        // 3. First poll with columns (to show grid structure before data arrives)
+        const hasNewRows = newRows.length > 0;
+        const isFirstPollWithColumns = info.columns && currentOffset === 0 && !hasNewRows;
+        const isFinalEmptyResult = isComplete && currentOffset === 0 && !hasNewRows;
+
+        if (hasNewRows || isFirstPollWithColumns || isFinalEmptyResult) {
           currentOffset += newRows.length;
           yield {
             columns: info.columns,
             data: newRows,
             stats: {
-              state: info.status === 'success' ? 'FINISHED' : 'RUNNING',
-              rowCount: info.rowCount,
-            },
-          };
-        } else if (info.columns && currentOffset === 0) {
-          // Yield columns even if no rows yet
-          yield {
-            columns: info.columns,
-            data: [],
-            stats: {
-              state: 'RUNNING',
-              rowCount: 0,
+              state: isComplete ? 'FINISHED' : 'RUNNING',
+              rowCount: info.rowCount ?? currentOffset,
             },
           };
         }
 
-        if (info.status === 'success') {
+        if (isComplete) {
           isDone = true;
         } else {
           // Still loading, wait a bit
