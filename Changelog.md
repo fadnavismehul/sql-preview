@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.5] - 2026-01-29
+
+### Fixed
+
+- **Value Parsing**: Fixed an issue where large integers and doubles were incorrectly displayed as `[object Object]` or lost precision. We implemented robust backend parsing for big numbers.
+- **Complex Types**: Fixed the rendering of Trino `ROW` types (structs), which now display as interactive JSON objects instead of `[object Object]`.
+- **Connection Validation**: Enhanced the "Test Connection" feature to validate the existence of the configured Catalog and Schema, preventing "success" reports when metadata is incorrect.
+- **Regression Tests**: Added comprehensive regression tests to prevent future parsing issues.
+
 ## [0.4.4] - 2026-01-27
 
 ### Added

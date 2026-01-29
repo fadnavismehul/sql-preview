@@ -16,9 +16,16 @@ function convertBigNumbers(obj: any): any {
   }
 
   if (typeof obj === 'object') {
-    // Check if it's a BigNumber (duck typing or constructor check)
-    // json-bigint uses bignumber.js instances
-    if (obj.constructor && obj.constructor.name === 'BigNumber') {
+    // Check if it's a BigNumber using duck typing (checking structure properties)
+    // json-bigint uses bignumber.js instances which have s (sign), e (exponent), c (coefficient)
+    if (
+      obj &&
+      typeof obj === 'object' &&
+      's' in obj &&
+      'e' in obj &&
+      'c' in obj &&
+      Array.isArray(obj.c)
+    ) {
       const str = obj.toString();
       const num = Number(str);
       // Check if conversion to Number is lossless

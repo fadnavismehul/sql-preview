@@ -198,6 +198,11 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
       const axiosError = error as any;
       const trinoError = axiosError.response?.data?.error;
       msg = trinoError?.message || axiosError.message;
+
+      if (axiosError.config?.url) {
+        msg += ` (${axiosError.config.url})`;
+      }
+
       status = axiosError.response?.status;
       code = axiosError.code;
     } else if (error instanceof Error) {
@@ -215,5 +220,87 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
     }
 
     throw new QueryError(`Query failed: ${msg}`, query);
+  }
+
+  async testConnection(
+    config: TrinoConfig,
+    authHeader?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // 1. Basic Connectivity
+      const connectivityCheck = this.runQuery('SELECT 1', config, authHeader);
+      await connectivityCheck.next(); // Ensure we can get at least one yield
+
+      // 2. Validate Catalog (if configured)
+      if (config.catalog) {
+        const catalogQuery = `SHOW CATALOGS LIKE '${config.catalog}'`;
+        const iterator = this.runQuery(catalogQuery, config, authHeader);
+        let found = false;
+
+        for await (const page of iterator) {
+          if (page.data) {
+            for (const row of page.data) {
+              // Row format: [catalog_name]
+              if (row[0] === config.catalog) {
+                found = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!found) {
+          return {
+            success: false,
+            error: `Catalog '${config.catalog}' does not exist on the server.`,
+          };
+        }
+      }
+
+      // 3. Validate Schema (if configured)
+      if (config.schema) {
+        // Requires catalog to be present to check schema usually, or use current catalog
+        // If catalog is set, we check in that catalog. If used default catalog from config, fine.
+        // If config.catalog is missing but schema is set, Trino might use a default user catalog or fail.
+        // We'll check "FROM <catalog>" only if catalog is explicit, otherwise just "SHOW SCHEMAS"
+
+        let schemaQuery = `SHOW SCHEMAS`;
+        if (config.catalog) {
+          schemaQuery += ` FROM "${config.catalog}"`;
+        }
+        schemaQuery += ` LIKE '${config.schema}'`;
+
+        const iterator = this.runQuery(schemaQuery, config, authHeader);
+        let found = false;
+
+        for await (const page of iterator) {
+          if (page.data) {
+            for (const row of page.data) {
+              // Row format: [schema_name]
+              if (row[0] === config.schema) {
+                found = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!found) {
+          return {
+            success: false,
+            error: `Schema '${config.schema}' does not exist${
+              config.catalog ? ` in catalog '${config.catalog}'` : ''
+            }.`,
+          };
+        }
+      }
+
+      return { success: true };
+    } catch (error: unknown) {
+      if (error instanceof ConnectionError || error instanceof AuthenticationError) {
+        return { success: false, error: error.message };
+      }
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   }
 }

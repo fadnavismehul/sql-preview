@@ -110,6 +110,10 @@ export class QueryExecutor {
         return { success: false, error: valError };
       }
 
+      if (connector.testConnection) {
+        return await connector.testConnection(config, authHeader);
+      }
+
       const iterator = connector.runQuery('SELECT 1', config, authHeader);
       // Attempt to fetch first page to validate connection & auth
       await iterator.next();

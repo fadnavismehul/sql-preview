@@ -863,7 +863,7 @@ function updateTabWithResults(tabId, data, title) {
     // 2. Add Data Columns
     data.columns.forEach(col => {
         const type = col.type.toLowerCase();
-        const isJson = type.includes('json') || type.includes('array') || type.includes('map') || type.includes('struct');
+        const isJson = type.includes('json') || type.includes('array') || type.includes('map') || type.includes('struct') || type.includes('row');
 
         // Calculate standard width based on header length
         // Approx 9px per char + padding (80px for filter icon space). Max 300px, Min 100px.
