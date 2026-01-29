@@ -24,7 +24,7 @@ export class ConsoleLogger {
 
   public debug(message: string, data?: unknown) {
     // Only log debug if env var set?
-    if (process.env.DEBUG) {
+    if (process.env['DEBUG']) {
       console.debug(`[DEBUG] ${message}`, data ? JSON.stringify(data) : '');
     }
   }
