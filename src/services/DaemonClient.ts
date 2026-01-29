@@ -35,7 +35,7 @@ class SocketClientTransport implements Transport {
             const msg = JSON.parse(line);
             this.onmessage?.(msg);
           } catch (e) {
-            // console.error('Failed to parse IPC message', e); // Silent fail or use logger if available
+            // Ignore parse errors from partially read chunks or garbage
           }
         }
       }
@@ -102,14 +102,12 @@ export class DaemonClient {
       // Ignore error, proceed to start
     }
 
-    // console.log('Daemon not running or unreachable, starting...');
-
     // 2. Clean up stale socket
     if (fs.existsSync(this.socketPath)) {
       try {
         fs.unlinkSync(this.socketPath);
       } catch (e) {
-        // console.warn('Failed to unlink stale socket:', e);
+        // Ignore unlink error
       }
     }
 
@@ -123,7 +121,6 @@ export class DaemonClient {
       if (fs.existsSync(this.socketPath)) {
         try {
           await this.connect();
-          // console.log('Successfully connected to new daemon instance.');
           return;
         } catch (e) {
           // Socket exists but maybe not listening yet

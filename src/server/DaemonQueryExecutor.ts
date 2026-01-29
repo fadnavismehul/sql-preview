@@ -30,7 +30,6 @@ export class DaemonQueryExecutor {
     abortSignal?: AbortSignal,
     connectionOverride?: ConnectionProfile
   ): AsyncGenerator<QueryPage, void, unknown> {
-    // const _correlationId = Math.random().toString(36).substring(7);
     this.logger.info(`Starting query execution for session ${sessionId}`, { query });
 
     let profile: ConnectionProfile | undefined;
