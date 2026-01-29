@@ -196,7 +196,7 @@ export class DaemonClient {
     if (!text) {
       throw new Error('Invalid response from daemon');
     }
-    const match = text.match(/Tab ID: (tab-[^.]+)/);
+    const match = text.match(/Tab ID: ([a-zA-Z0-9-]+)/);
     if (match && match[1]) {
       return match[1];
     }
