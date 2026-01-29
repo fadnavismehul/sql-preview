@@ -1483,11 +1483,13 @@ if (copyMcpConfigBtn) {
     copyMcpConfigBtn.addEventListener('click', () => {
         const snippet = document.getElementById('mcp-snippet').textContent;
         navigator.clipboard.writeText(snippet).then(() => {
-            const originalTitle = copyMcpConfigBtn.title;
-            copyMcpConfigBtn.title = 'Copied!';
-            // Could also change icon briefly
+            // Visual feedback
+            const originalText = copyMcpConfigBtn.textContent;
+            copyMcpConfigBtn.textContent = '✅';
+            vscode.postMessage({ command: 'alert', text: '✅ MCP Config copied to clipboard' });
+
             setTimeout(() => {
-                copyMcpConfigBtn.title = originalTitle;
+                copyMcpConfigBtn.textContent = originalText;
             }, 2000);
         });
     });

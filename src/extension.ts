@@ -65,7 +65,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Initialize Status Bar Item
   daemonStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  daemonStatusBarItem.text = '$(server) SQL Daemon: Info';
+  daemonStatusBarItem.text = '$(server) SQL Preview Server: Info';
   daemonStatusBarItem.command = 'sql.showDaemonInfo';
   context.subscriptions.push(daemonStatusBarItem);
   daemonStatusBarItem.show();
@@ -74,13 +74,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('sql.showDaemonInfo', () => {
       const sessionId = serviceContainer.daemonClient.getSessionId();
-      vscode.window.showInformationMessage(`SQL Preview Daemon Active. Session ID: ${sessionId}`);
+      vscode.window.showInformationMessage(`SQL Preview Server Active. Session ID: ${sessionId}`);
     }),
     vscode.commands.registerCommand('sql.mcp.restart', async () => {
       // Stop and Start
       await serviceContainer.daemonClient.stop();
       await serviceContainer.daemonClient.start();
-      vscode.window.showInformationMessage('Daemon Client Restarted.');
+      vscode.window.showInformationMessage('SQL Preview Client Restarted.');
     })
   );
 
@@ -121,7 +121,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('sql.setPassword', async () => {
       vscode.window.showInformationMessage(
-        'Please update ~/.sql-preview/config.json with credentials for Daemon.'
+        'Please update ~/.sql-preview/config.json with credentials for SQL Preview Server.'
       );
     }),
     vscode.commands.registerCommand('sql.clearPassword', async () => {

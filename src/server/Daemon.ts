@@ -114,18 +114,9 @@ export class Daemon {
       await transport.handleRequest(req, res);
     });
 
-    // Legacy /sse alias for compatibility (if needed) or redirect
-    this.app.use('/sse', async (req, res) => {
-      logger.info('[Daemon] Legacy SSE access, forwarding to MCP transport');
-      await transport.handleRequest(req, res);
-    });
+    // Legacy /sse alias removed
 
-    this.app.post('/messages', async (req, res) => {
-      logger.info('[Daemon] Legacy /messages access, forwarding to MCP transport');
-      // transport.handleRequest handles POST messages too if path matches?
-      // StreamableHTTPServerTransport handles raw requests.
-      await transport.handleRequest(req, res);
-    });
+    // Legacy /messages alias removed
 
     // Session Management API
     this.app.get('/sessions', (_req, res) => {

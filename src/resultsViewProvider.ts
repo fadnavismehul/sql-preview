@@ -10,7 +10,6 @@ import { ConnectionManager } from './services/ConnectionManager';
 import { QueryExecutor } from './core/execution/QueryExecutor';
 import { getNonce } from './utils/nonce';
 import * as http from 'http';
-// import type { SqlPreviewMcpServer } from './modules/mcp/McpServer'; // Removed
 
 /**
  * Manages the webview panel for displaying query results.
@@ -19,13 +18,12 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'sqlResultsView';
 
   private _view?: vscode.WebviewView | undefined;
-  // private _outputChannel: vscode.OutputChannel; // Removed
   private _resultCounter = 1;
+
   private _activeEditorUri: string | undefined;
   private _stateManager: StateManager;
 
   private _disposables: vscode.Disposable[] = [];
-  // private _mcpServer: SqlPreviewMcpServer | undefined;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -37,7 +35,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     private readonly _connectionManager: ConnectionManager,
     private readonly _queryExecutor: QueryExecutor
   ) {
-    // this._outputChannel = vscode.window.createOutputChannel('SQL Preview'); // Removed
     this._stateManager = new StateManager(context);
 
     // Initialize active editor if already open
@@ -223,7 +220,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
             // SQLite doesn't use auth header usually
           } else {
             // Trino
-            // Legacy password retrieval removed
             authHeader = undefined;
 
             testConfig = {
@@ -261,13 +257,13 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
               this._postMessage({
                 type: 'testMcpResult',
                 success: true,
-                message: 'Daemon is running and reachable.',
+                message: 'Server is running and reachable.',
               });
             } else {
               this._postMessage({
                 type: 'testMcpResult',
                 success: false,
-                error: `Daemon responded with HTTP ${res.statusCode}`,
+                error: `Server responded with HTTP ${res.statusCode}`,
               });
             }
           });
@@ -276,7 +272,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
             this._postMessage({
               type: 'testMcpResult',
               success: false,
-              error: `Connection Failed: ${e.message}. Ensure Daemon is running.`,
+              error: `Connection Failed: ${e.message}. Ensure Server is running.`,
             });
           });
 
@@ -369,7 +365,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           await this._connectionManager.saveConnection(profile);
 
           // Refresh settings to confirm
-          const hasPassword = false; // Legacy AuthManager removed
+          const hasPassword = false;
           this._postMessage({
             type: 'updateConfig',
             config: {
@@ -1089,25 +1085,29 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 
                                     <div class="mcp-info">
                                         <div class="form-group" style="margin-bottom: 8px;">
-                                            <label>Connection URL (SSE)</label>
+                                            <label>Connection URL</label>
                                             <div class="code-snippet">
-                                                <pre id="mcp-snippet">http://localhost:8414/mcp</pre>
-                                                <button id="copy-mcp-config" class="icon-button" title="Copy URL" aria-label="Copy MCP Config">📋</button>
+                                                <pre id="mcp-snippet" style="text-align: left; white-space: pre;">{
+
+    "sql-preview": {
+      "url": "http://localhost:8414/mcp"
+    }
+}</pre>
+                                                <button id="copy-mcp-config" class="icon-button" title="Copy Config" aria-label="Copy MCP Config">📋</button>
                                             </div>
                                         </div>
                                         <p style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin: 8px 0;">
                                             Connect Claude, Cursor, or other AI agents to this running server. 
-                                            Sessions are automatically registered when you call <code>run_query</code>.
+                                            Ask them to use the preview server, it should use the <code>run_query</code> tool.
+                                            Once a query has been executed, you can ask the agent to read the results which uses the <code>get_tab_info</code> tool.
                                         </p>
                                         <div style="font-size: 0.8em; opacity: 0.8; margin-top: 4px;">
                                             <strong>Tools:</strong> run_query, get_tab_info, list_sessions, cancel_query
                                         </div>
                                     </div>
                                     
-                                    <div class="form-group" style="margin-top: 15px; display:flex; gap:10px; align-items:center;">
                                         <button id="test-mcp-btn" class="secondary-button" style="width: auto;">Test MCP Server</button>
                                         <span id="test-mcp-status" class="status-badge"></span>
-                                        <a href="http://localhost:8414" style="margin-left:auto; font-size:0.9em;">Open Web Dashboard ↗</a>
                                     </div>
                                 </div>
                             </div>
