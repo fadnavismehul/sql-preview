@@ -6,8 +6,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-// import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'; // Removed
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+// import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 
 import { SocketTransport } from './SocketTransport';
 import { SessionManager } from './SessionManager';
@@ -25,8 +25,8 @@ export class Daemon {
   private httpServer: http.Server | null = null;
   private socketServer: net.Server | null = null;
   private toolManager: DaemonMcpToolManager;
-  private activeServers = new Map<string, Server>();
-  private activeTransports = new Map<string, SSEServerTransport>();
+  // private activeServers = new Map<string, Server>();
+  // private activeTransports = new Map<string, SSEServerTransport>();
 
   private sessionManager: SessionManager;
   private connectionManager: FileConnectionManager;
@@ -73,81 +73,53 @@ export class Daemon {
     this.app.use(cors());
 
     // Request Logging
-    this.app.use((req, res, next) => {
-      console.log(`[Daemon] >> ${req.method} ${req.url}`);
+    // Request Logging
+    this.app.use((_req, res, next) => {
+      // console.log(`[Daemon] >> ${_req.method} ${_req.url}`);
       res.on('finish', () => {
-        console.log(`[Daemon] << ${req.method} ${req.url} ${res.statusCode}`);
+        // console.log(`[Daemon] << ${_req.method} ${_req.url} ${res.statusCode}`);
       });
       next();
     });
-    // Note: We do NOT use express.json() globally because StreamableTransport might handle raw streams
-    // But StreamableHTTPServerTransport.handleRequest handles it.
 
     // Health check
     this.app.get('/status', (_req, res) => {
       res.send({ status: 'running', service: 'sql-preview-daemon' });
     });
 
-    // MCP Endpoint (HTTP SSE)
-    this.app.get('/sse', async (_req, res) => {
-      this.refreshActivity();
-      console.log('[Daemon] New SSE Connection Request');
-
-      const transport = new SSEServerTransport('/messages', res);
-      const sessionId = transport.sessionId;
-
-      const server = new Server(
-        { name: 'sql-preview-daemon', version: '1.0.0' },
-        { capabilities: { resources: {}, tools: {} } }
-      );
-
-      // Register Handlers
-      new DaemonMcpServer(server, this.sessionManager, this.toolManager);
-
-      this.activeTransports.set(sessionId, transport);
-      this.activeServers.set(sessionId, server);
-
-      transport.onclose = () => {
-        console.log(`[Daemon] SSE Transport Closed: ${sessionId}`);
-        this.activeTransports.delete(sessionId);
-        this.activeServers.delete(sessionId);
-      };
-
-      await server.connect(transport);
+    // Streamable HTTP Transport (Global)
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => {
+        return `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      },
     });
 
-    // Handle POST Messages
+    const server = new Server(
+      { name: 'sql-preview-daemon', version: '1.0.0' },
+      { capabilities: { resources: {}, tools: {} } }
+    );
+
+    // Register Handlers
+    new DaemonMcpServer(server, this.sessionManager, this.toolManager);
+
+    server.connect(transport);
+
+    // MCP Endpoint
+    this.app.use('/mcp', async (req, res) => {
+      await transport.handleRequest(req, res);
+    });
+
+    // Legacy /sse alias for compatibility (if needed) or redirect
+    this.app.use('/sse', async (req, res) => {
+      console.log('[Daemon] Legacy SSE access, forwarding to MCP transport');
+      await transport.handleRequest(req, res);
+    });
+
     this.app.post('/messages', async (req, res) => {
-      this.refreshActivity();
-      const sessionId = req.query['sessionId'] as string;
-      if (!sessionId) {
-        res.status(400).send('Missing sessionId query parameter');
-        return;
-      }
-
-      // const transport = this.activeTransports.get(sessionId);
-      const transport = this.activeTransports.get(sessionId);
-      if (!transport) {
-        res.status(404).send(`Session ${sessionId} not found`);
-        return;
-      }
-
-      await transport.handlePostMessage(req, res);
-    });
-
-    // Alias /sse POST for compatibility if needed (though SSEServerTransport directs to /messages)
-    this.app.post('/sse', async (req, res) => {
-      // Just forward to same logic logic if needed, but strict routing prefers /messages
-      // For safety, let's allow it if they pass sessionId
-      const sessionId = req.query['sessionId'] as string;
-      if (sessionId) {
-        const transport = this.activeTransports.get(sessionId);
-        if (transport) {
-          await transport.handlePostMessage(req, res);
-          return;
-        }
-      }
-      res.status(404).end();
+      console.log('[Daemon] Legacy /messages access, forwarding to MCP transport');
+      // transport.handleRequest handles POST messages too if path matches?
+      // StreamableHTTPServerTransport handles raw requests.
+      await transport.handleRequest(req, res);
     });
 
     // Session Management API

@@ -81,28 +81,46 @@ describe('MCP Integration Test Suite', () => {
     assert.fail('Daemon did not respond with 200 OK after retries');
   }).timeout(15000);
 
-  it('MCP SSE Endpoint should be reachable', async () => {
-    // Just verify we can connect to /sse without immediate error
-    // A full SSE test is complex in this setup, but connecting is a good smoke test
+  it('MCP Endpoint should be reachable (StreamableHTTP)', async () => {
+    // Verify we can connect to /mcp with proper initialization
     return new Promise<void>((resolve, reject) => {
       const req = http.request(
         {
           host: 'localhost',
           port: DAEMON_PORT,
-          path: '/sse',
-          method: 'GET',
-          headers: { Accept: 'text/event-stream' },
+          path: '/mcp',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'text/event-stream',
+          },
         },
         res => {
           if (res.statusCode === 200) {
-            req.destroy(); // Close immediately, we just wanted to see if it accepts
+            req.destroy(); // Close immediately on success
             resolve();
           } else {
-            reject(new Error(`SSE endpoint returned ${res.statusCode}`));
+            console.log('Failed Status:', res.statusCode);
+            res.resume(); // Consume data
+            reject(new Error(`MCP endpoint returned ${res.statusCode}`));
           }
         }
       );
       req.on('error', reject);
+
+      // Send Initialization
+      req.write(
+        JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'initialize',
+          params: {
+            protocolVersion: '2024-11-05',
+            capabilities: {},
+            clientInfo: { name: 'health-check', version: '1.0' },
+          },
+          id: 1,
+        })
+      );
       req.end();
     });
   });

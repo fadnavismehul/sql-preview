@@ -38,6 +38,10 @@ describe('QueryExecutor Unit Tests', () => {
     };
     mockRegistry.get = jest.fn().mockReturnValue(mockConnector);
 
+    // Mock ConnectionManager methods
+    mockConnectionManager.getConnections = jest.fn().mockResolvedValue([]);
+    mockConnectionManager.getConnection = jest.fn();
+
     queryExecutor = new QueryExecutor(mockRegistry, mockConnectionManager, mockDaemonClient);
   });
 
@@ -80,8 +84,8 @@ describe('QueryExecutor Unit Tests', () => {
     const iterator = queryExecutor.execute('SELECT * FROM foo');
     const result = await iterator.next(); // Should wait until success
 
-    expect(mockDaemonClient.runQuery).toHaveBeenCalledWith('SELECT * FROM foo', true);
-    expect(mockDaemonClient.getTabInfo).toHaveBeenCalledWith('tab-123');
+    expect(mockDaemonClient.runQuery).toHaveBeenCalledWith('SELECT * FROM foo', true, undefined);
+    expect(mockDaemonClient.getTabInfo).toHaveBeenCalledWith('tab-123', 0);
 
     expect(result.value).toEqual({
       columns: [{ name: 'col1', type: 'string' }],

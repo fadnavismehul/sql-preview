@@ -347,7 +347,10 @@ We'll use approach #2 (keychain) as default, with #1 as override for automation 
 
 **No network binding**: The HTTP server binds to `127.0.0.1:8414`, never `0.0.0.0`. The server is only accessible from the local machine.
 
-**Session isolation**: Database credentials are stored per-connection, not per-session. All sessions with access to the server can use any configured connection. This is intentional - the server is single-user.
+**External MCP Transport**: `StreamableHTTPServerTransport` (on port 8414, endpoint `/mcp`)
+
+- Provides a standard interface for external tools (e.g., Claude Desktop).
+- Handles the MCP initialization handshake (POST to /mcp).
 
 **Safe mode**: By default, only SELECT/SHOW/DESCRIBE/EXPLAIN/WITH queries are allowed through MCP. This prevents accidental data modification when an AI agent is running queries. Can be disabled in config for trusted scenarios.
 

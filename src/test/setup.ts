@@ -176,6 +176,8 @@ jest.mock('fs', () => ({
   existsSync: jest.fn(() => true), // Default to true for tests
   writeFileSync: jest.fn(),
   readFileSync: jest.fn(),
+  unlinkSync: jest.fn(),
+  mkdirSync: jest.fn(),
 }));
 
 // Export mocks for use in tests
