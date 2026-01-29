@@ -66,16 +66,15 @@ export class Daemon {
     // Singleton Server/Transport initialization REMOVED in favor of per-connection logic in setupRoutes
 
     this.setupRoutes();
-    this.setupLifecycle();
+    // this.setupLifecycle();
   }
 
   private setupRoutes() {
     this.app.use(cors());
 
     // Request Logging
-    // Request Logging
     this.app.use((_req, res, next) => {
-      // console.log(`[Daemon] >> ${_req.method} ${_req.url}`);
+      this.refreshActivity();
       res.on('finish', () => {
         // console.log(`[Daemon] << ${_req.method} ${_req.url} ${res.statusCode}`);
       });
@@ -84,7 +83,14 @@ export class Daemon {
 
     // Health check
     this.app.get('/status', (_req, res) => {
-      res.send({ status: 'running', service: 'sql-preview-daemon' });
+      res.send({
+        status: 'running',
+        service: 'sql-preview-daemon',
+        uptime: Math.floor(process.uptime()),
+        memory: process.memoryUsage(),
+        sessions: this.sessionManager.getAllSessions().length,
+        pid: process.pid,
+      });
     });
 
     // Streamable HTTP Transport (Global)
@@ -170,6 +176,18 @@ export class Daemon {
         // Or if 'offset' query param exists
       });
     });
+
+    // Error handling middleware (must be last)
+    this.app.use(
+      (err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+        void _next;
+        console.error(`[Daemon] Express Error on ${req.method} ${req.url}:`, err);
+        res.status(500).json({
+          error: 'Internal Server Error',
+          message: err.message || 'Unknown error',
+        });
+      }
+    );
   }
 
   private readonly IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
@@ -178,25 +196,38 @@ export class Daemon {
   private connectedSocketCount = 0;
 
   private setupLifecycle() {
-    // Graceful Shutdown
-    const shutdown = () => {
-      console.log('Shutting down daemon...');
+    // 1. Global Error Handlers
+    process.on('uncaughtException', error => {
+      console.error('[Daemon] CRITICAL: Uncaught Exception:', error);
+      // Give logger a chance to flush
+      setTimeout(() => this.stop(), 100).unref();
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('[Daemon] CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
+    });
+
+    // 2. Graceful Shutdown
+    const shutdown = (signal: string) => {
+      console.log(`[Daemon] Received ${signal}. Shutting down...`);
       this.stop();
-      process.exit(0);
+      // process.exit(0) is called in stop()'s cleanup if needed,
+      // but usually let node exit naturally after closing servers.
+      setTimeout(() => process.exit(0), 1000).unref();
     };
 
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-    // Idle Timeout
+    // 3. Idle Timeout
     this.idleCheckInterval = setInterval(() => {
       const timeSinceActivity = Date.now() - this.lastActivityTime;
       const hasActiveSessions = this.connectedSocketCount > 0;
 
       // Only shut down if no sockets connected AND timeout exceeded
       if (!hasActiveSessions && timeSinceActivity > this.IDLE_TIMEOUT_MS) {
-        console.log(`Idle timeout (${this.IDLE_TIMEOUT_MS}ms) reached. Shutting down.`);
-        shutdown();
+        console.log(`[Daemon] Idle timeout (${this.IDLE_TIMEOUT_MS}ms) reached. Shutting down.`);
+        shutdown('IDLE_TIMEOUT');
       }
     }, 60 * 1000); // Check every minute
   }
@@ -206,12 +237,32 @@ export class Daemon {
   }
 
   public async start() {
-    // Write PID File
-    const pidPath = path.join(os.homedir(), '.sql-preview', 'server.pid');
+    const configDir = path.join(os.homedir(), '.sql-preview');
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
+
+    // 1. PID Check (Prevent multiple instances)
+    const pidPath = path.join(configDir, 'server.pid');
+    if (fs.existsSync(pidPath)) {
+      const existingPid = parseInt(fs.readFileSync(pidPath, 'utf8'), 10);
+      try {
+        // Check if process is actually running
+        process.kill(existingPid, 0);
+        console.error(`[Daemon] ERROR: Another instance is already running (PID: ${existingPid})`);
+        process.exit(1);
+      } catch (e) {
+        // Process is not running, stale PID file
+        console.log(`[Daemon] Cleaning up stale PID file for ${existingPid}`);
+        fs.unlinkSync(pidPath);
+      }
+    }
+
+    // Write current PID
     try {
       fs.writeFileSync(pidPath, process.pid.toString());
     } catch (e) {
-      console.error('Failed to write PID file:', e);
+      console.error('[Daemon] Failed to write PID file:', e);
     }
 
     // Serve Static UI
@@ -283,16 +334,33 @@ export class Daemon {
   }
 
   public stop() {
+    console.log('[Daemon] Stopping servers...');
+
     if (this.httpServer) {
-      this.httpServer.close();
+      this.httpServer.close(err => {
+        if (err) {
+          console.error('[Daemon] Error closing HTTP server:', err);
+        } else {
+          console.log('[Daemon] HTTP server closed.');
+        }
+      });
       this.httpServer = null;
     }
+
     if (this.socketServer) {
-      this.socketServer.close();
+      this.socketServer.close(err => {
+        if (err) {
+          console.error('[Daemon] Error closing Socket server:', err);
+        } else {
+          console.log('[Daemon] Socket server closed.');
+        }
+      });
       this.socketServer = null;
     }
+
     if (this.idleCheckInterval) {
       clearInterval(this.idleCheckInterval);
+      this.idleCheckInterval = undefined;
     }
 
     // Cleanup PID and Socket
