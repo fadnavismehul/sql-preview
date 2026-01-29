@@ -62,8 +62,9 @@ export class QueryExecutor {
           return;
         }
 
-        const info = await this.daemonClient.getTabInfo(remoteTabId, currentOffset);
-        // info structure: { id, title, status, columns, rows, error, ... }
+        // Use a large limit for VS Code extension - it manages truncation itself in extension.ts
+        const info = await this.daemonClient.getTabInfo(remoteTabId, currentOffset, 10000);
+        // info structure: { id, title, status, columns, rows, error, hasMore, ... }
 
         if (info.status === 'error') {
           throw new Error(info.error || 'Unknown daemon error');
@@ -71,6 +72,7 @@ export class QueryExecutor {
 
         const newRows = info.rows || [];
         const isComplete = info.status === 'success';
+        const hasMore = info.hasMore ?? false;
 
         // Determine if we should yield this iteration
         // We yield when:
@@ -87,18 +89,20 @@ export class QueryExecutor {
             columns: info.columns,
             data: newRows,
             stats: {
-              state: isComplete ? 'FINISHED' : 'RUNNING',
+              state: isComplete && !hasMore ? 'FINISHED' : 'RUNNING',
               rowCount: info.rowCount ?? currentOffset,
             },
           };
         }
 
-        if (isComplete) {
+        // Only done when complete AND no more rows to fetch
+        if (isComplete && !hasMore) {
           isDone = true;
-        } else {
-          // Still loading, wait a bit
+        } else if (!hasNewRows && !hasMore) {
+          // Still loading, wait a bit before polling again
           await new Promise(r => setTimeout(r, 200));
         }
+        // If hasMore is true but isComplete is false, we continue immediately to fetch more
       }
     } catch (e: unknown) {
       this.logger.error(`Query execution failed`, e, correlationId);

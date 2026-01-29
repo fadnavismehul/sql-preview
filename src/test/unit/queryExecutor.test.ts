@@ -73,19 +73,22 @@ describe('QueryExecutor Unit Tests', () => {
     mockDaemonClient.getTabInfo
       .mockResolvedValueOnce({
         status: 'loading',
+        hasMore: false,
       })
       .mockResolvedValueOnce({
         status: 'success',
         columns: [{ name: 'col1', type: 'string' }],
         rows: [['val1']],
         rowCount: 1,
+        hasMore: false,
       });
 
     const iterator = queryExecutor.execute('SELECT * FROM foo');
     const result = await iterator.next(); // Should wait until success
 
     expect(mockDaemonClient.runQuery).toHaveBeenCalledWith('SELECT * FROM foo', true, undefined);
-    expect(mockDaemonClient.getTabInfo).toHaveBeenCalledWith('tab-123', 0);
+    // Now expects limit parameter (10000) for VS Code extension
+    expect(mockDaemonClient.getTabInfo).toHaveBeenCalledWith('tab-123', 0, 10000);
 
     expect(result.value).toEqual({
       columns: [{ name: 'col1', type: 'string' }],

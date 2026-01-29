@@ -58,7 +58,12 @@ export class DaemonMcpToolManager {
             },
             offset: {
               type: 'number',
-              description: 'Optional row offset to fetch from (for pagination)',
+              description: 'Optional row offset to fetch from (for pagination, default: 0)',
+            },
+            limit: {
+              type: 'number',
+              description:
+                'Maximum number of rows to return (default: 100). Use with offset for pagination.',
             },
           },
           required: ['session'],
@@ -292,7 +297,9 @@ export class DaemonMcpToolManager {
   }
 
   private async handleGetTabInfo(args: unknown) {
-    const typedArgs = args as { session?: string; tabId?: string; offset?: number } | undefined;
+    const typedArgs = args as
+      | { session?: string; tabId?: string; offset?: number; limit?: number }
+      | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {
       throw new Error('Session ID required');
@@ -314,7 +321,10 @@ export class DaemonMcpToolManager {
     }
 
     const offset = typedArgs?.offset || 0;
-    const rows = tab.rows ? tab.rows.slice(offset) : [];
+    const limit = typedArgs?.limit ?? 100; // Default to 100 rows per request
+    const totalRows = tab.rows?.length ?? 0;
+    const rows = tab.rows ? tab.rows.slice(offset, offset + limit) : [];
+    const hasMore = offset + rows.length < totalRows;
 
     return {
       content: [
@@ -325,9 +335,12 @@ export class DaemonMcpToolManager {
               id: tab.id,
               title: tab.title,
               status: tab.status,
-              rowCount: tab.rows?.length,
+              rowCount: totalRows,
               columns: tab.columns,
               rows: rows,
+              offset: offset,
+              limit: limit,
+              hasMore: hasMore,
               error: tab.error,
             },
             null,

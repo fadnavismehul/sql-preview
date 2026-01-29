@@ -200,13 +200,14 @@ export class DaemonClient {
     throw new Error('Failed to extract Tab ID from: ' + text);
   }
 
-  public async getTabInfo(tabId: string, offset = 0) {
+  public async getTabInfo(tabId: string, offset = 0, limit?: number) {
     const result = await this.client.callTool({
       name: 'get_tab_info',
       arguments: {
         session: this.sessionId,
         tabId,
         offset,
+        ...(limit !== undefined && { limit }),
       },
     });
 
