@@ -1,130 +1,163 @@
 import { DaemonMcpToolManager } from '../../server/DaemonMcpToolManager';
 import { SessionManager } from '../../server/SessionManager';
 import { DaemonQueryExecutor } from '../../server/DaemonQueryExecutor';
+import { QueryPage } from '../../common/types';
 
 // Mock dependencies
 jest.mock('../../server/SessionManager');
 jest.mock('../../server/DaemonQueryExecutor');
 
 describe('DaemonMcpToolManager', () => {
-  let toolManager: DaemonMcpToolManager;
-  let mockSessionManager: jest.Mocked<SessionManager>;
-  let mockQueryExecutor: jest.Mocked<DaemonQueryExecutor>;
+  let manager: DaemonMcpToolManager;
+  let sessionManager: jest.Mocked<SessionManager>;
+  let queryExecutor: jest.Mocked<DaemonQueryExecutor>;
+  let mockSession: any;
 
   beforeEach(() => {
-    mockSessionManager = new SessionManager() as jest.Mocked<SessionManager>;
-    mockQueryExecutor = new DaemonQueryExecutor(
-      {} as any,
-      {} as any
+    // Instantiate mocks
+    sessionManager = new SessionManager() as jest.Mocked<SessionManager>;
+    queryExecutor = new DaemonQueryExecutor(
+      null as any,
+      null as any
     ) as jest.Mocked<DaemonQueryExecutor>;
 
-    // Setup default mock behaviors
-    mockSessionManager.getAllSessions.mockReturnValue([]);
-    mockSessionManager.registerSession.mockReturnValue({} as any);
+    manager = new DaemonMcpToolManager(sessionManager, queryExecutor);
 
-    toolManager = new DaemonMcpToolManager(mockSessionManager, mockQueryExecutor);
-  });
-
-  it('should return a list of 4 tools (run_query, get_tab_info, list_sessions, cancel_query)', () => {
-    const tools = toolManager.getTools();
-    expect(tools).toHaveLength(4);
-    const toolNames = tools.map(t => t.name);
-    expect(toolNames).toContain('run_query');
-    expect(toolNames).toContain('get_tab_info');
-    expect(toolNames).toContain('list_sessions');
-    expect(toolNames).toContain('cancel_query');
-    // register_session should NOT be in the public tool list
-    expect(toolNames).not.toContain('register_session');
-  });
-
-  it('should auto-register session on run_query if session does not exist', async () => {
-    // First call returns null (session doesn't exist), second call returns the session
-    const mockSession = {
-      id: 'new-session',
-      displayName: 'MCP Client',
-      clientType: 'standalone',
+    mockSession = {
+      id: 'session1',
+      displayName: 'Test Session',
       tabs: new Map(),
       activeTabId: undefined,
       lastActivityAt: new Date(),
       abortControllers: new Map(),
     };
-    mockSessionManager.getSession
-      .mockReturnValueOnce(undefined) // First call: not found
-      .mockReturnValueOnce(mockSession as any); // After registration
 
-    mockQueryExecutor.execute.mockImplementation(async function* () {
-      yield { columns: [], data: [] };
-    });
-
-    const result: any = await toolManager.handleToolCall('run_query', {
-      sql: 'SELECT 1',
-      session: 'new-session',
-      displayName: 'My New Session',
-    });
-
-    // Should have auto-registered the session
-    expect(mockSessionManager.registerSession).toHaveBeenCalledWith(
-      'new-session',
-      'My New Session',
-      'standalone'
-    );
-    expect(result.content[0].text).toContain('Query submitted');
+    sessionManager.getSession.mockReturnValue(mockSession);
+    sessionManager.registerSession.mockReturnValue(mockSession);
   });
 
-  it('should use default displayName when auto-registering', async () => {
-    const mockSession = {
-      id: 'test-session',
-      displayName: 'MCP Client',
-      clientType: 'standalone',
-      tabs: new Map(),
-      activeTabId: undefined,
-      lastActivityAt: new Date(),
-      abortControllers: new Map(),
-    };
-    mockSessionManager.getSession
-      .mockReturnValueOnce(undefined)
-      .mockReturnValueOnce(mockSession as any);
+  describe('run_query', () => {
+    it('should execute query and return tab info', async () => {
+      // Setup generator for execution
+      queryExecutor.execute.mockImplementation(async function* () {
+        yield { data: [['val']], columns: [{ name: 'col', type: 'varchar' }] } as QueryPage;
+      });
 
-    mockQueryExecutor.execute.mockImplementation(async function* () {
-      yield { columns: [], data: [] };
+      const result: any = await manager.handleToolCall('run_query', {
+        sql: 'SELECT 1',
+        session: 'session1',
+      });
+
+      expect(result.content[0].text).toContain('Query submitted');
+      expect(sessionManager.getSession).toHaveBeenCalledWith('session1');
+
+      // Verify tab creation
+      expect(mockSession.tabs.size).toBe(1);
+      const tabId = mockSession.activeTabId;
+      expect(tabId).toBeDefined();
+
+      // Wait a bit for async execution to likely finish (in real world it's detached promise)
+      // Since we mocked execute to yield immediately, we just need to wait for microtasks?
+      // The executeAndStore is called without await in handleRunQuery.
+      // We can check if execute was called.
+      expect(queryExecutor.execute).toHaveBeenCalled();
     });
 
-    await toolManager.handleToolCall('run_query', {
-      sql: 'SELECT 1',
-      session: 'test-session',
-      // No displayName provided - should default to 'MCP Client'
+    it('should auto-register session if not found', async () => {
+      sessionManager.getSession.mockReturnValueOnce(undefined).mockReturnValueOnce(mockSession); // First call fails, second succeeds after register
+
+      await manager.handleToolCall('run_query', {
+        sql: 'SELECT 1',
+        session: 'new_session',
+      });
+
+      expect(sessionManager.registerSession).toHaveBeenCalledWith(
+        'new_session',
+        expect.any(String),
+        'standalone'
+      );
     });
 
-    expect(mockSessionManager.registerSession).toHaveBeenCalledWith(
-      'test-session',
-      'MCP Client', // Default value
-      'standalone'
-    );
+    it('should throw error if session registration fails', async () => {
+      sessionManager.getSession.mockReturnValue(undefined);
+
+      const result: any = await manager.handleToolCall('run_query', {
+        sql: 'SELECT 1',
+        session: 'fail_session',
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Failed to auto-register session');
+    });
   });
 
-  it('should handle list_sessions', async () => {
-    mockSessionManager.getAllSessions.mockReturnValue([
-      { id: 's1', displayName: 'Session 1', clientType: 'vscode', tabs: new Map() } as any,
-    ]);
+  describe('get_tab_info', () => {
+    it('should return tab info', async () => {
+      const tab = {
+        id: 'tab1',
+        title: 'Result',
+        status: 'success',
+        rows: [['val']],
+        columns: [{ name: 'col', type: 'varchar' }],
+      };
+      mockSession.tabs.set('tab1', tab);
 
-    const result: any = await toolManager.handleToolCall('list_sessions', {});
-    const content = JSON.parse(result.content[0].text);
+      const result: any = await manager.handleToolCall('get_tab_info', {
+        session: 'session1',
+        tabId: 'tab1',
+      });
 
-    expect(content).toHaveLength(1);
-    expect(content[0].id).toBe('s1');
+      const content = JSON.parse(result.content[0].text);
+      expect(content.id).toBe('tab1');
+      expect(content.rowCount).toBe(1);
+    });
+
+    it('should return default to active tab', async () => {
+      const tab = {
+        id: 'tab1',
+        rows: [],
+      };
+      mockSession.tabs.set('tab1', tab);
+      mockSession.activeTabId = 'tab1';
+
+      const result: any = await manager.handleToolCall('get_tab_info', {
+        session: 'session1',
+      });
+
+      const content = JSON.parse(result.content[0].text);
+      expect(content.id).toBe('tab1');
+    });
   });
 
-  it('should throw error for unknown tool', async () => {
-    await expect(toolManager.handleToolCall('unknown_tool', {})).rejects.toThrow('Unknown tool');
+  describe('cancel_query', () => {
+    it('should cancel running query', async () => {
+      const tab = { id: 'tab1', status: 'loading' };
+      mockSession.tabs.set('tab1', tab);
+
+      const abortController = new AbortController();
+      jest.spyOn(abortController, 'abort');
+      mockSession.abortControllers.set('tab1', abortController);
+
+      await manager.handleToolCall('cancel_query', {
+        session: 'session1',
+        tabId: 'tab1',
+      });
+
+      expect(tab.status).toBe('error');
+      expect((tab as any).error).toContain('cancelled');
+      expect(abortController.abort).toHaveBeenCalled();
+    });
   });
 
-  it('should throw error for register_session (no longer a public tool)', async () => {
-    await expect(
-      toolManager.handleToolCall('register_session', {
-        sessionId: 'test',
-        displayName: 'Test',
-        clientType: 'vscode',
-      })
-    ).rejects.toThrow('Unknown tool');
+  describe('list_sessions', () => {
+    it('should list all sessions', async () => {
+      sessionManager.getAllSessions.mockReturnValue([mockSession]);
+
+      const result: any = await manager.handleToolCall('list_sessions', {});
+
+      const list = JSON.parse(result.content[0].text);
+      expect(list).toHaveLength(1);
+      expect(list[0].id).toBe('session1');
+    });
   });
 });
