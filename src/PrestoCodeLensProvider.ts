@@ -24,23 +24,15 @@ export class PrestoCodeLensProvider implements vscode.CodeLensProvider {
     const text = document.getText();
 
     // Use robust splitter that handles comments and strings correctly and provides ranges
-    for (const { statement: trimmedQuery, start, end } of iterateSqlStatements(text)) {
+    for (const { statement: trimmedQuery, executionStart, executionEnd } of iterateSqlStatements(
+      text
+    )) {
       if (trimmedQuery.length === 0) {
         continue;
       }
 
-      // Find the start offset of this query within the identified range
-      // We already know the range [start, end] contains the query, we just need to skip leading whitespace.
-      const chunk = text.substring(start, end);
-      const relativeStart = chunk.indexOf(trimmedQuery);
-
-      if (relativeStart === -1) {
-        // Should not happen as trimmedQuery comes from chunk
-        continue;
-      }
-
-      const startOffset = start + relativeStart;
-      const endOffset = startOffset + trimmedQuery.length;
+      const startOffset = executionStart;
+      const endOffset = executionEnd;
 
       const startPos = document.positionAt(startOffset);
       const endPos = document.positionAt(endOffset);

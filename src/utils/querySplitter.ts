@@ -1,9 +1,13 @@
 /**
  * Tokenizes SQL text into statements and their ranges.
  */
-export function* iterateSqlStatements(
-  text: string
-): Generator<{ statement: string; start: number; end: number }> {
+export function* iterateSqlStatements(text: string): Generator<{
+  statement: string;
+  start: number;
+  end: number;
+  executionStart: number;
+  executionEnd: number;
+}> {
   let currentStart = 0;
   let inSingleQuote = false;
   let inDoubleQuote = false;
@@ -50,9 +54,13 @@ export function* iterateSqlStatements(
         inDoubleQuote = true;
       } else if (char === ';') {
         // End of statement
-        const statement = text.substring(currentStart, i).trim();
+        const raw = text.substring(currentStart, i);
+        const statement = raw.trim();
         if (statement.length > 0) {
-          yield { statement, start: currentStart, end: i };
+          const startOffset = raw.indexOf(statement);
+          const executionStart = currentStart + startOffset;
+          const executionEnd = executionStart + statement.length;
+          yield { statement, start: currentStart, end: i, executionStart, executionEnd };
         }
         currentStart = i + 1;
       }
@@ -61,9 +69,19 @@ export function* iterateSqlStatements(
 
   // Yield last statement
   if (currentStart < text.length) {
-    const statement = text.substring(currentStart).trim();
+    const raw = text.substring(currentStart);
+    const statement = raw.trim();
     if (statement.length > 0) {
-      yield { statement, start: currentStart, end: text.length };
+      const startOffset = raw.indexOf(statement);
+      const executionStart = currentStart + startOffset;
+      const executionEnd = executionStart + statement.length;
+      yield {
+        statement,
+        start: currentStart,
+        end: text.length,
+        executionStart,
+        executionEnd,
+      };
     }
   }
 }
