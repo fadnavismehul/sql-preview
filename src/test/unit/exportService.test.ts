@@ -86,4 +86,55 @@ describe('ExportService', () => {
     assert.strictEqual(output[0].id, 1);
     assert.strictEqual(output[0].name, 'Alice');
   });
+
+  it('should escape CSV injection payloads', async () => {
+    // Setup Save Dialog to return a .csv path
+    (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue(
+      vscode.Uri.file('/tmp/export.csv')
+    );
+
+    // Setup Query Execution
+    async function* mockGenerator() {
+      yield {
+        columns: [{ name: 'payload', type: 'varchar' }],
+        data: [['=cmd|/C calc!A0'], ['+1+1'], ['@SUM(1,1)'], ['-1+1'], ['Safe'], ['-100'], ['+50']],
+      };
+    }
+    mockQueryExecutor.execute.mockReturnValue(mockGenerator());
+
+    const tabData: TabData = {
+      id: 'tab-1',
+      title: 'Injection',
+      query: 'SELECT *',
+      columns: [],
+      rows: [],
+      status: 'success',
+    };
+
+    await exportService.exportResults(tabData);
+
+    const lines = capturedOutput.trim().split('\n');
+    // Header
+    assert.strictEqual(lines[0], 'payload');
+
+    // Rows
+    assert.strictEqual(lines.length, 8, 'Should have header + 7 rows');
+
+    // We expect them to be escaped with a single quote or similar mechanism if they start with triggers
+    // The current implementation does NOT do this, so this test asserts the DESIRED behavior.
+
+    assert.ok(lines[1] && lines[1].startsWith("'="), `Row 1 not escaped: ${lines[1]}`);
+    assert.ok(lines[2] && lines[2].startsWith("'+"), `Row 2 not escaped: ${lines[2]}`);
+    // Row 3 contains a comma, so it will be double-quoted by CSV rules AND prefixed with '
+    // Expected: "'@SUM(1,1)"
+    assert.ok(
+      lines[3] && (lines[3].startsWith("'@") || lines[3].startsWith('"\'' + '@')),
+      `Row 3 not escaped: ${lines[3]}`
+    );
+    assert.ok(lines[4] && lines[4].startsWith("'-"), `Row 4 not escaped: ${lines[4]}`);
+    assert.strictEqual(lines[5], 'Safe');
+    // Regression check: valid numbers should NOT be escaped
+    assert.strictEqual(lines[6], '-100', 'Negative number should not be escaped');
+    assert.strictEqual(lines[7], '+50', 'Positive number should not be escaped');
+  });
 });
