@@ -63,6 +63,8 @@ export class ExportService {
       async (progress, token) => {
         const stream = fs.createWriteStream(saveUri.fsPath);
         let rowCount = 0;
+        const separator = format === 'csv' ? ',' : '\t';
+        const escapeRegex = new RegExp(`["${separator}\\n\\r]`);
 
         try {
           const generator = this.queryExecutor.execute(tab.query, contextUri);
@@ -83,9 +85,8 @@ export class ExportService {
             }
 
             if (columns && firstPage && (format === 'csv' || format === 'tsv')) {
-              const separator = format === 'csv' ? ',' : '\t';
               const header =
-                columns.map(c => this._escapeCsv(c.name, separator)).join(separator) + '\n';
+                columns.map(c => this._escapeCsv(c.name, escapeRegex)).join(separator) + '\n';
               stream.write(header);
               firstPage = false;
             } else if (page.columns && firstPage) {
@@ -94,7 +95,6 @@ export class ExportService {
             }
 
             if (page.data) {
-              const separator = format === 'csv' ? ',' : '\t';
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const currentColumns = columns;
 
@@ -118,7 +118,8 @@ export class ExportService {
                   // CSV/TSV
                   // cast row to unknown[]
                   const vals = row as unknown[];
-                  const line = vals.map(v => this._escapeCsv(v, separator)).join(separator) + '\n';
+                  const line =
+                    vals.map(v => this._escapeCsv(v, escapeRegex)).join(separator) + '\n';
                   stream.write(line);
                 }
                 rowCount++;
@@ -151,12 +152,12 @@ export class ExportService {
     );
   }
 
-  private _escapeCsv(val: unknown, separator: string): string {
+  private _escapeCsv(val: unknown, regex: RegExp): string {
     if (val === null || val === undefined) {
       return '';
     }
     const str = String(val);
-    if (new RegExp(`["${separator}\\n\\r]`).test(str)) {
+    if (regex.test(str)) {
       return `"${str.replace(/"/g, '""')}"`;
     }
     return str;
