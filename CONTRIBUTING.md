@@ -7,8 +7,8 @@ Thank you for your interest in contributing to SQL Preview! We welcome contribut
 1.  **Fork the repository** on GitHub.
 2.  **Clone your fork** locally:
     ```bash
-    git clone https://github.com/your-username/sql-preview-cursor.git
-    cd sql-preview-cursor
+    git clone https://github.com/your-username/sql-preview.git
+    cd sql-preview
     ```
 3.  **Install dependencies**:
     ```bash
@@ -17,19 +17,19 @@ Thank you for your interest in contributing to SQL Preview! We welcome contribut
 
 ## Development
 
--   **Run the extension**: Open the project in VS Code and press `F5`. This will launch a new Extension Development Host window.
--   **Linting**: Run `npm run lint` to check for linting issues.
--   **Formatting**: Run `npm run format` to format code with Prettier.
--   **Testing**: Run `npm test` to run unit tests.
+- **Run the extension**: Open the project in VS Code and press `F5`. This will launch a new Extension Development Host window.
+- **Linting**: Run `npm run lint` to check for linting issues.
+- **Formatting**: Run `npm run format` to format code with Prettier.
+- **Testing**: Run `npm test` to run unit tests.
 
 ## Project Structure
 
--   `src/`: Source code
-    -   `core/`: Core domain logic
-    -   `connectors/`: Database connectors (Trino, etc.)
-    -   `modules/`: Functional modules (MCP Server)
-    -   `webviews/`: Frontend assets
--   `AGENTS.md`: Instructions for AI agents working on this codebase.
+- `src/`: Source code
+  - `core/`: Core domain logic
+  - `connectors/`: Database connectors (Trino, etc.)
+  - `modules/`: Functional modules (MCP Server)
+  - `webviews/`: Frontend assets
+- `AGENTS.md`: Instructions for AI agents working on this codebase.
 
 ## Submitting Changes
 

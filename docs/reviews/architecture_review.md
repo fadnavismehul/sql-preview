@@ -2,7 +2,7 @@
 
 **Reviewer:** Senior Principal Engineer  
 **Date:** January 30, 2026  
-**Repository:** `fadnavismehul/sql-preview-cursor`  
+**Repository:** `fadnavismehul/sql-preview`  
 **Version:** 0.4.5
 
 ---

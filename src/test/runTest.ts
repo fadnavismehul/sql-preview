@@ -17,6 +17,7 @@ async function main() {
 
     // Download VS Code, unzip it and run the integration test
     const vscodeExecutablePath = await downloadAndUnzipVSCode({
+      version: '1.96.0',
       cachePath: path.resolve(process.env['HOME'] || os.homedir(), '.vscode-test-cache'),
     });
     const [, ...args] = resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
