@@ -5,17 +5,19 @@ import * as path from 'path';
 import * as os from 'os';
 import { TrinoConnectionProfile } from '../../common/types';
 
-// The fs mock in setup.ts is global, but we can override implementations per test file or test case
-// if we use jest.mock/jest.spyOn properly, or just rely on the existing mock structure if it allows updates.
-// Looking at setup.ts, it uses jest.mock('fs', ...).
-// Since we are in a separate file, we might needed to re-mock or use the mocked instance methods.
-
-// However, setup.ts is executed via `jest.config.js` or `runTest.ts` usually.
-// If this is a unit test run via `jest`, setup.ts might be imported or global.
-// Let's assume standard jest behavior where we can refine mocks.
-
 // We need to re-mock fs for this test file to have control over it
-jest.mock('fs');
+jest.mock('fs', () => {
+  return {
+    existsSync: jest.fn(),
+    mkdirSync: jest.fn(),
+    writeFileSync: jest.fn(),
+    readFileSync: jest.fn(),
+    promises: {
+      readFile: jest.fn(),
+      writeFile: jest.fn(),
+    },
+  };
+});
 jest.mock('os');
 
 describe('FileConnectionManager', () => {
@@ -45,16 +47,24 @@ describe('FileConnectionManager', () => {
       throw new Error('File not found');
     });
 
+    (fs.promises.readFile as jest.Mock).mockImplementation(async (path: string) => {
+      if (mockDiskState[path]) {
+        return mockDiskState[path];
+      }
+      throw new Error('File not found');
+    });
+
+    (fs.promises.writeFile as jest.Mock).mockImplementation(async (path: string, content: string) => {
+      mockDiskState[path] = content;
+    });
+
     manager = new FileConnectionManager();
   });
 
   const configPath = path.join(mockHomeDir, '.sql-preview', 'config.json');
 
   it('should create default config if it does not exist', () => {
-    // manager constructor calls ensureConfigExists
-    // We need to re-instantiate to test the constructor logic properly if we want to spy on it
-    // But checking the state is enough.
-
+    // manager constructor calls ensureConfigExists (sync)
     expect(fs.existsSync(configPath)).toBe(true);
     expect(JSON.parse(mockDiskState[configPath]!).connections).toEqual([]);
   });
@@ -127,7 +137,7 @@ describe('FileConnectionManager', () => {
   });
 
   it('should handle read errors gracefully', async () => {
-    (fs.readFileSync as jest.Mock).mockImplementation(() => {
+    (fs.promises.readFile as jest.Mock).mockImplementation(async () => {
       throw new Error('Read error');
     });
 
