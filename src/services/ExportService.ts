@@ -155,7 +155,16 @@ export class ExportService {
     if (val === null || val === undefined) {
       return '';
     }
-    const str = String(val);
+    let str = String(val);
+
+    // Sanitize CSV Injection (Formula Injection)
+    // If the value starts with =, +, -, or @, prepend a single quote
+    // so spreadsheet software treats it as text.
+    // REGRESSION FIX: Do not escape if the value is a valid number (e.g. -100, +50)
+    if (/^[=+\-@]/.test(str) && isNaN(Number(str))) {
+      str = "'" + str;
+    }
+
     if (new RegExp(`["${separator}\\n\\r]`).test(str)) {
       return `"${str.replace(/"/g, '""')}"`;
     }
