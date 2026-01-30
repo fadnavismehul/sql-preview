@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Preview Server</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --text-color: #cccccc;
+            --accent-color: #007acc;
+            --border-color: #333;
+            --card-bg: #252526;
+            --hover-bg: #2a2d2e;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 250px;
+            background-color: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            padding: 16px;
+            font-weight: bold;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .session-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .session-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .session-item:hover {
+            background-color: var(--hover-bg);
+        }
+        .session-item.active {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow: hidden;
+        }
+        .placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #555;
+            font-size: 1.2em;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: white; /* AG Grid needs light/dark awareness, setting white/black base */
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">SQL Preview Sessions</div>
+        <div class="session-list" id="session-list">
+            <!-- Sessions go here -->
+        </div>
+    </div>
+    <div class="main-content" id="main-content">
+        <div class="placeholder">Select a session to view results</div>
+    </div>
+
+    <script>
+        const sessionList = document.getElementById('session-list');
+        const mainContent = document.getElementById('main-content');
+        let activeSessionId = null;
+
+        async function fetchSessions() {
+            try {
+                const res = await fetch('/sessions');
+                const sessions = await res.json();
+                renderSessions(sessions);
+            } catch (e) {
+                console.error('Failed to fetch sessions', e);
+            }
+        }
+
+        function renderSessions(sessions) {
+            sessionList.innerHTML = '';
+            sessions.forEach(session => {
+                const el = document.createElement('div');
+                el.className = `session-item ${session.id === activeSessionId ? 'active' : ''}`;
+                el.innerHTML = `
+                    <div><strong>${session.displayName}</strong></div>
+                    <div style="font-size: 0.8em; opacity: 0.7">${session.clientType} • ${session.tabCount} tabs</div>
+                `;
+                el.onclick = () => selectSession(session.id);
+                sessionList.appendChild(el);
+            });
+        }
+
+        function selectSession(sessionId) {
+            activeSessionId = sessionId;
+            fetchSessions(); // Re-render to update active class
+            
+            // For now, just show a placeholder or a list of tabs
+            // Ideally we re-use the resultsView logic, but that requires porting it to standalone.
+            // For this version, we'll list tabs.
+            loadSessionTabs(sessionId);
+        }
+
+        async function loadSessionTabs(sessionId) {
+            try {
+                const res = await fetch(`/sessions/${sessionId}/tabs`);
+                const tabs = await res.json();
+                
+                let html = `<h2>Tabs for Session ${sessionId}</h2>`;
+                if (tabs.length === 0) {
+                    html += '<p>No tabs open.</p>';
+                } else {
+                    html += '<ul>';
+                    tabs.forEach(tab => {
+                        html += `<li>${tab.title} (${tab.status}) - ${tab.rowCount} rows <button onclick="viewTab('${sessionId}', '${tab.id}')">View Data</button></li>`;
+                    });
+                    html += '</ul>';
+                    html += '<div id="tab-data-view" style="flex:1; border: 1px solid #333; margin-top: 10px; overflow: auto; background: #1e1e1e; color: #ddd; padding: 10px; font-family: monospace; white-space: pre;"></div>';
+                }
+                mainContent.innerHTML = html;
+            } catch (e) {
+                mainContent.innerHTML = `<p style="color:red">Error loading tabs: ${e}</p>`;
+            }
+        }
+
+        window.viewTab = async (sessionId, tabId) => {
+            const view = document.getElementById('tab-data-view');
+            if (view) {
+                view.textContent = 'Loading...';
+                try {
+                    const res = await fetch(`/sessions/${sessionId}/tabs/${tabId}`);
+                    const data = await res.json();
+                    view.textContent = JSON.stringify(data.rows, null, 2);
+                } catch (e) {
+                    view.textContent = 'Error: ' + e;
+                }
+            }
+        };
+
+        // Poll for updates
+        setInterval(fetchSessions, 5000);
+        fetchSessions();
+    </script>
+</body>
+</html>

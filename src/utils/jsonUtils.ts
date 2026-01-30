@@ -6,7 +6,7 @@ const jsonBig = JSONBig({ storeAsString: false, strict: true });
 /**
  * Recursively converts BigNumber objects to native Numbers (if safe) or Strings.
  */
-function convertBigNumbers(obj: any): any {
+function convertBigNumbers(obj: unknown): unknown {
   if (obj === null || obj === undefined) {
     return obj;
   }
@@ -18,29 +18,30 @@ function convertBigNumbers(obj: any): any {
   if (typeof obj === 'object') {
     // Check if it's a BigNumber using duck typing (checking structure properties)
     // json-bigint uses bignumber.js instances which have s (sign), e (exponent), c (coefficient)
+    const maybeBigNum = obj as { s?: unknown; e?: unknown; c?: unknown };
     if (
-      obj &&
-      typeof obj === 'object' &&
-      's' in obj &&
-      'e' in obj &&
-      'c' in obj &&
-      Array.isArray(obj.c)
+      maybeBigNum &&
+      typeof maybeBigNum === 'object' &&
+      's' in maybeBigNum &&
+      'e' in maybeBigNum &&
+      'c' in maybeBigNum &&
+      Array.isArray(maybeBigNum.c)
     ) {
-      const str = obj.toString();
+      const str = (obj as object).toString();
       const num = Number(str);
-      // Check if conversion to Number is lossless
-      // We compare string representations. Note that Number.toString() might canonicalize.
-      // e.g. 1e+20
-      if (String(num) === str) {
+      // Use MAX_SAFE_INTEGER check for reliable precision detection
+      // String comparison fails for scientific notation (1e+20 vs 100000000000000000000)
+      if (Number.isFinite(num) && Math.abs(num) <= Number.MAX_SAFE_INTEGER) {
         return num;
       }
+      // Keep as string to preserve precision for very large numbers
       return str;
     }
 
-    const result: any = {};
-    for (const key in obj) {
+    const result: Record<string, unknown> = {};
+    for (const key in obj as object) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        result[key] = convertBigNumbers(obj[key]);
+        result[key] = convertBigNumbers((obj as Record<string, unknown>)[key]);
       }
     }
     return result;

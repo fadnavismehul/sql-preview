@@ -2,16 +2,16 @@
   "name": "sql-preview",
   "displayName": "SQL Preview",
   "description": "Run SQL queries directly from VS Code with tabbed results",
-  "version": "0.4.5",
+  "version": "0.5.0",
   "publisher": "mehul",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/fadnavismehul/sql-preview-cursor"
+    "url": "https://github.com/fadnavismehul/sql-preview"
   },
-  "homepage": "https://github.com/fadnavismehul/sql-preview-cursor#readme",
+  "homepage": "https://github.com/fadnavismehul/sql-preview#readme",
   "bugs": {
-    "url": "https://github.com/fadnavismehul/sql-preview-cursor/issues"
+    "url": "https://github.com/fadnavismehul/sql-preview/issues"
   },
   "keywords": [
     "sql",
@@ -321,7 +321,7 @@
     "@types/vscode": "^1.80.0",
     "@typescript-eslint/eslint-plugin": "^5.59.8",
     "@typescript-eslint/parser": "^5.59.8",
-    "@vscode/test-electron": "^2.5.1",
+    "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^2.19.0",
     "ag-grid-community": "^35.0.0",
     "dotenv-cli": "^7.4.1",
@@ -344,6 +344,7 @@
     "@modelcontextprotocol/sdk": "^1.23.0",
     "@types/json-bigint": "^1.0.4",
     "@types/sqlite3": "^3.1.11",
+    "ajv": "^8.17.1",
     "axios": "^1.8.4",
     "body-parser": "^2.2.1",
     "cors": "^2.8.5",

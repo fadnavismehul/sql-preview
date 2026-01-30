@@ -40,9 +40,10 @@ describe('ExportService', () => {
       return callback({ report: jest.fn() }, { isCancellationRequested: false });
     });
     (vscode.commands.executeCommand as jest.Mock) = jest.fn();
+    (vscode.window.showWarningMessage as jest.Mock) = jest.fn().mockResolvedValue('Continue');
   });
 
-  test('should export result as JSON objects', async () => {
+  it('should export result as JSON objects', async () => {
     // Setup Save Dialog to return a .json path
     (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue(
       vscode.Uri.file('/tmp/export.json')

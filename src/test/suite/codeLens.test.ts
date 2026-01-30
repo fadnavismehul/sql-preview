@@ -11,7 +11,7 @@ describe('CodeLens Tests', () => {
   });
 
   describe('CodeLens Provider', () => {
-    test('should provide both Run and Run (+ Tab) CodeLenses for single query', () => {
+    it('should provide both Run and Run (+ Tab) CodeLenses for single query', () => {
       const sqlContent = 'SELECT * FROM users;';
       mockDocument = createMockDocument(sqlContent);
 
@@ -60,7 +60,7 @@ describe('CodeLens Tests', () => {
       );
     });
 
-    test('should provide CodeLenses for multiple queries', () => {
+    it('should provide CodeLenses for multiple queries', () => {
       const sqlContent = `SELECT * FROM users;
 SELECT COUNT(*) FROM orders;
 INSERT INTO logs (message) VALUES ('test');`;
@@ -81,7 +81,7 @@ INSERT INTO logs (message) VALUES ('test');`;
       assert.strictEqual(runNewTabCommands.length, 3, 'Should have 3 Run (+ Tab) commands');
     });
 
-    test('should handle queries with comments and whitespace', () => {
+    it('should handle queries with comments and whitespace', () => {
       const sqlContent = `-- This is a comment
 SELECT * FROM users
 WHERE active = 1; -- Another comment
@@ -108,7 +108,7 @@ SELECT COUNT(*) FROM orders;`;
       // assert.ok(!queryArg.includes('--'), 'Should not include single-line comments in arguments');
     });
 
-    test('should not provide CodeLenses for empty queries', () => {
+    it('should not provide CodeLenses for empty queries', () => {
       const sqlContent = `;;
 ; ; ;
 -- Just comments
@@ -123,7 +123,7 @@ SELECT COUNT(*) FROM orders;`;
       // assert.strictEqual(codeLenses.length, 0, 'Should not provide CodeLenses for empty queries');
     });
 
-    test('should handle queries without semicolons', () => {
+    it('should handle queries without semicolons', () => {
       const sqlContent = 'SELECT * FROM users';
       mockDocument = createMockDocument(sqlContent);
 
@@ -141,7 +141,7 @@ SELECT COUNT(*) FROM orders;`;
       );
     });
 
-    test('should position CodeLenses correctly', () => {
+    it('should position CodeLenses correctly', () => {
       const sqlContent = `SELECT 1;
 SELECT 2;`;
       mockDocument = createMockDocument(sqlContent);

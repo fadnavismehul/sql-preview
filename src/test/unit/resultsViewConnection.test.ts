@@ -51,7 +51,7 @@ describe('ResultsViewProvider Connection Tests', () => {
     resultsViewProvider.resolveWebviewView(mockWebviewView);
   });
 
-  test('testConnection should respect configured connector type', async () => {
+  it('testConnection should respect configured connector type', async () => {
     // 1. Setup Config to be SQLite
     mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
       if (key === 'defaultConnector') {
@@ -77,7 +77,7 @@ describe('ResultsViewProvider Connection Tests', () => {
     );
   });
 
-  test('testConnection defaults to trino if configured', async () => {
+  it('testConnection defaults to trino if configured', async () => {
     // 1. Setup Config to be Trino
     mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
       if (key === 'defaultConnector') {

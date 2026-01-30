@@ -55,7 +55,7 @@ describe('ConnectionManager Test Suite', () => {
     connectionManager = new ConnectionManager(context);
   });
 
-  test('Save and Get Connection', async () => {
+  it('Save and Get Connection', async () => {
     await connectionManager.saveConnection(mockProfile);
 
     const connections = await connectionManager.getConnections();
@@ -72,7 +72,7 @@ describe('ConnectionManager Test Suite', () => {
     assert.strictEqual(retrievedProfile?.password, mockProfile.password);
   });
 
-  test('Update Existing Connection', async () => {
+  it('Update Existing Connection', async () => {
     await connectionManager.saveConnection(mockProfile);
 
     const updatedProfile = { ...mockProfile, user: 'new-user', password: 'new-password' };
@@ -88,7 +88,7 @@ describe('ConnectionManager Test Suite', () => {
     assert.strictEqual(retrieved?.password, 'new-password');
   });
 
-  test('Delete Connection', async () => {
+  it('Delete Connection', async () => {
     await connectionManager.saveConnection(mockProfile);
     await connectionManager.deleteConnection(mockProfile.id);
 
@@ -99,7 +99,7 @@ describe('ConnectionManager Test Suite', () => {
     assert.strictEqual(retrieved, undefined);
   });
 
-  test('Update Password Directly', async () => {
+  it('Update Password Directly', async () => {
     await connectionManager.saveConnection(mockProfile);
 
     await connectionManager.updatePassword(mockProfile.id, 'updated-password');
@@ -108,7 +108,7 @@ describe('ConnectionManager Test Suite', () => {
     assert.strictEqual(retrieved?.password, 'updated-password');
   });
 
-  test('Clear Password Directly', async () => {
+  it('Clear Password Directly', async () => {
     await connectionManager.saveConnection(mockProfile);
 
     await connectionManager.clearPasswordForConnection(mockProfile.id);
@@ -117,7 +117,7 @@ describe('ConnectionManager Test Suite', () => {
     assert.strictEqual(retrieved?.password, undefined);
   });
 
-  test('Save Connection with Empty Password Clears It', async () => {
+  it('Save Connection with Empty Password Clears It', async () => {
     await connectionManager.saveConnection(mockProfile);
 
     // Save with empty password

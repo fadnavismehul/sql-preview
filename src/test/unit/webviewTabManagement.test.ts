@@ -49,7 +49,7 @@ describe('Webview Tab Management Tests', () => {
   });
 
   describe('JavaScript Code Structure', () => {
-    test('should contain tab management functions', () => {
+    it('should contain tab management functions', () => {
       // Verify that required functions are defined in the JavaScript
       assert.ok(webviewScript.includes('function createTab('), 'Should contain createTab function');
       assert.ok(webviewScript.includes('function closeTab('), 'Should contain closeTab function');
@@ -71,7 +71,7 @@ describe('Webview Tab Management Tests', () => {
       );
     });
 
-    test('should contain context menu functionality', () => {
+    it('should contain context menu functionality', () => {
       assert.ok(
         webviewScript.includes('function showTabContextMenu('),
         'Should contain showTabContextMenu function'
@@ -86,7 +86,7 @@ describe('Webview Tab Management Tests', () => {
       );
     });
 
-    test('should handle new message types', () => {
+    it('should handle new message types', () => {
       if (!webviewScript || webviewScript === '// Mock content for testing') {
         console.log('Skipping webview script test - file not available in test environment');
         return;
@@ -111,7 +111,7 @@ describe('Webview Tab Management Tests', () => {
       );
     });
 
-    test('should maintain state persistence', () => {
+    it('should maintain state persistence', () => {
       if (!webviewScript || webviewScript === '// Mock content for testing') {
         console.log('Skipping webview script test - file not available in test environment');
         return;
@@ -127,7 +127,7 @@ describe('Webview Tab Management Tests', () => {
   });
 
   describe('Context Menu Implementation', () => {
-    test('should define context menu structure', () => {
+    it('should define context menu structure', () => {
       // Check for context menu items
       assert.ok(webviewScript.includes("{ text: 'Close'"), 'Should have Close menu item');
       assert.ok(
@@ -137,7 +137,7 @@ describe('Webview Tab Management Tests', () => {
       assert.ok(webviewScript.includes("{ text: 'Close All'"), 'Should have Close All menu item');
     });
 
-    test('should handle menu positioning', () => {
+    it('should handle menu positioning', () => {
       assert.ok(
         webviewScript.includes('event.clientX'),
         'Should position menu at mouse X coordinate'
@@ -149,7 +149,7 @@ describe('Webview Tab Management Tests', () => {
       assert.ok(webviewScript.includes("position: 'fixed'"), 'Should use fixed positioning');
     });
 
-    test('should handle menu cleanup', () => {
+    it('should handle menu cleanup', () => {
       assert.ok(webviewScript.includes('menu.remove()'), 'Should remove menu from DOM');
       assert.ok(
         webviewScript.includes("addEventListener('click', closeMenu"),
@@ -159,18 +159,18 @@ describe('Webview Tab Management Tests', () => {
   });
 
   describe('Tab Management Logic', () => {
-    test('should handle tab creation with IDs', () => {
+    it('should handle tab creation with IDs', () => {
       assert.ok(webviewScript.includes('providedTabId ||'), 'Should handle provided tab ID');
       assert.ok(webviewScript.includes('data-tab-id'), 'Should set data-tab-id attribute');
     });
 
-    test('should handle active tab management', () => {
+    it('should handle active tab management', () => {
       assert.ok(webviewScript.includes('activeTabId'), 'Should track active tab ID');
       assert.ok(webviewScript.includes("classList.add('active')"), 'Should add active class');
       assert.ok(webviewScript.includes("classList.remove('active')"), 'Should remove active class');
     });
 
-    test('should handle tab closure logic', () => {
+    it('should handle tab closure logic', () => {
       assert.ok(webviewScript.includes('tabs.splice('), 'Should remove tab from array');
       assert.ok(
         webviewScript.includes('tabElement.remove()'),
@@ -182,7 +182,7 @@ describe('Webview Tab Management Tests', () => {
       );
     });
 
-    test('should handle batch tab operations', () => {
+    it('should handle batch tab operations', () => {
       assert.ok(
         webviewScript.includes('tabs.filter(tab => tab.id !== keepTabId)'),
         'Should filter tabs for close others'
@@ -192,12 +192,12 @@ describe('Webview Tab Management Tests', () => {
   });
 
   describe('Error Handling', () => {
-    test('should handle missing elements gracefully', () => {
+    it('should handle missing elements gracefully', () => {
       assert.ok(webviewScript.includes('if (!'), 'Should check for null/undefined elements');
       assert.ok(webviewScript.includes('return null'), 'Should return null for missing elements');
     });
 
-    test('should handle grid API errors', () => {
+    it('should handle grid API errors', () => {
       assert.ok(webviewScript.includes('try {'), 'Should use try-catch blocks');
       assert.ok(webviewScript.includes('} catch'), 'Should catch errors');
       assert.ok(webviewScript.includes('console.error'), 'Should log errors');

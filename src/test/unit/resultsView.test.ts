@@ -53,7 +53,7 @@ describe('ResultsViewProvider Tests', () => {
     resultsViewProvider.resolveWebviewView(mockWebviewView);
   });
 
-  test('should show results with truncation warning when results exceed maxRowsToDisplay', async () => {
+  it('should show results with truncation warning when results exceed maxRowsToDisplay', async () => {
     const tabId = 'tab-1';
     resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
 
@@ -79,7 +79,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should show results without truncation warning when results within limit', async () => {
+  it('should show results without truncation warning when results within limit', async () => {
     const tabId = 'tab-1';
     resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
 
@@ -104,7 +104,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should send updateRowHeight message when webviewLoaded is received', async () => {
+  it('should send updateRowHeight message when webviewLoaded is received', async () => {
     // Mock config behavior just for this test
     mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
       if (key === 'rowHeight') {
@@ -131,7 +131,7 @@ describe('ResultsViewProvider Tests', () => {
     );
   });
 
-  test('should show results for specific tab', async () => {
+  it('should show results for specific tab', async () => {
     const tabId = 'tab-123';
     resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Query Results');
 
@@ -156,7 +156,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should handle empty results', async () => {
+  it('should handle empty results', async () => {
     const tabId = 'tab-1';
     resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
 
@@ -181,7 +181,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should handle error messages', async () => {
+  it('should handle error messages', async () => {
     const tabId = 'tab-1';
     resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
 
@@ -203,7 +203,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should show loading state', async () => {
+  it('should show loading state', async () => {
     const tabId = 'tab-1';
     resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
 
@@ -217,7 +217,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should show status messages', async () => {
+  it('should show status messages', async () => {
     const message = 'Query completed successfully';
 
     resultsViewProvider.showStatusMessage(message);
@@ -228,7 +228,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should create a new tab', async () => {
+  it('should create a new tab', async () => {
     const query = 'SELECT * FROM new_tab';
     const title = 'New Query Tab';
 
@@ -244,7 +244,7 @@ describe('ResultsViewProvider Tests', () => {
     );
   });
 
-  test('should create a new tab with specific ID', async () => {
+  it('should create a new tab with specific ID', async () => {
     const tabId = 'tab-custom-id';
     const query = 'SELECT * FROM custom_id';
     const title = 'Custom ID Tab';
@@ -260,13 +260,13 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should get or create active tab ID', async () => {
+  it('should get or create active tab ID', async () => {
     const query = 'SELECT * FROM active_tab';
     const title = 'Active Tab';
 
     const tabId = resultsViewProvider.getOrCreateActiveTabId(query, title);
 
-    expect(tabId).toMatch(/^tab-/);
+    expect(tabId).toMatch(/^t[a-z0-9]+/);
 
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -292,7 +292,7 @@ describe('ResultsViewProvider Tests', () => {
     );
   });
 
-  test('should close active tab', async () => {
+  it('should close active tab', async () => {
     const tabId = 'tab-1';
     resultsViewProvider.createTabWithId(tabId, 'SELECT 1', 'Test Tab');
 
@@ -305,7 +305,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should close other tabs', async () => {
+  it('should close other tabs', async () => {
     resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'Test Tab');
     // tab-1 is active
 
@@ -316,7 +316,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should close all tabs', async () => {
+  it('should close all tabs', async () => {
     resultsViewProvider.closeAllTabs();
 
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
@@ -324,7 +324,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should create tab with source file URI', () => {
+  it('should create tab with source file URI', () => {
     const sourceUri = 'file:///path/to/script.sql';
 
     resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'Preview', sourceUri);
@@ -338,7 +338,7 @@ describe('ResultsViewProvider Tests', () => {
     );
   });
 
-  test('should filter tabs when active editor changes', () => {
+  it('should filter tabs when active editor changes', () => {
     (resultsViewProvider as any)._filterTabsByFile('file:///path/to/script.sql');
 
     // This updates the view, but might not change active tab if there isn't one.
@@ -350,7 +350,7 @@ describe('ResultsViewProvider Tests', () => {
     });
   });
 
-  test('should decode and filter tabs when active editor has encoded characters', () => {
+  it('should decode and filter tabs when active editor has encoded characters', () => {
     (resultsViewProvider as any)._filterTabsByFile('file:///path/to/my%20query%20script.sql');
 
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
@@ -359,7 +359,7 @@ describe('ResultsViewProvider Tests', () => {
       fileName: 'my query script.sql',
     });
   });
-  test('should include context menu in webview HTML', () => {
+  it('should include context menu in webview HTML', () => {
     // Access the HTML set on the webview
     const html = mockWebviewPanel.webview.html;
     expect(html).toContain('id="tab-context-menu"');

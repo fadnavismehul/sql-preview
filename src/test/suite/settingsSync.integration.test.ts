@@ -1,8 +1,8 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 
-suite('Settings Synchronization Logic', () => {
-  test('Should prioritize Workspace Target only if value exists', async () => {
+describe('Settings Synchronization Logic', () => {
+  it('Should prioritize Workspace Target only if value exists', async () => {
     // This test validates the logic pattern used in ResultsViewProvider.saveSettings
 
     const key = 'sqlPreview.maxRowsToDisplay';

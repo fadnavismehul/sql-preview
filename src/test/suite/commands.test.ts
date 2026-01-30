@@ -34,7 +34,7 @@ describe('Command Tests', () => {
   });
 
   describe('Command Registration', () => {
-    test('should register all required commands', async () => {
+    it('should register all required commands', async () => {
       // Import and activate extension
       const { activate } = await import('../../extension');
       await activate(extensionContext);
@@ -68,7 +68,7 @@ describe('Command Tests', () => {
       );
     });
 
-    test('should register password management commands', async () => {
+    it('should register password management commands', async () => {
       const { activate } = await import('../../extension');
       await activate(extensionContext);
 
@@ -88,7 +88,7 @@ describe('Command Tests', () => {
       );
     });
 
-    test('should register export command', async () => {
+    it('should register export command', async () => {
       const { activate } = await import('../../extension');
       await activate(extensionContext);
 
@@ -102,7 +102,7 @@ describe('Command Tests', () => {
   });
 
   describe('Command Handler Behavior', () => {
-    test('tab management commands should not throw when resultsViewProvider is undefined', async () => {
+    it('tab management commands should not throw when resultsViewProvider is undefined', async () => {
       const { activate } = await import('../../extension');
       await activate(extensionContext);
 
@@ -139,7 +139,7 @@ describe('Command Tests', () => {
       }
     });
 
-    test('query commands should handle missing resultsViewProvider gracefully', async () => {
+    it('query commands should handle missing resultsViewProvider gracefully', async () => {
       const showErrorMessageStub = sinon.stub(vscode.window, 'showErrorMessage');
 
       // Simulate calling the error path directly
@@ -154,7 +154,7 @@ describe('Command Tests', () => {
   });
 
   describe('Backward Compatibility', () => {
-    test('sql.runCursorQuery should still be available for backward compatibility', async () => {
+    it('sql.runCursorQuery should still be available for backward compatibility', async () => {
       const { activate } = await import('../../extension');
       await activate(extensionContext);
 
@@ -166,7 +166,7 @@ describe('Command Tests', () => {
       );
     });
 
-    test('sql.runCursorQuery should create new tab by default', async () => {
+    it('sql.runCursorQuery should create new tab by default', async () => {
       // This test would require more complex mocking to verify the actual behavior
       // For now, we just verify the command is registered
       const { activate } = await import('../../extension');

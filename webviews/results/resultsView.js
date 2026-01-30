@@ -214,7 +214,7 @@ window.addEventListener('message', event => {
         case 'updateConnections':
             updateConnectionList(message.connections);
             break;
-        case 'updateGridDensity':
+        case 'updateRowHeight':
             updateGridDensity(message.density);
             break;
     }
@@ -410,11 +410,22 @@ function createTab(tabId, query, title, sourceFileUri) {
         <div class="spinner"></div>
         <div class="loading-text">Preparing query...</div>
         ${query ? `<div class="query-preview"><pre>${escapeHtml(query)}</pre></div>` : ''}
-        <button class="cancel-button" onclick="cancelQuery('${tabId}')">Cancel Query</button>
+        <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
     </div>
   `;
 
     tabContentContainer.appendChild(contentElement);
+
+    // Attach listener programmatically to avoid CSP inline-script blocking
+    const cancelBtn = contentElement.querySelector(`#cancel-${tabId}`);
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            logToHost('info', `Cancel button clicked for tab ${tabId}`);
+            vscode.postMessage({ command: 'cancelQuery', tabId: tabId });
+        });
+    } else {
+        logToHost('error', `Could not find cancel button for tab ${tabId}`);
+    }
 
     // Store tab reference
     tabs.set(tabId, {
@@ -882,6 +893,17 @@ function updateTabWithResults(tabId, data, title) {
     });
 
     // Setup AG Grid
+    // Calculate row and header heights based on current density
+    let rowH = 35;
+    let headH = 42;
+    if (currentRowHeightDensity === 'compact') {
+        rowH = 28;
+        headH = 36;
+    } else if (currentRowHeightDensity === 'comfortable') {
+        rowH = 45;
+        headH = 52;
+    }
+
     const gridOptions = {
         rowData: data.rows.map(row => {
             // Convert array of values to object {col1: val1, ...} based on columns
@@ -894,6 +916,10 @@ function updateTabWithResults(tabId, data, title) {
         columnDefs: columnDefs,
         pagination: true,
         paginationPageSize: 100,
+
+        // Row height settings
+        rowHeight: rowH,
+        headerHeight: headH,
 
         // Selection Features
         rowSelection: 'multiple',
@@ -1205,12 +1231,23 @@ function showLoading(tabId, query, title) {
     // Reset content to loading
     tab.content.innerHTML = `
         <div class="loading-container">
-            <div class="spinner"></div>
-            <div class="loading-text">Running query...</div>
-            <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
-            <button class="cancel-button" onclick="cancelQuery('${tabId}')">Cancel Query</button>
-        </div>
+        <div class="spinner"></div>
+        <div class="loading-text">Running query...</div>
+        <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
+        <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
+    </div>
     `;
+
+    // Attach listener programmatically to avoid CSP inline-script blocking
+    const cancelBtn = tab.content.querySelector(`#cancel-${tabId}`);
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            logToHost('info', `Cancel button clicked for tab ${tabId}`);
+            vscode.postMessage({ command: 'cancelQuery', tabId: tabId });
+        });
+    } else {
+        logToHost('error', `Could not find cancel button for tab ${tabId} in showLoading`);
+    }
 }
 
 
@@ -1410,8 +1447,8 @@ function saveAllSettings() {
         sslVerify: document.getElementById('cfg-sslVerify').checked,
 
         // Experimental
-        mcpEnabled: document.getElementById('cfg-mcpEnabled').checked,
-        mcpPort: parseInt(document.getElementById('cfg-mcpPort').value, 10)
+        mcpEnabled: document.getElementById('cfg-mcpEnabled')?.checked || false,
+        mcpPort: parseInt(document.getElementById('cfg-mcpPort')?.value || '3000', 10)
     };
 
     vscode.postMessage({ command: 'saveSettings', settings });
@@ -1423,7 +1460,7 @@ function saveAllSettings() {
         currentRowHeightDensity = settings.rowHeight;
     }
     if (settings.fontSize) {
-        document.documentElement.style.setProperty('--sql-preview-font-size', `${settings.fontSize}px`); // Custom var?
+        document.documentElement.style.setProperty('--sql-preview-font-size', `${settings.fontSize} px`); // Custom var?
         // Check if message handler uses --vscode-editor-font-size
         // Previous code used --sql-preview-font-size here, but message handler used --vscode-editor-font-size?
         // I should stick to one. The 'updateFontSize' handler uses --vscode-editor-font-size.
@@ -1444,10 +1481,13 @@ if (connectorSelect) {
 
 if (copyMcpConfigBtn) {
     copyMcpConfigBtn.addEventListener('click', () => {
-        const code = document.querySelector('.code-block').innerText;
-        navigator.clipboard.writeText(code).then(() => {
+        const snippet = document.getElementById('mcp-snippet').textContent;
+        navigator.clipboard.writeText(snippet).then(() => {
+            // Visual feedback
             const originalText = copyMcpConfigBtn.textContent;
-            copyMcpConfigBtn.textContent = 'Copied!';
+            copyMcpConfigBtn.textContent = '✅';
+            vscode.postMessage({ command: 'alert', text: '✅ MCP Config copied to clipboard' });
+
             setTimeout(() => {
                 copyMcpConfigBtn.textContent = originalText;
             }, 2000);
@@ -1595,86 +1635,14 @@ function populateSettings(config) {
         pwdStatus.style.color = 'var(--vscode-descriptionForeground)';
     }
 
-    // Experimental
+    // MCP Server
     document.getElementById('cfg-mcpEnabled').checked = config.mcpEnabled === true;
-    document.getElementById('cfg-mcpPort').value = config.mcpPort || 3000;
 
-    // MCP Status Feedback in Config
-    // If we have status info, we could show it.
-    // For now, the port might be dynamic, so let's update placeholder or show a hint?
-    // The config object from extension has 'mcpStatus' which we can use
-    if (config.mcpStatus) {
-        const portContainer = document.getElementById('cfg-mcpPort');
-        if (config.mcpStatus.running && config.mcpStatus.port) {
-            // Update the input to show actual running port if user hasn't touched it?
-            // tailored behavior: show actual port next to it
-            // or just update value if different?
-            // config.mcpPort is the SETTING. config.mcpStatus.port is the RUNTIME.
-
-            // Let's create/update a runtime indicator
-            let mcpStatusInd = document.getElementById('mcp-runtime-status');
-            if (!mcpStatusInd) {
-                mcpStatusInd = document.createElement('span');
-                mcpStatusInd.id = 'mcp-runtime-status';
-                mcpStatusInd.style.marginLeft = '10px';
-                mcpStatusInd.style.fontSize = '0.9em';
-                portContainer.parentNode.appendChild(mcpStatusInd);
-            }
-            mcpStatusInd.textContent = `(Active: ${config.mcpStatus.port} - Window Level)`;
-            mcpStatusInd.style.color = 'var(--vscode-charts-green)';
-            const snippetEl = document.querySelector('.code-snippet pre');
-            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:${config.mcpStatus.port}/sse" }`;
-
-            // Lock Button Logic
-            const lockBtn = document.getElementById('lock-mcp-port');
-            if (lockBtn) {
-                // If the running port is different from the configured/input port, show lock to sync them
-                const configuredPort = parseInt(document.getElementById('cfg-mcpPort').value, 10);
-                if (config.mcpStatus.port !== configuredPort) {
-                    lockBtn.style.display = 'inline-block';
-                    lockBtn.style.color = 'var(--vscode-charts-yellow)';
-                    lockBtn.title = "Current port differs from Workspace Config. Click to Lock.";
-                } else {
-                    lockBtn.style.display = 'inline-block';
-                    lockBtn.style.color = 'var(--vscode-descriptionForeground)';
-                    lockBtn.title = "Port is locked to Workspace Config.";
-                }
-
-                // Remove old listeners by cloning
-                const newLock = lockBtn.cloneNode(true);
-                lockBtn.parentNode.replaceChild(newLock, lockBtn);
-                newLock.addEventListener('click', () => {
-                    // Send lock command
-                    vscode.postMessage({
-                        command: 'lockMcpPort',
-                        port: config.mcpStatus.port
-                    });
-                    // Optimistically update input
-                    document.getElementById('cfg-mcpPort').value = config.mcpStatus.port;
-                    newLock.style.color = 'var(--vscode-descriptionForeground)';
-                });
-            }
-        } else if (config.mcpStatus.error) {
-            let mcpStatusInd = document.getElementById('mcp-runtime-status');
-            if (!mcpStatusInd) {
-                mcpStatusInd = document.createElement('span');
-                mcpStatusInd.id = 'mcp-runtime-status';
-                mcpStatusInd.style.marginLeft = '10px';
-                portContainer.parentNode.appendChild(mcpStatusInd);
-            }
-            mcpStatusInd.textContent = `(Stopped/Error)`;
-            mcpStatusInd.style.color = 'var(--vscode-errorForeground)';
-            const snippetEl = document.querySelector('.code-snippet pre');
-            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:3000/sse" }`;
-        } else {
-            let mcpStatusInd = document.getElementById('mcp-runtime-status');
-            if (mcpStatusInd) {
-                mcpStatusInd.textContent = '(Stopped)';
-                mcpStatusInd.style.color = 'var(--vscode-descriptionForeground)';
-            }
-            const snippetEl = document.querySelector('.code-snippet pre');
-            if (snippetEl) snippetEl.textContent = `"preview": { "url": "http://localhost:3000/sse" }`;
-        }
+    // Snippet is now static or updated here if we want to be explicit, but static HTML handles it mostly.
+    // Ensure snippet shows 8414 to match standard
+    const snippetEl = document.getElementById('mcp-snippet');
+    if (snippetEl) {
+        snippetEl.textContent = `http://localhost:8414/mcp`;
     }
 }
 

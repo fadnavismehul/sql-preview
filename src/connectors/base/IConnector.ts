@@ -32,6 +32,13 @@ export interface IConnector<TConfig = ConnectorConfig> {
   ): AsyncGenerator<QueryPage, void, unknown>;
 
   /**
+   * Indicates if this connector returns results incrementally (true) or all-at-once (false).
+   * UI can use this to show appropriate loading indicators.
+   * Default: assumed true if not specified.
+   */
+  readonly supportsPagination?: boolean;
+
+  /**
    * Optional method to test connection and validate configuration (e.g. catalog/schema existence).
    * If not implemented, the executor may fall back to running a simple query like SELECT 1.
    */

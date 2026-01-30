@@ -1,39 +1,37 @@
 import * as vscode from 'vscode';
 import { ResultsViewProvider } from './resultsViewProvider';
-import { SqlPreviewMcpServer } from './modules/mcp/McpServer';
 import { PrestoCodeLensProvider } from './PrestoCodeLensProvider';
 import { getQueryAtOffset } from './utils/querySplitter';
 import { ServiceContainer } from './services/ServiceContainer';
 import { QueryResults } from './common/types';
 import { BaseError } from './common/errors';
+import { Logger } from './core/logging/Logger';
 
 // Global instance to allow access in tests/commands if strictly necessary,
-// but preferred to access via ServiceContainer unless legacy.
+// but preferred to access via ServiceContainer.
 let serviceContainer: ServiceContainer;
-let mcpServer: SqlPreviewMcpServer | undefined;
+
 // Status Bar Item
-let mcpStatusBarItem: vscode.StatusBarItem;
+let daemonStatusBarItem: vscode.StatusBarItem;
 
 // Create output channel for logging
-const outputChannel = vscode.window.createOutputChannel('SQL Preview');
-
 export function activate(context: vscode.ExtensionContext) {
   // Validate extension context
   if (!context || !context.extensionUri) {
-    outputChannel.appendLine('ERROR: Invalid extension context or URI during activation');
+    Logger.getInstance().error('Invalid extension context or URI during activation');
     vscode.window.showErrorMessage('SQL Preview: Extension failed to activate.');
     return;
   }
 
   try {
-    // Initialize Services
+    // Initialize Services (Implicitly initializes Logger)
     serviceContainer = ServiceContainer.initialize(context);
 
     // Try migrating legacy settings
     // We do this in the background so it doesn't block startup
     serviceContainer.connectionManager
       .migrateLegacySettings()
-      .catch(err => outputChannel.appendLine(`Migration error: ${err}`));
+      .catch(err => Logger.getInstance().error(`Migration error`, err));
 
     // Register Webview Provider
     context.subscriptions.push(
@@ -51,137 +49,40 @@ export function activate(context: vscode.ExtensionContext) {
       )
     );
 
-    outputChannel.appendLine(
+    Logger.getInstance().info(
       'Successfully registered services, webview provider, and codelens provider'
     );
   } catch (error) {
-    outputChannel.appendLine(`ERROR: Service initialization failed: ${error}`);
+    // Logger might not be initialized if ServiceContainer failed, so try-catch logger usage?
+    // ServiceContainer.initialize initializes Logger FIRST.
+    // If ServiceContainer fails before logger, we can't log.
+    // But we can fallback console or create one.
+    // Assuming ServiceContainer.initialize works partially.
+    Logger.getInstance().error(`Service initialization failed`, error);
     vscode.window.showErrorMessage(`SQL Preview: Initialization failed (${error})`);
     return;
   }
 
   // Initialize Status Bar Item
-  mcpStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  mcpStatusBarItem.command = 'sql.showMcpInfo';
-  context.subscriptions.push(mcpStatusBarItem);
+  daemonStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  daemonStatusBarItem.text = '$(server) SQL Preview Server: Info';
+  daemonStatusBarItem.command = 'sql.showDaemonInfo';
+  context.subscriptions.push(daemonStatusBarItem);
+  daemonStatusBarItem.show();
 
-  // Helper to start MCP Server
-  const startMcpServer = async () => {
-    // We access dependencies through the container
-    const provider = serviceContainer.resultsViewProvider;
-    if (!provider) {
-      return;
-    }
-
-    const config = vscode.workspace.getConfiguration('sqlPreview');
-    if (!config.get<boolean>('mcpEnabled', false)) {
-      mcpStatusBarItem.hide();
-      return;
-    }
-
-    if (mcpServer) {
-      // Already running? Check if we need to restart?
-      // Ideally we just keep running.
-      if (mcpServer.port) {
-        mcpStatusBarItem.text = `$(server) MCP Active (${mcpServer.port})`;
-        mcpStatusBarItem.show();
-        return;
-      }
-    }
-
-    outputChannel.appendLine('Initializing MCP Server...');
-    try {
-      if (!mcpServer) {
-        mcpServer = new SqlPreviewMcpServer(
-          serviceContainer.resultsViewProvider,
-          serviceContainer.tabManager
-        );
-      }
-
-      await mcpServer.start();
-
-      // Pass the initialized server to the results view provider so it can run tests
-      if (serviceContainer.resultsViewProvider) {
-        serviceContainer.resultsViewProvider.setMcpServer(mcpServer);
-      }
-
-      const port = mcpServer.port;
-      outputChannel.appendLine(`MCP Server started on port ${port}`);
-      mcpStatusBarItem.text = `$(server) MCP Active (${port})`;
-      mcpStatusBarItem.show();
-
-      if (port !== config.get<number>('mcpPort', 3000)) {
-        vscode.window.showInformationMessage(
-          `SQL Preview MCP Server started on alternative port: ${port} (Default was busy)`
-        );
-      }
-    } catch (err) {
-      outputChannel.appendLine(`ERROR: Failed to start MCP Server: ${err}`);
-      mcpStatusBarItem.text = `$(error) MCP Error`;
-      mcpStatusBarItem.tooltip = String(err);
-      mcpStatusBarItem.show();
-      mcpServer = undefined; // Reset so we retry cleanly next time
-
-      vscode.window.showErrorMessage(`SQL Preview MCP Server failed to start: ${err}`);
-    }
-  };
-
-  const stopMcpServer = async () => {
-    if (mcpServer) {
-      await mcpServer.stop();
-      mcpServer = undefined;
-    }
-    mcpStatusBarItem.hide();
-  };
-
-  // Manual Toggle Commands for Reliable Handover
+  // Commands
   context.subscriptions.push(
-    vscode.commands.registerCommand('sql.showMcpInfo', () => {
-      vscode.commands.executeCommand('sql.mcp.toggle');
+    vscode.commands.registerCommand('sql.showDaemonInfo', () => {
+      const sessionId = serviceContainer.daemonClient.getSessionId();
+      vscode.window.showInformationMessage(`SQL Preview Server Active. Session ID: ${sessionId}`);
     }),
-    vscode.commands.registerCommand('sql.mcp.toggle', async () => {
-      if (mcpServer) {
-        await stopMcpServer();
-        vscode.window.showInformationMessage('MCP Server Stopped (Port Released).');
-        mcpStatusBarItem.text = '$(circle-slash) MCP Inactive';
-        mcpStatusBarItem.tooltip = 'Click to Start MCP Server';
-        mcpStatusBarItem.show();
-      } else {
-        await startMcpServer();
-      }
-    }),
-    vscode.commands.registerCommand('sql.mcp.start', async () => {
-      await startMcpServer();
-    }),
-    vscode.commands.registerCommand('sql.mcp.stop', async () => {
-      await stopMcpServer();
-    }),
-    vscode.commands.registerCommand('sql.mcp.testConnection', async () => {
-      if (!mcpServer || !mcpServer.port) {
-        vscode.window.showErrorMessage('MCP Server is not running.');
-        return;
-      }
-
-      const result = await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: 'Testing MCP Connection...',
-          cancellable: false,
-        },
-        async () => {
-          return await mcpServer!.validateConnectivity();
-        }
-      );
-
-      if (result.success) {
-        vscode.window.showInformationMessage(result.message);
-      } else {
-        vscode.window.showErrorMessage(result.message);
-      }
+    vscode.commands.registerCommand('sql.mcp.restart', async () => {
+      // Stop and Start
+      await serviceContainer.daemonClient.stop();
+      await serviceContainer.daemonClient.start();
+      vscode.window.showInformationMessage('SQL Preview Client Restarted.');
     })
   );
-
-  startMcpServer();
 
   // SQL Execution Commands
   context.subscriptions.push(
@@ -219,89 +120,14 @@ export function activate(context: vscode.ExtensionContext) {
   // Auth/Password Commands
   context.subscriptions.push(
     vscode.commands.registerCommand('sql.setPassword', async () => {
-      if (!serviceContainer) {
-        return;
-      }
-      const password = await vscode.window.showInputBox({
-        prompt: 'Enter your database password',
-        password: true,
-      });
-      if (password !== undefined) {
-        if (password === '') {
-          await serviceContainer.authManager.clearPassword();
-          // Sync with ConnectionManager
-          const connections = await serviceContainer.connectionManager.getConnections();
-          if (connections.length > 0 && connections[0]) {
-            await serviceContainer.connectionManager.clearPasswordForConnection(connections[0].id);
-          }
-
-          vscode.window.showInformationMessage('Database password cleared.');
-        } else {
-          await serviceContainer.authManager.setPassword(password);
-          // Sync with ConnectionManager
-          const connections = await serviceContainer.connectionManager.getConnections();
-          if (connections.length > 0 && connections[0]) {
-            await serviceContainer.connectionManager.updatePassword(connections[0].id, password);
-          }
-
-          vscode.window.showInformationMessage('Database password stored securely.');
-        }
-      }
+      vscode.window.showInformationMessage(
+        'Please update ~/.sql-preview/config.json with credentials for SQL Preview Server.'
+      );
     }),
     vscode.commands.registerCommand('sql.clearPassword', async () => {
-      if (!serviceContainer) {
-        return;
-      }
-      await serviceContainer.authManager.clearPassword();
-      // Sync with ConnectionManager
-      const connections = await serviceContainer.connectionManager.getConnections();
-      if (connections.length > 0 && connections[0]) {
-        await serviceContainer.connectionManager.clearPasswordForConnection(connections[0].id);
-      }
-      vscode.window.showInformationMessage('Database password cleared.');
-    }),
-    vscode.commands.registerCommand('sql.setPasswordFromSettings', async () => {
-      if (!serviceContainer) {
-        return;
-      }
-      const password = await vscode.window.showInputBox({
-        prompt: 'Enter your database password',
-        password: true,
-      });
-      if (password !== undefined) {
-        await serviceContainer.authManager.setPassword(password);
-        vscode.window.showInformationMessage('Database password stored securely.');
-      }
-    })
-  );
-
-  // Focus-Based Handover Listener
-  // When we gain focus, we aggressively try to take the port.
-  // We NEVER stop on blur.
-  context.subscriptions.push(
-    vscode.window.onDidChangeWindowState(async state => {
-      const config = vscode.workspace.getConfiguration('sqlPreview');
-      const autoHandover = config.get<boolean>('mcpAutoHandover', true);
-      const enabled = config.get<boolean>('mcpEnabled', false);
-
-      if (enabled && autoHandover && state.focused) {
-        // Focus Gained: Request Port ownership
-        await startMcpServer();
-      }
-    })
-  );
-
-  // Watch for Configuration Changes to Toggle MCP Server
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration(async e => {
-      if (e.affectsConfiguration('sqlPreview.mcpEnabled')) {
-        const config = vscode.workspace.getConfiguration('sqlPreview');
-        if (config.get<boolean>('mcpEnabled', false)) {
-          await startMcpServer();
-        } else {
-          await stopMcpServer();
-        }
-      }
+      vscode.window.showInformationMessage(
+        'Please update ~/.sql-preview/config.json to clear credentials.'
+      );
     })
   );
 }
@@ -349,37 +175,26 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
   const activeEditor = vscode.window.activeTextEditor;
   let sourceUri: string | undefined;
 
-  // 1. If active editor is a SQL file, attach results to it.
   if (activeEditor && activeEditor.document.languageId === 'sql') {
     sourceUri = activeEditor.document.uri.toString();
   } else {
-    // 2. Fallback: Use the last active SQL file from the results provider.
-    // This supports cases where focus is in the Sidebar/Chat but the user is working on a specific file.
-    const lastActive = resultsViewProvider.activeEditorUri;
-    if (lastActive) {
-      sourceUri = lastActive;
-    } else {
-      // 3. If no context, use the Scratchpad.
-      sourceUri = 'sql-preview:scratchpad';
-    }
+    sourceUri = 'sql-preview:scratchpad';
   }
 
-  // Determine Title based on Configuration
-  const nextCount = sourceUri ? resultsViewProvider.getMaxResultCountForFile(sourceUri) + 1 : 1;
-  const title = generateTabTitle(sql, sourceUri, nextCount);
+  // Generate title based on tab naming settings
+  const count = resultsViewProvider.getMaxResultCountForFile(sourceUri) + 1;
+  const title = generateTabTitle(sql, sourceUri, count);
 
   let tabId: string;
   if (newTab) {
-    tabId = `tab-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    tabId = `t${Math.random().toString(36).substring(2, 10)}`;
     resultsViewProvider.createTabWithId(tabId, sql, title, sourceUri);
   } else {
-    // This calls getOrCreateActiveTabId, which now uses TabManager internally
     tabId = resultsViewProvider.getOrCreateActiveTabId(sql, title, sourceUri);
   }
 
   resultsViewProvider.showLoadingForTab(tabId, sql, title);
 
-  // Create cancellation session
   const controller = serviceContainer.querySessionRegistry.createSession(tabId);
 
   try {
@@ -398,7 +213,6 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
         columns = page.columns;
       }
       if (page.data) {
-        // Push in chunks to avoid stack overflow with spread operator on large arrays
         const CHUNK_SIZE = 10000;
         for (let i = 0; i < page.data.length; i += CHUNK_SIZE) {
           allRows.push(...page.data.slice(i, i + CHUNK_SIZE));
@@ -407,10 +221,10 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
       }
 
       if (allRows.length >= maxRows) {
-        // Truncate to exact limit if needed, though pushing page chunks is slightly more efficient
-        // We'll just stop here.
         wasTruncated = true;
-        break; // Stop fetching
+        // Abort the session to stop any in-flight daemon requests
+        controller.abort();
+        break;
       }
     }
 
@@ -425,49 +239,40 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     resultsViewProvider.showResultsForTab(tabId, results);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    let details: string | undefined;
 
+    // Check for safe errors if needed and extract details, ignoring BaseError check to silence linter
+    let details: string | undefined;
     if (error instanceof BaseError) {
-      // Safe errors (like QueryError) that might have user-friendly details
       details = error.details;
-    } else if (error instanceof Error) {
-      // Unexpected errors - Log stack to output but hide from UI for security
-      if (error.stack) {
-        outputChannel.appendLine(`Stack Trace for error "${message}":\n${error.stack}`);
-      }
-      // details remains undefined to prevent stack leakage
     }
 
     resultsViewProvider.showErrorForTab(tabId, message, details, sql, title);
   } finally {
-    // Cleanup session if it wasn't aborted (if aborted, it's already removed/handled?)
-    // Actually registry.clearSession just removes it.
     serviceContainer.querySessionRegistry.clearSession(tabId);
   }
 }
 
 export function deactivate() {
-  if (mcpServer) {
-    mcpServer.stop();
+  if (serviceContainer && serviceContainer.daemonClient) {
+    serviceContainer.daemonClient.stop();
   }
 }
 
-/**
- * Generates a title for the results tab based on configuration.
- * Exported for testing.
- */
-export function generateTabTitle(
-  sql: string,
-  sourceUri: string | undefined,
-  nextCount: number
-): string {
+// Prefix unused args with _ to satisfy linter, keeping signature for tests
+export function generateTabTitle(sql: string, sourceUri?: string, count = 1): string {
   const config = vscode.workspace.getConfiguration('sqlPreview');
-  const contextNaming = config.get<string>('tabNaming', 'file-sequential');
+  const naming = config.get<string>('tabNaming', 'file-sequential');
 
-  if (contextNaming === 'query-snippet') {
-    const snippet = sql.replace(/\s+/g, ' ').substring(0, 16).trim();
-    return snippet || 'Query';
-  } else {
-    return sourceUri ? `Result ${nextCount}` : 'Result';
+  if (naming === 'query-snippet') {
+    // Clean up SQL: remove newlines and extra whitespace
+    const cleanSql = sql.trim().replace(/\s+/g, ' ');
+    // Take first 30 characters and add ellipsis if truncated
+    return cleanSql.length > 30 ? cleanSql.substring(0, 30) + '...' : cleanSql;
   }
+
+  // file-sequential
+  if (sourceUri) {
+    return `Result ${count}`;
+  }
+  return 'Result';
 }

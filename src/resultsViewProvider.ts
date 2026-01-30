@@ -1,3 +1,4 @@
+import { Logger } from './core/logging/Logger';
 import * as vscode from 'vscode';
 import { TabData, ExtensionToWebviewMessage, QueryResults } from './common/types';
 import { StateManager } from './services/StateManager';
@@ -6,31 +7,23 @@ import { ExportService } from './services/ExportService';
 import { QuerySessionRegistry } from './services/QuerySessionRegistry';
 import { ConnectionManager } from './services/ConnectionManager';
 
-import { AuthManager } from './services/AuthManager';
 import { QueryExecutor } from './core/execution/QueryExecutor';
 import { getNonce } from './utils/nonce';
-import type { SqlPreviewMcpServer } from './modules/mcp/McpServer';
+import * as http from 'http';
 
 /**
  * Manages the webview panel for displaying query results.
- * It handles:
- * - Creating and initializing the webview HTML.
- * - Receiving messages from the extension (e.g., query results, errors).
- * - Sending messages from the webview back to the extension.
- *
- * Refactored to delegate state management to TabManager and export to ExportService.
  */
 export class ResultsViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'sqlResultsView';
 
   private _view?: vscode.WebviewView | undefined;
-  private _outputChannel: vscode.OutputChannel;
   private _resultCounter = 1;
+
   private _activeEditorUri: string | undefined;
   private _stateManager: StateManager;
-  private _authManager: AuthManager;
+
   private _disposables: vscode.Disposable[] = [];
-  private _mcpServer: SqlPreviewMcpServer | undefined;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -42,9 +35,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     private readonly _connectionManager: ConnectionManager,
     private readonly _queryExecutor: QueryExecutor
   ) {
-    this._outputChannel = vscode.window.createOutputChannel('SQL Preview');
     this._stateManager = new StateManager(context);
-    this._authManager = new AuthManager(context);
 
     // Initialize active editor if already open
     if (
@@ -64,14 +55,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           this._activeEditorUri = editor.document.uri.toString();
           this._filterTabsByFile(this._activeEditorUri);
         } else {
-          // If switching to non-SQL file or no editor, keep the last active SQL context
-          // This allows MCP and the view to persist the relevant tabs (e.g. when using Chat)
-          // this._activeEditorUri = undefined; // REMOVED clearing
-
-          // Optionally update view to reflect we aren't "in" the file anymore?
-          // Current logic: _filterTabsByFile(undefined) invokes "persistence" mode (returns early).
-          // But if we want to ensure MCP works, we want _activeEditorUri to be preserved.
-
           this._filterTabsByFile(undefined);
         }
       })
@@ -85,22 +68,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         }
       })
     );
-  }
-
-  public dispose() {
-    this._disposables.forEach(d => d.dispose());
-    this._disposables = [];
-  }
-
-  public getLastActiveFileUri(): vscode.Uri | undefined {
-    return this._activeEditorUri ? vscode.Uri.parse(this._activeEditorUri) : undefined;
-  }
-
-  /**
-   * Logs a message to the output channel.
-   */
-  public log(message: string) {
-    this._outputChannel.appendLine(message);
   }
 
   /**
@@ -227,7 +194,12 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         }
         case 'cancelQuery': {
           this.log(`Cancelling query for tab: ${data.tabId}`);
-          this._querySessionRegistry.cancelSession(data.tabId);
+          try {
+            this._querySessionRegistry.cancelSession(data.tabId);
+            this.log(`Cancellation signal sent for tab: ${data.tabId}`);
+          } catch (e) {
+            this.log(`Error cancelling session: ${e}`);
+          }
           return;
         }
         case 'testConnection': {
@@ -248,10 +220,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
             // SQLite doesn't use auth header usually
           } else {
             // Trino
-            const pwd = await this._authManager.getPassword();
-            authHeader = pwd
-              ? `Basic ${Buffer.from(`${config.user}:${pwd}`).toString('base64')}`
-              : undefined;
+            authHeader = undefined;
 
             testConfig = {
               host: config.host,
@@ -282,21 +251,32 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         case 'testMcpServer': {
-          if (!this._mcpServer) {
+          // Check Daemon Health
+          const req = http.get('http://localhost:8414/status', res => {
+            if (res.statusCode === 200) {
+              this._postMessage({
+                type: 'testMcpResult',
+                success: true,
+                message: 'Server is running and reachable.',
+              });
+            } else {
+              this._postMessage({
+                type: 'testMcpResult',
+                success: false,
+                error: `Server responded with HTTP ${res.statusCode}`,
+              });
+            }
+          });
+
+          req.on('error', e => {
             this._postMessage({
               type: 'testMcpResult',
               success: false,
-              error: 'MCP Server not initialized internally.',
+              error: `Connection Failed: ${e.message}. Ensure Server is running.`,
             });
-            return;
-          }
-          const connectivity = await this._mcpServer.validateConnectivity();
-          this._postMessage({
-            type: 'testMcpResult',
-            success: connectivity.success,
-            error: connectivity.success ? undefined : connectivity.message,
-            message: connectivity.message,
           });
+
+          req.end();
           return;
         }
         case 'saveSettings': {
@@ -385,7 +365,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           await this._connectionManager.saveConnection(profile);
 
           // Refresh settings to confirm
-          const hasPassword = (await this._authManager.getPassword()) !== undefined;
+          const hasPassword = false;
           this._postMessage({
             type: 'updateConfig',
             config: {
@@ -561,7 +541,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
       // If mismatch, fall through to create new tab
     }
 
-    const newTabId = `tab-${Date.now()}`;
+    const newTabId = `t${Math.random().toString(36).substring(2, 10)}`;
     this.createTabWithId(newTabId, query, title || 'Result', sourceFileUri);
     return newTabId;
   }
@@ -595,7 +575,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 
   /** Creates a new tab (convenience wrapper) - Generates ID automatically */
   public createTab(query: string, title?: string) {
-    const tabId = `tab-${Date.now()}`;
+    const tabId = `t${Math.random().toString(36).substring(2, 10)}`;
     this.createTabWithId(tabId, query, title || 'Query Result');
   }
 
@@ -660,6 +640,22 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  public getLastActiveFileUri(): vscode.Uri | undefined {
+    return this._activeEditorUri ? vscode.Uri.parse(this._activeEditorUri) : undefined;
+  }
+
+  /**
+   * Logs a message to the output channel.
+   */
+  public log(message: string) {
+    Logger.getInstance().info(message);
+  }
+
+  public dispose() {
+    this._disposables.forEach(d => d.dispose());
+    this._disposables = [];
+  }
+
   public closeAllTabs() {
     this._tabManager.removeAllTabs();
     this._postMessage({ type: 'closeAllTabs' });
@@ -678,13 +674,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  public setMcpServer(server: SqlPreviewMcpServer | undefined) {
-    this._mcpServer = server;
-    // Trigger status update to UI
-    this._refreshSettings().catch(err =>
-      this.log(`Error refreshing settings on MCP update: ${err}`)
-    );
-  }
+  // public setMcpServer(server: SqlPreviewMcpServer | undefined) { ... }
 
   // --- Private ---
 
@@ -744,8 +734,10 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
             wasTruncated: tab.wasTruncated || false,
             totalRowsInFirstBatch: tab.totalRowsInFirstBatch || tab.rows.length,
             queryId: tab.queryId,
+
             infoUri: tab.infoUri,
             nextUri: tab.nextUri,
+            supportsPagination: tab.supportsPagination,
           };
           this._postMessage({
             type: 'resultData',
@@ -835,7 +827,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     }
 
     const config = vscode.workspace.getConfiguration('sqlPreview', resource);
-    const hasPassword = (await this._authManager.getPassword()) !== undefined;
+    const hasPassword = false; // Legacy AuthManager removed
 
     // Debugging
 
@@ -853,14 +845,15 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         schema: config.get('schema'),
         ssl: config.get('ssl'),
         sslVerify: config.get('sslVerify'),
+        mcpEnabled: config.get('mcpEnabled'),
         mcpPort: config.get('mcpPort'),
         defaultConnector: config.get('defaultConnector'),
         databasePath: config.get('databasePath'),
         hasPassword,
         mcpStatus: {
-          running: !!this._mcpServer && !!this._mcpServer.port,
-          port: this._mcpServer?.port,
-          error: !this._mcpServer && config.get('mcpEnabled'), // heuristic
+          running: !!config.get('mcpEnabled'),
+          port: 8414,
+          error: false,
         },
       },
     });
@@ -1075,39 +1068,46 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                 </div>
                             </div>
 
-                            <!-- Experimental Features Card -->
-                            <div class="settings-card experimental">
+                            <!-- MCP Server Card -->
+                            <div class="settings-card mcp-server">
                                 <div class="card-header">
-                                    <h4>Experimental Features</h4>
+                                    <h4>MCP Server</h4>
                                 </div>
                                 <div class="card-content">
-                                    <div class="warning-callout">
-                                        <span class="icon">⚠️</span>
-                                        <p>These features are in beta and may be unstable.</p>
-                                    </div>
+                                    <!-- No warning callout -->
 
                                     <div class="form-row align-center" style="margin-top:10px;">
                                         <label class="toggle-label"><input type="checkbox" id="cfg-mcpEnabled"> Enable MCP Server</label>
                                         <div class="form-group horizontal" style="margin-left:auto;">
-                                            <label for="cfg-mcpPort">Port</label>
-                                            <div style="display:flex; align-items:center;">
-                                                <input type="number" id="cfg-mcpPort" value="3000" style="width:70px;">
-                                                <button id="lock-mcp-port" class="icon-button" title="Lock Port to Workspace" style="margin-left:5px; display:none;">🔒</button>
-                                            </div>
+                                            <span style="color:var(--vscode-descriptionForeground);">Port: <strong>8414</strong></span>
                                         </div>
                                     </div>
 
                                     <div class="mcp-info">
-                                        <p>Add to <code>mcp.json</code>:</p>
-                                        <div class="code-snippet">
-                                            <pre>"preview": { "url": "http://localhost:3000/sse" }</pre>
-                                            <button id="copy-mcp-config" class="icon-button" title="Copy" aria-label="Copy MCP Config">📋</button>
+                                        <div class="form-group" style="margin-bottom: 8px;">
+                                            <label>Connection URL</label>
+                                            <div class="code-snippet">
+                                                <pre id="mcp-snippet" style="text-align: left; white-space: pre;">{
+
+    "sql-preview": {
+      "url": "http://localhost:8414/mcp"
+    }
+}</pre>
+                                                <button id="copy-mcp-config" class="icon-button" title="Copy Config" aria-label="Copy MCP Config">📋</button>
+                                            </div>
+                                        </div>
+                                        <p style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin: 8px 0;">
+                                            Connect Claude, Cursor, or other AI agents to this running server. 
+                                            Ask them to use the preview server, it should use the <code>run_query</code> tool.
+                                            Once a query has been executed, you can ask the agent to read the results which uses the <code>get_tab_info</code> tool.
+                                        </p>
+                                        <div style="font-size: 0.8em; opacity: 0.8; margin-top: 4px;">
+                                            <strong>Tools:</strong> run_query, get_tab_info, list_sessions, cancel_query
                                         </div>
                                     </div>
                                     
-                                    <div class="form-group" style="margin-top: 15px;">
                                         <button id="test-mcp-btn" class="secondary-button" style="width: auto;">Test MCP Server</button>
-                                        <span id="test-mcp-status" class="status-badge" style="margin-left: 10px;"></span>
+                                        <span id="test-mcp-status" class="status-badge"></span>
                                     </div>
                                 </div>
                             </div>
