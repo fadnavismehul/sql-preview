@@ -8,9 +8,20 @@ export interface ServerConfig {
   connections: ConnectionProfile[];
 }
 
+class Mutex {
+  private _queue: Promise<void> = Promise.resolve();
+
+  public runExclusive<T>(callback: () => Promise<T>): Promise<T> {
+    const result = this._queue.then(callback);
+    this._queue = result.catch(() => {}).then(() => {});
+    return result;
+  }
+}
+
 export class FileConnectionManager {
   private configPath: string;
   private inMemoryPasswords = new Map<string, string>();
+  private mutex = new Mutex();
 
   constructor() {
     const homeDir = os.homedir();
@@ -24,13 +35,13 @@ export class FileConnectionManager {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      this.writeConfig({ connections: [] });
+      this.writeConfigSync({ connections: [] });
     }
   }
 
-  private readConfig(): ServerConfig {
+  private async readConfig(): Promise<ServerConfig> {
     try {
-      const raw = fs.readFileSync(this.configPath, 'utf8');
+      const raw = await fs.promises.readFile(this.configPath, 'utf8');
       return JSON.parse(raw);
     } catch (error) {
       logger.error('Failed to read config:', error);
@@ -38,51 +49,64 @@ export class FileConnectionManager {
     }
   }
 
-  private writeConfig(config: ServerConfig) {
+  private writeConfigSync(config: ServerConfig) {
     fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), 'utf8');
   }
 
+  private async writeConfig(config: ServerConfig) {
+    await fs.promises.writeFile(this.configPath, JSON.stringify(config, null, 2), 'utf8');
+  }
+
   public async getConnections(): Promise<ConnectionProfile[]> {
-    const config = this.readConfig();
-    return config.connections;
+    return this.mutex.runExclusive(async () => {
+      const config = await this.readConfig();
+      return config.connections;
+    });
   }
 
   public async getConnection(id: string): Promise<ConnectionProfile | undefined> {
-    const connections = await this.getConnections();
-    const profile = connections.find(c => c.id === id);
-    if (profile) {
-      const password = this.inMemoryPasswords.get(id);
-      return { ...profile, ...(password ? { password } : {}) };
-    }
-    return undefined;
+    return this.mutex.runExclusive(async () => {
+      const config = await this.readConfig();
+      const connections = config.connections;
+      const profile = connections.find(c => c.id === id);
+      if (profile) {
+        const password = this.inMemoryPasswords.get(id);
+        return { ...profile, ...(password ? { password } : {}) };
+      }
+      return undefined;
+    });
   }
 
   public async saveConnection(profile: ConnectionProfile): Promise<void> {
-    const config = this.readConfig();
-    const index = config.connections.findIndex(c => c.id === profile.id);
+    return this.mutex.runExclusive(async () => {
+      const config = await this.readConfig();
+      const index = config.connections.findIndex(c => c.id === profile.id);
 
-    // Extract password to store separately (in memory for now)
-    const { password, ...safeProfile } = profile;
+      // Extract password to store separately (in memory for now)
+      const { password, ...safeProfile } = profile;
 
-    // In a real implementation, we might use keytar here if available
-    if (password) {
-      this.inMemoryPasswords.set(profile.id, password);
-    }
+      // In a real implementation, we might use keytar here if available
+      if (password) {
+        this.inMemoryPasswords.set(profile.id, password);
+      }
 
-    if (index !== -1) {
-      config.connections[index] = safeProfile as ConnectionProfile;
-    } else {
-      config.connections.push(safeProfile as ConnectionProfile);
-    }
+      if (index !== -1) {
+        config.connections[index] = safeProfile as ConnectionProfile;
+      } else {
+        config.connections.push(safeProfile as ConnectionProfile);
+      }
 
-    this.writeConfig(config);
+      await this.writeConfig(config);
+    });
   }
 
   public async deleteConnection(id: string): Promise<void> {
-    const config = this.readConfig();
-    config.connections = config.connections.filter(c => c.id !== id);
-    this.writeConfig(config);
-    this.inMemoryPasswords.delete(id);
+    return this.mutex.runExclusive(async () => {
+      const config = await this.readConfig();
+      config.connections = config.connections.filter(c => c.id !== id);
+      await this.writeConfig(config);
+      this.inMemoryPasswords.delete(id);
+    });
   }
 
   public setPasswordForSession(id: string, password: string) {
