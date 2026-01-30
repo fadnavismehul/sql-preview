@@ -86,4 +86,48 @@ describe('ExportService', () => {
     assert.strictEqual(output[0].id, 1);
     assert.strictEqual(output[0].name, 'Alice');
   });
+
+  it('should export result as CSV with escaping', async () => {
+    // Setup Save Dialog to return a .csv path
+    (vscode.window.showSaveDialog as jest.Mock).mockResolvedValue(
+      vscode.Uri.file('/tmp/export.csv')
+    );
+
+    // Setup Query Execution
+    async function* mockGenerator() {
+      yield {
+        columns: [
+          { name: 'id', type: 'integer' },
+          { name: 'val', type: 'varchar' },
+        ],
+        data: [
+          [1, 'Normal'],
+          [2, 'With,Comma'],
+          [3, 'With"Quote'],
+          [4, 'Multi\nLine'],
+        ],
+      };
+    }
+    mockQueryExecutor.execute.mockReturnValue(mockGenerator());
+
+    const tabData: TabData = {
+      id: 'tab-2',
+      title: 'CSV Query',
+      query: 'SELECT * FROM test',
+      columns: [],
+      rows: [],
+      status: 'success',
+    };
+
+    await exportService.exportResults(tabData);
+
+    const output = capturedOutput;
+
+    // Check specific lines (avoid splitting by \n due to multiline data)
+    assert.ok(output.includes('id,val\n'), 'Header missing');
+    assert.ok(output.includes('1,Normal\n'), 'Simple row missing');
+    assert.ok(output.includes('2,"With,Comma"\n'), 'Comma escaping missing');
+    assert.ok(output.includes('3,"With""Quote"\n'), 'Quote escaping missing');
+    assert.ok(output.includes('4,"Multi\nLine"\n'), 'Multiline escaping missing');
+  });
 });
