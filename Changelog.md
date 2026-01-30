@@ -26,6 +26,24 @@
 
 - **Connection Robustness**: Enhanced input sanitization for Trino connections. It now automatically strips protocols (`http://`, `https://`) and duplicative port numbers from the Host field, resolving common `ENOTFOUND` and connection timeout errors caused by copy-pasting full URLs.
 
+## [0.5.0] - 2026-01-30
+
+### Architecture
+
+- **Daemon Process**: Introduced a standalone `Daemon` service to decouple query execution and state management from the VS Code extension host. This improves stability and enables persistent sessions.
+- **MCP Server Refactor**: Completely rewrote the MCP Server (`DaemonMcpServer`) to run within the Daemon, providing robust tool management and better integration with LLM agents.
+
+### Added
+
+- **RFC Documentation**: Added RFCs 000-005 covering Roadmap, Agentic Testing, Single Server Architecture, MCP UI, and Session Security.
+- **Comprehensive Testing**: Added extensive unit and integration tests (~9.5k lines changed) covering Daemon, MCP, ConnectionManager, and Query execution.
+- **Session Management**: Implemented `SessionManager` and `DaemonClient` for robust state handling across extension reloads.
+
+### Changed
+
+- **Query Execution**: Refactored `QueryExecutor` to support distinct execution modes and better error handling.
+- **Repository**: Renamed repository to `sql-preview` and updated all internal references.
+
 ## [0.4.2] - 2026-01-27
 
 ### Added
