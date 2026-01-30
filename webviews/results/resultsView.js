@@ -377,8 +377,13 @@ function createTab(tabId, query, title, sourceFileUri) {
     // Create Tab Element (Header)
     const tabElement = document.createElement('div');
     tabElement.className = 'tab';
+    tabElement.id = `tab-${tabId}`;
     tabElement.dataset.tabId = tabId;
     tabElement.dataset.sourceFileUri = sourceFileUri || '';
+    tabElement.setAttribute('role', 'tab');
+    tabElement.setAttribute('tabindex', '0');
+    tabElement.setAttribute('aria-selected', 'false');
+    tabElement.setAttribute('aria-controls', `content-${tabId}`);
 
     const label = document.createElement('span');
     label.className = 'tab-label';
@@ -389,13 +394,30 @@ function createTab(tabId, query, title, sourceFileUri) {
     const closeBtn = document.createElement('span');
     closeBtn.className = 'tab-close';
     closeBtn.textContent = '×';
-    closeBtn.onclick = (e) => {
+    closeBtn.setAttribute('role', 'button');
+    closeBtn.setAttribute('aria-label', 'Close Tab');
+    closeBtn.setAttribute('tabindex', '0');
+
+    const handleClose = (e) => {
         e.stopPropagation();
         closeTab(tabId);
     };
+    closeBtn.onclick = handleClose;
+    closeBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClose(e);
+        }
+    });
     tabElement.appendChild(closeBtn);
 
     tabElement.onclick = () => activateTab(tabId);
+    tabElement.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            activateTab(tabId);
+        }
+    });
 
     tabList.appendChild(tabElement);
 
@@ -403,6 +425,8 @@ function createTab(tabId, query, title, sourceFileUri) {
     const contentElement = document.createElement('div');
     contentElement.className = 'tab-content';
     contentElement.id = `content-${tabId}`;
+    contentElement.setAttribute('role', 'tabpanel');
+    contentElement.setAttribute('aria-labelledby', `tab-${tabId}`);
 
     // Initial Loading State
     contentElement.innerHTML = `
@@ -450,6 +474,7 @@ function activateTab(tabId) {
         const curr = tabs.get(activeTabId);
         if (curr) {
             curr.element.classList.remove('active');
+            curr.element.setAttribute('aria-selected', 'false');
             curr.content.classList.remove('active');
         }
     }
@@ -459,6 +484,7 @@ function activateTab(tabId) {
     const next = tabs.get(tabId);
     if (next) {
         next.element.classList.add('active');
+        next.element.setAttribute('aria-selected', 'true');
         next.content.classList.add('active');
         // Notify extension of user selection
         vscode.postMessage({ command: 'tabSelected', tabId: tabId });

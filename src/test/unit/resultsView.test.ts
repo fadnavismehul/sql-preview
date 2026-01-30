@@ -367,4 +367,10 @@ describe('ResultsViewProvider Tests', () => {
     expect(html).toContain('id="ctx-copy-query"');
     expect(html).toContain('Copy Query');
   });
+
+  it('should include accessibility attributes in tab container', () => {
+    const html = mockWebviewPanel.webview.html;
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain('aria-label="Query Results Tabs"');
+  });
 });
