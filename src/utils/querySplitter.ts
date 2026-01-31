@@ -3,7 +3,13 @@
  */
 export function* iterateSqlStatements(
   text: string
-): Generator<{ statement: string; start: number; end: number }> {
+): Generator<{
+  statement: string;
+  start: number;
+  end: number;
+  executionStart: number;
+  executionEnd: number;
+}> {
   let currentStart = 0;
   let inSingleQuote = false;
   let inDoubleQuote = false;
@@ -50,9 +56,17 @@ export function* iterateSqlStatements(
         inDoubleQuote = true;
       } else if (char === ';') {
         // End of statement
-        const statement = text.substring(currentStart, i).trim();
+        const rawChunk = text.substring(currentStart, i);
+        const statement = rawChunk.trim();
         if (statement.length > 0) {
-          yield { statement, start: currentStart, end: i };
+          const relativeStart = rawChunk.search(/\S/);
+          yield {
+            statement,
+            start: currentStart,
+            end: i,
+            executionStart: currentStart + relativeStart,
+            executionEnd: currentStart + relativeStart + statement.length,
+          };
         }
         currentStart = i + 1;
       }
@@ -61,9 +75,17 @@ export function* iterateSqlStatements(
 
   // Yield last statement
   if (currentStart < text.length) {
-    const statement = text.substring(currentStart).trim();
+    const rawChunk = text.substring(currentStart);
+    const statement = rawChunk.trim();
     if (statement.length > 0) {
-      yield { statement, start: currentStart, end: text.length };
+      const relativeStart = rawChunk.search(/\S/);
+      yield {
+        statement,
+        start: currentStart,
+        end: text.length,
+        executionStart: currentStart + relativeStart,
+        executionEnd: currentStart + relativeStart + statement.length,
+      };
     }
   }
 }

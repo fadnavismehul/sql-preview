@@ -1,4 +1,8 @@
-import { splitSqlQueries, getQueryAtOffset } from '../../utils/querySplitter';
+import {
+  splitSqlQueries,
+  getQueryAtOffset,
+  iterateSqlStatements,
+} from '../../utils/querySplitter';
 
 describe('QuerySplitter', () => {
   describe('splitSqlQueries', () => {
@@ -99,6 +103,41 @@ describe('QuerySplitter', () => {
       // True out of bounds
       expect(getQueryAtOffset(sql, -1)).toBeNull();
       expect(getQueryAtOffset(sql, 1000)).toBeNull();
+    });
+  });
+
+  describe('iterateSqlStatements', () => {
+    it('should provide correct execution ranges', () => {
+      const sql = '  SELECT 1  ;   SELECT 2';
+      // '  SELECT 1  ' -> trimmed 'SELECT 1'
+      // 'SELECT 1' starts at index 2, length 8. End at 10.
+      // Chunk 1: '  SELECT 1  ' (0 to 12) (semicolon at 12)
+      // executionStart: 2
+      // executionEnd: 10
+
+      // Chunk 2: '   SELECT 2' (13 to end)
+      // '   SELECT 2' starts at 13.
+      // 'SELECT 2' starts at 13 + 3 = 16.
+      // executionStart: 16
+      // executionEnd: 16 + 8 = 24.
+
+      const results = [...iterateSqlStatements(sql)];
+      expect(results).toHaveLength(2);
+
+      const first = results[0];
+      const second = results[1];
+
+      if (!first || !second) {
+        throw new Error('Missing results');
+      }
+
+      expect(first.statement).toBe('SELECT 1');
+      expect(first.executionStart).toBe(2);
+      expect(first.executionEnd).toBe(10);
+
+      expect(second.statement).toBe('SELECT 2');
+      expect(second.executionStart).toBe(16);
+      expect(second.executionEnd).toBe(24);
     });
   });
 });
