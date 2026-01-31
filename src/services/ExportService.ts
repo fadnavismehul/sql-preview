@@ -155,7 +155,15 @@ export class ExportService {
     if (val === null || val === undefined) {
       return '';
     }
-    const str = String(val);
+    let str = String(val);
+
+    // Sanitize CSV Injection (Formula Injection)
+    if (/^[=+\-@]/.test(str)) {
+      if (isNaN(Number(str))) {
+        str = "'" + str;
+      }
+    }
+
     if (new RegExp(`["${separator}\\n\\r]`).test(str)) {
       return `"${str.replace(/"/g, '""')}"`;
     }
