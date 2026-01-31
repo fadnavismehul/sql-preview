@@ -927,10 +927,10 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
 			<!-- Main View: Tabs and Results -->
             <div id="main-view" class="view-container">
                 <div id="tab-container" class="tab-container">
-                    <div id="tab-list" class="tab-list"></div>
+                    <div id="tab-list" class="tab-list" role="tablist" aria-label="Query Results Tabs"></div>
                     <div id="active-file-indicator" class="active-file-indicator" style="display:none;"></div>
                     <button id="connections-button" class="icon-button" title="Manage Connections" aria-label="Manage Connections" style="background:none;border:none;color:var(--vscode-foreground);cursor:pointer;padding:4px;">
-                        <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.4h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM8 11c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z"/></svg>
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.4h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM8 11c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z"/></svg>
                     </button>
                 </div>
                 
@@ -947,7 +947,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                     <div class="manager-header">
                         <div style="display:flex;align-items:center;gap:15px;">
                             <button id="close-settings" class="icon-button" title="Back to Results" aria-label="Back to Results">
-                                <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.78 2.22a.75.75 0 0 1 0 1.06L4.56 6.5h8.69a.75.75 0 0 1 0 1.5H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 0z"/></svg>
+                                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.78 2.22a.75.75 0 0 1 0 1.06L4.56 6.5h8.69a.75.75 0 0 1 0 1.5H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 0z"/></svg>
                             </button>
                             <h2>Settings</h2>
                         </div>
