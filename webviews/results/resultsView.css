@@ -99,6 +99,12 @@ body {
     border-bottom: 2px solid var(--vscode-tab-activeBorder, var(--vscode-focusBorder));
 }
 
+.tab:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+    z-index: 1;
+}
+
 .tab-label {
     flex: 1;
     overflow: hidden;
@@ -120,6 +126,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    font-family: inherit;
+    margin: 0;
 }
 
 .tab-close:hover {
