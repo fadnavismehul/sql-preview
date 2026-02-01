@@ -1,6 +1,51 @@
-import { splitSqlQueries, getQueryAtOffset } from '../../utils/querySplitter';
+import {
+  splitSqlQueries,
+  getQueryAtOffset,
+  iterateSqlStatements,
+} from '../../utils/querySplitter';
 
 describe('QuerySplitter', () => {
+  describe('iterateSqlStatements', () => {
+    it('should provide correct execution ranges', () => {
+      const sql = '  SELECT 1; \n\t SELECT 2 ';
+      const statements = Array.from(iterateSqlStatements(sql));
+
+      expect(statements).toHaveLength(2);
+
+      // "  SELECT 1"
+      // start: 0, end: 10
+      // executionStart: 2 ("SELECT 1")
+      // executionEnd: 10
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(statements[0]!.statement).toBe('SELECT 1');
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(statements[0]!.start).toBe(0);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(statements[0]!.end).toBe(10);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(statements[0]!.executionStart).toBe(2);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(statements[0]!.executionEnd).toBe(10);
+
+      // " \n\t SELECT 2 "
+      // start: 11
+      // end: length (23)
+      // chunk: " \n\t SELECT 2 " (length 12)
+      // trimmed: "SELECT 2" (length 8)
+      // leading whitespace: " \n\t " (length 4)
+      // executionStart: 11 + 4 = 15
+      // executionEnd: 15 + 8 = 23
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(statements[1]!.statement).toBe('SELECT 2');
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(statements[1]!.start).toBe(11);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(statements[1]!.executionStart).toBe(15);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      expect(statements[1]!.executionEnd).toBe(23);
+    });
+  });
+
   describe('splitSqlQueries', () => {
     it('should split simple semicolon separated queries', () => {
       const sql = 'SELECT 1; SELECT 2';
