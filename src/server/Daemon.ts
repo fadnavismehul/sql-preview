@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import * as http from 'http';
 import * as net from 'net';
 import * as fs from 'fs';
@@ -71,8 +70,6 @@ export class Daemon {
   }
 
   private setupRoutes() {
-    this.app.use(cors());
-
     // Request Logging
     this.app.use((_req, res, next) => {
       this.refreshActivity();
