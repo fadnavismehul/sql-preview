@@ -377,6 +377,9 @@ function createTab(tabId, query, title, sourceFileUri) {
     // Create Tab Element (Header)
     const tabElement = document.createElement('div');
     tabElement.className = 'tab';
+    tabElement.role = 'tab';
+    tabElement.tabIndex = -1;
+    tabElement.setAttribute('aria-selected', 'false');
     tabElement.dataset.tabId = tabId;
     tabElement.dataset.sourceFileUri = sourceFileUri || '';
 
@@ -386,9 +389,12 @@ function createTab(tabId, query, title, sourceFileUri) {
     label.title = query || ''; // Tooltip
     tabElement.appendChild(label);
 
-    const closeBtn = document.createElement('span');
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
     closeBtn.className = 'tab-close';
     closeBtn.textContent = '×';
+    closeBtn.title = 'Close Tab';
+    closeBtn.setAttribute('aria-label', 'Close Tab');
     closeBtn.onclick = (e) => {
         e.stopPropagation();
         closeTab(tabId);
@@ -396,6 +402,26 @@ function createTab(tabId, query, title, sourceFileUri) {
     tabElement.appendChild(closeBtn);
 
     tabElement.onclick = () => activateTab(tabId);
+
+    // Keyboard support
+    tabElement.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            activateTab(tabId);
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            const next = tabElement.nextElementSibling;
+            if (next && next.classList.contains('tab')) {
+                next.focus();
+            }
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            const prev = tabElement.previousElementSibling;
+            if (prev && prev.classList.contains('tab')) {
+                prev.focus();
+            }
+        }
+    };
 
     tabList.appendChild(tabElement);
 
@@ -451,6 +477,8 @@ function activateTab(tabId) {
         if (curr) {
             curr.element.classList.remove('active');
             curr.content.classList.remove('active');
+            curr.element.setAttribute('aria-selected', 'false');
+            curr.element.tabIndex = -1;
         }
     }
 
@@ -460,6 +488,8 @@ function activateTab(tabId) {
     if (next) {
         next.element.classList.add('active');
         next.content.classList.add('active');
+        next.element.setAttribute('aria-selected', 'true');
+        next.element.tabIndex = 0;
         // Notify extension of user selection
         vscode.postMessage({ command: 'tabSelected', tabId: tabId });
     }
