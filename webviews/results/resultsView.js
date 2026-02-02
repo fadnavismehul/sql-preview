@@ -377,8 +377,21 @@ function createTab(tabId, query, title, sourceFileUri) {
     // Create Tab Element (Header)
     const tabElement = document.createElement('div');
     tabElement.className = 'tab';
+    tabElement.id = 'tab-' + tabId;
+    tabElement.setAttribute('role', 'tab');
+    tabElement.setAttribute('aria-selected', 'false');
+    tabElement.setAttribute('aria-controls', 'content-' + tabId);
+    tabElement.setAttribute('tabindex', '0');
     tabElement.dataset.tabId = tabId;
     tabElement.dataset.sourceFileUri = sourceFileUri || '';
+
+    // Keyboard support
+    tabElement.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            activateTab(tabId);
+        }
+    });
 
     const label = document.createElement('span');
     label.className = 'tab-label';
@@ -386,8 +399,9 @@ function createTab(tabId, query, title, sourceFileUri) {
     label.title = query || ''; // Tooltip
     tabElement.appendChild(label);
 
-    const closeBtn = document.createElement('span');
+    const closeBtn = document.createElement('button');
     closeBtn.className = 'tab-close';
+    closeBtn.setAttribute('aria-label', 'Close tab');
     closeBtn.textContent = '×';
     closeBtn.onclick = (e) => {
         e.stopPropagation();
@@ -403,6 +417,8 @@ function createTab(tabId, query, title, sourceFileUri) {
     const contentElement = document.createElement('div');
     contentElement.className = 'tab-content';
     contentElement.id = `content-${tabId}`;
+    contentElement.setAttribute('role', 'tabpanel');
+    contentElement.setAttribute('aria-labelledby', 'tab-' + tabId);
 
     // Initial Loading State
     contentElement.innerHTML = `
@@ -451,6 +467,7 @@ function activateTab(tabId) {
         if (curr) {
             curr.element.classList.remove('active');
             curr.content.classList.remove('active');
+            curr.element.setAttribute('aria-selected', 'false');
         }
     }
 
@@ -460,6 +477,8 @@ function activateTab(tabId) {
     if (next) {
         next.element.classList.add('active');
         next.content.classList.add('active');
+        next.element.setAttribute('aria-selected', 'true');
+        next.element.focus();
         // Notify extension of user selection
         vscode.postMessage({ command: 'tabSelected', tabId: tabId });
     }

@@ -1206,3 +1206,13 @@ body {
     background-color: var(--vscode-button-secondaryHoverBackground);
     border-color: var(--vscode-errorForeground);
 }
+
+.tab:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+.tab-close:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
