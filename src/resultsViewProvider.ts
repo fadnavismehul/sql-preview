@@ -10,6 +10,7 @@ import { ConnectionManager } from './services/ConnectionManager';
 import { QueryExecutor } from './core/execution/QueryExecutor';
 import { getNonce } from './utils/nonce';
 import * as http from 'http';
+import axios from 'axios';
 
 /**
  * Manages the webview panel for displaying query results.
@@ -162,8 +163,15 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
           this._postMessage({ type: 'updateRowHeight', density });
           // eslint-disable-next-line no-console
           this._refreshConnections().catch(err => this.log(String(err)));
+          this._checkLatestVersion().catch(err => this.log(`Error checking version: ${err}`));
           return;
         }
+        case 'openExtensionPage':
+          vscode.commands.executeCommand('workbench.extensions.action.showExtensionsWithIds', [
+            'mehul.sql-preview',
+          ]);
+          return;
+
         case 'tabClosed':
           this.log(`Tab closed: ${data.tabId}`);
           this._tabManager.removeTab(data.tabId);
@@ -863,6 +871,57 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  private async _checkLatestVersion() {
+    try {
+      // Get current version from package.json
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const packageJson = require(this._extensionUri.fsPath + '/package.json');
+      const currentVersion = packageJson.version;
+
+      this._postMessage({
+        type: 'updateVersionInfo',
+        currentVersion,
+        latestVersion: null, // Loading state
+      });
+
+      // Fetch latest version from VS Code Marketplace
+      // We can query the marketplace API
+      const response = await axios.post(
+        'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery',
+        {
+          filters: [
+            {
+              criteria: [
+                { filterType: 7, value: 'mehul.sql-preview' },
+                { filterType: 8, value: 'Microsoft.VisualStudio.Code' },
+              ],
+            },
+          ],
+          flags: 0x200, // Include latest version only
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json;api-version=3.0-preview.1',
+          },
+        }
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results = response.data.results[0]?.extensions;
+      if (results && results.length > 0) {
+        const latestVersion = results[0].versions[0].version;
+        this._postMessage({
+          type: 'updateVersionInfo',
+          currentVersion,
+          latestVersion,
+        });
+      }
+    } catch (e) {
+      this.log(`Failed to check for updates: ${e}`);
+    }
+  }
+
   private _getHtmlForWebview(webview: vscode.Webview): string {
     const nonce = getNonce();
     // Local Vendor Assets for AG Grid (Community)
@@ -949,11 +1008,20 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
             <div id="settings-view" class="view-container" style="display:none;">
                 <div class="settings-view-content">
                     <div class="manager-header">
-                        <div style="display:flex;align-items:center;gap:15px;">
-                            <button id="close-settings" class="icon-button" title="Back to Results" aria-label="Back to Results">
-                                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.78 2.22a.75.75 0 0 1 0 1.06L4.56 6.5h8.69a.75.75 0 0 1 0 1.5H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 0z"/></svg>
-                            </button>
-                            <h2>Settings</h2>
+                        <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+                            <div style="display:flex;align-items:center;gap:15px;">
+                                <button id="close-settings" class="icon-button" title="Back to Results" aria-label="Back to Results">
+                                    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M7.78 2.22a.75.75 0 0 1 0 1.06L4.56 6.5h8.69a.75.75 0 0 1 0 1.5H4.56l3.22 3.22a.75.75 0 1 1-1.06 1.06l-4.5-4.5a.75.75 0 0 1 0-1.06l4.5-4.5a.75.75 0 0 1 1.06 0z"/></svg>
+                                </button>
+                                <h2>Settings</h2>
+                            </div>
+                             <div class="version-info" id="version-info-container" style="display: flex; align-items: center; gap: 10px;">
+                                <div style="text-align: right;">
+                                    <div class="version-header" style="font-weight: 600; font-size: 13px;">SQL Preview <span id="version-number" style="opacity: 0.8; font-weight: normal;"></span></div>
+                                    <div id="version-status" class="version-status" style="font-size: 11px; opacity: 0.7;">Checking for updates...</div>
+                                </div>
+                                <button id="update-btn" class="secondary-button small" style="display:none; padding: 4px 8px; font-size: 11px;">Update</button>
+                            </div>
                         </div>
                     </div>
                     <div class="settings-grid">

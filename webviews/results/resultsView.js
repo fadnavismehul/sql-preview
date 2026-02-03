@@ -219,6 +219,9 @@ window.addEventListener('message', event => {
         case 'updateRowHeight':
             updateGridDensity(message.density);
             break;
+        case 'updateVersionInfo':
+            updateVersionInfo(message.currentVersion, message.latestVersion);
+            break;
     }
 });
 
@@ -1891,5 +1894,42 @@ function updateConnectorVisibility() {
     } else {
         trinoGroup.style.display = 'block';
         sqliteGroup.style.display = 'none';
+    }
+}
+// --- Version Info ---
+function updateVersionInfo(currentVersion, latestVersion) {
+    const versionNumberEl = document.getElementById('version-number');
+    const versionStatusEl = document.getElementById('version-status');
+    const updateBtn = document.getElementById('update-btn');
+
+    if (versionNumberEl) {
+        versionNumberEl.textContent = `v${currentVersion}`;
+    }
+
+    if (versionStatusEl && updateBtn) {
+        if (!latestVersion) {
+            versionStatusEl.textContent = 'Checking for updates...';
+            updateBtn.style.display = 'none';
+        } else {
+            // Compare versions (simple logic, assuming semantic versioning)
+            if (latestVersion !== currentVersion) {
+                versionStatusEl.textContent = `Latest: v${latestVersion}`;
+                versionStatusEl.style.color = 'var(--vscode-textLink-foreground)';
+                versionStatusEl.style.cursor = 'pointer';
+                versionStatusEl.onclick = () => {
+                    vscode.postMessage({ command: 'openExtensionPage' });
+                };
+
+                updateBtn.style.display = 'inline-block';
+                updateBtn.textContent = 'Update';
+                updateBtn.onclick = () => {
+                    vscode.postMessage({ command: 'openExtensionPage' });
+                };
+            } else {
+                versionStatusEl.textContent = 'Latest version installed';
+                versionStatusEl.style.color = 'var(--vscode-descriptionForeground)';
+                updateBtn.style.display = 'none';
+            }
+        }
     }
 }

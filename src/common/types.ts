@@ -139,7 +139,8 @@ export type WebviewToExtensionMessage =
   | { command: 'setPassword' }
   | { command: 'clearPassword' }
   | { command: 'testMcpServer' }
-  | { command: 'logMessage'; level: string; message: string };
+  | { command: 'logMessage'; level: string; message: string }
+  | { command: 'openExtensionPage' };
 
 export type ExtensionToWebviewMessage =
   | {
@@ -181,4 +182,9 @@ export type ExtensionToWebviewMessage =
       error?: string | undefined;
       message?: string | undefined;
     }
-  | { type: 'updateConfig'; config: unknown };
+  | { type: 'updateConfig'; config: unknown }
+  | {
+      type: 'updateVersionInfo';
+      currentVersion: string;
+      latestVersion: string | null;
+    };

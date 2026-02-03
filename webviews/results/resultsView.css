@@ -1403,3 +1403,31 @@ body {
 .side-panel-resizer.resizing::after {
     background-color: var(--vscode-focusBorder);
 }
+
+/* --- Version Info Styles --- */
+.version-info {
+    /* Layout handled by flex container */
+}
+
+.version-header {
+    color: var(--vscode-foreground);
+    line-height: 1.2;
+}
+
+.version-status {
+    color: var(--vscode-descriptionForeground);
+    transition: color 0.2s;
+}
+
+.version-status:hover {
+    text-decoration: underline;
+}
+
+/* Ensure small update button looks good */
+.secondary-button.small {
+    height: 24px;
+    padding: 0 8px;
+    font-size: 11px;
+    line-height: 22px;
+    /* Center text vertically */
+}
