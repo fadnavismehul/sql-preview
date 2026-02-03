@@ -1355,10 +1355,7 @@ class SidePanel {
 
         // 2. Find Container in Active Tab
         const container = tab.content.querySelector('.side-panel-container');
-        if (!container) {
-            logToHost('error', 'Side panel container not found in active tab');
-            return;
-        }
+        if (!container) return;
 
         // 3. Move Side Panel Element to this Container
         if (this.element.parentElement !== container) {
@@ -1367,12 +1364,21 @@ class SidePanel {
 
         // 4. Set Content
         this.titleEl.textContent = title || 'Details';
+
         let displayStr = '';
         try {
-            if (typeof content === 'string') {
-                if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
-                    const parsed = JSON.parse(content);
-                    displayStr = JSON.stringify(parsed, null, 2);
+            if (content === null || content === undefined) {
+                displayStr = 'null';
+            } else if (typeof content === 'string') {
+                // Try to parse if it looks like JSON
+                const trimmed = content.trim();
+                if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && (trimmed.endsWith('}') || trimmed.endsWith(']'))) {
+                    try {
+                        const parsed = JSON.parse(content);
+                        displayStr = JSON.stringify(parsed, null, 2);
+                    } catch (e) {
+                        displayStr = content; // Parse failed, show raw
+                    }
                 } else {
                     displayStr = content;
                 }
@@ -1382,7 +1388,9 @@ class SidePanel {
         } catch (e) {
             displayStr = String(content);
         }
+
         this.contentEl.textContent = displayStr;
+
 
         // 5. Set Initial Width (20% of split-container) if not set or just default
         // User requested: "open up at 20% of the width"

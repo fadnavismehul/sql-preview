@@ -474,6 +474,10 @@ body {
     color: var(--vscode-textPreformat-foreground);
     font-family: var(--vscode-editor-font-family, monospace);
     margin-right: 6px;
+    pointer-events: none;
+    /* Let clicks pass through to the cell */
+    user-select: none;
+    /* Prevent text selection on double click */
 }
 
 .json-icon {
