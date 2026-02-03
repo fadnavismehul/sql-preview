@@ -164,7 +164,8 @@ function copyRangeToClipboard(tab) {
 let activeTabId = null;
 let currentRowHeightDensity = 'normal';
 let currentBooleanFormatting = 'text'; // Default to text (DataGrip style) as per user request
-let sidePanel = null; // SidePanel instance
+
+
 
 // --- Elements ---
 const tabList = document.getElementById('tab-list');
@@ -1035,14 +1036,15 @@ function updateTabWithResults(tabId, data, title) {
 
         onCellDoubleClicked: (params) => {
             logToHost('info', `DEBUG: Double click detected on ${params.colDef.headerName}`);
-            // Check if sidePanel exists and is initialized
-            if (typeof sidePanel !== 'undefined' && sidePanel) {
+            // Use PER TAB Side Panel
+            const currentTab = tabs.get(tabId);
+            if (currentTab && currentTab.sidePanel) {
                 const headerName = params.colDef.headerName;
                 const value = params.value;
                 logToHost('info', `DEBUG: Opening side panel for ${headerName}`);
-                sidePanel.show(headerName, value);
+                currentTab.sidePanel.show(headerName, value);
             } else {
-                logToHost('error', `DEBUG: sidePanel is undefined or not initialized`);
+                logToHost('error', `DEBUG: sidePanel is undefined or not initialized for tab ${tabId}`);
             }
         },
 
@@ -1100,12 +1102,9 @@ function updateTabWithResults(tabId, data, title) {
     // For now, let's keep SidePanel global, but change its implementation to NOT be fixed position,
     // but rather static relative to parent.
 
-    if (sidePanel) {
-        // If we want per-tab state, we might need multiple instances.
-        // But current simple implementation:
-        // We'll append sidePanel.element to the CURRENT tab's sidePanelContainer when showing it.
-        // For now, let's just make sure the sidePanel attaches to the DOM correctly.
-    }
+    // Initialize SidePanel logic specific to this tab
+    tab.sidePanel = new SidePanel(tabId);
+    sidePanelContainer.appendChild(tab.sidePanel.element);
 
     if (typeof agGrid !== 'undefined') {
         // Capture API (Works for v31+)
@@ -1256,8 +1255,10 @@ function copyToClipboard(columns, rows, isTsv = true) {
 
 // --- Side Panel Logic ---
 
+// Side Panel Logic - Now Per Tab
 class SidePanel {
-    constructor() {
+    constructor(tabId) {
+        this.tabId = tabId;
         this.element = document.createElement('div');
         this.element.className = 'side-panel';
         this.element.innerHTML = `
@@ -1273,8 +1274,7 @@ class SidePanel {
             </div>
             <div class="side-panel-content" id="sp-content"></div>
         `;
-        // Do NOT append to body automatically. 
-        // Logic: specific tab will append this.element to its container when shown.
+        // Do NOT append to body. It will be appended to side-panel-container in createTab.
 
         this.contentEl = this.element.querySelector('#sp-content');
         this.titleEl = this.element.querySelector('.side-panel-title');
@@ -1334,7 +1334,6 @@ class SidePanel {
                 if (newWidth > 200 && newWidth < maxW) {
                     this.currentWidth = newWidth;
                     container.style.width = `${newWidth}px`;
-                    // If using flex, we might need flex-basis or simply width + flex-shrink: 0 (which it has)
                 }
             }
         };
@@ -1348,16 +1347,15 @@ class SidePanel {
     }
 
     show(title, content) {
-        // 1. Find Active Tab
-        if (!activeTabId) return;
-        const tab = tabs.get(activeTabId);
+        // 1. Get Tab
+        const tab = tabs.get(this.tabId);
         if (!tab) return;
 
-        // 2. Find Container in Active Tab
+        // 2. Get Container
         const container = tab.content.querySelector('.side-panel-container');
         if (!container) return;
 
-        // 3. Move Side Panel Element to this Container
+        // 3. Ensure Element is in container (should be appended at creation, but check)
         if (this.element.parentElement !== container) {
             container.appendChild(this.element);
         }
@@ -1391,27 +1389,20 @@ class SidePanel {
 
         this.contentEl.textContent = displayStr;
 
-
-        // 5. Set Initial Width (20% of split-container) if not set or just default
-        // User requested: "open up at 20% of the width"
-        // We can check parent width
+        // 5. Set Initial Width if hidden
         const splitContainer = container.parentElement;
         if (splitContainer) {
             const availableWidth = splitContainer.clientWidth;
-            // If this is the *first* time showing or reset needed?
-            // Let's stick to the user req: "open up at 20%".
-            // Maybe only if it was hidden?
             if (container.style.display === 'none' || !container.style.display) {
                 this.currentWidth = Math.floor(availableWidth * 0.2);
-                // Min width check
                 this.currentWidth = Math.max(250, this.currentWidth);
             }
         }
 
         container.style.width = `${this.currentWidth}px`;
-        container.style.display = 'flex'; // Show container
+        container.style.display = 'flex';
 
-        // Ensure grid resizes to fit
+        // Resize Grid
         if (tab.api) {
             setTimeout(() => {
                 tab.api.sizeColumnsToFit();
@@ -1423,9 +1414,8 @@ class SidePanel {
         const container = this.element.parentElement;
         if (container) {
             container.style.display = 'none';
-            // Resize grid back
-            if (activeTabId) {
-                const tab = tabs.get(activeTabId);
+            if (this.tabId) {
+                const tab = tabs.get(this.tabId);
                 if (tab && tab.api) {
                     setTimeout(() => {
                         tab.api.sizeColumnsToFit();
@@ -1436,14 +1426,6 @@ class SidePanel {
     }
 }
 
-// Initialize Side Panel
-window.addEventListener('DOMContentLoaded', () => {
-    sidePanel = new SidePanel();
-});
-// Also init immediately if DOMContent already fired (scripts at end of body)
-if (document.readyState === 'interactive' || document.readyState === 'complete') {
-    if (!sidePanel) sidePanel = new SidePanel();
-}
 
 
 
