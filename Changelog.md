@@ -1,30 +1,11 @@
 # Changelog
 
-## [0.4.5] - 2026-01-29
-
-### Fixed
-
-- **Value Parsing**: Fixed an issue where large integers and doubles were incorrectly displayed as `[object Object]` or lost precision. We implemented robust backend parsing for big numbers.
-- **Complex Types**: Fixed the rendering of Trino `ROW` types (structs), which now display as interactive JSON objects instead of `[object Object]`.
-- **Connection Validation**: Enhanced the "Test Connection" feature to validate the existence of the configured Catalog and Schema, preventing "success" reports when metadata is incorrect.
-- **Regression Tests**: Added comprehensive regression tests to prevent future parsing issues.
-
-## [0.4.4] - 2026-01-27
+## [0.5.1] - 2026-02-04
 
 ### Added
 
-- **MCP Feedback**: Added `SQL Preview: Test MCP Server Connection` command to verify server health.
-- **MCP Status**: Updated Status Bar to show the specific port number the MCP server is bound to.
-
-### Changed
-
-- **MCP Reliability**: Implemented port rolling (auto-increment) for MCP server. If port 3000 is busy, it will try 3001, 3002, etc. This enables multiple VS Code windows to run the extension simultaneously without conflict.
-
-## [0.4.3] - 2026-01-27
-
-### Fixed
-
-- **Connection Robustness**: Enhanced input sanitization for Trino connections. It now automatically strips protocols (`http://`, `https://`) and duplicative port numbers from the Host field, resolving common `ENOTFOUND` and connection timeout errors caused by copy-pasting full URLs.
+- **Version Checking**: Added automated version checking for extension updates.
+- **Testing**: Added comprehensive unit tests for `ResultsViewProvider`'s version check and webview message handling.
 
 ## [0.5.0] - 2026-01-30
 
