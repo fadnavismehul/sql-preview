@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ResultsViewProvider } from './ui/webviews/results/ResultsViewProvider';
-import { PrestoCodeLensProvider } from './PrestoCodeLensProvider';
+import { PrestoCodeLensProvider } from './providers/PrestoCodeLensProvider';
 import { getQueryAtOffset } from './utils/querySplitter';
 import { ServiceContainer } from './services/ServiceContainer';
 import { QueryResults } from './common/types';

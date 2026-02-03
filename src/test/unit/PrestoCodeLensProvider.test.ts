@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 import * as vscode from 'vscode';
-import { PrestoCodeLensProvider } from '../../PrestoCodeLensProvider';
+import { PrestoCodeLensProvider } from '../../providers/PrestoCodeLensProvider';
 
 // Mocks are handled in setup.ts
 

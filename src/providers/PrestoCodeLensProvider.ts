@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { iterateSqlStatements } from './utils/querySplitter';
+import { iterateSqlStatements } from '../utils/querySplitter';
 
 /**
  * Provides CodeLens actions (like "Run Query") above SQL statements.

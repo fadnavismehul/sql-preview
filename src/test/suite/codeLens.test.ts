@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { PrestoCodeLensProvider } from '../../PrestoCodeLensProvider';
+import { PrestoCodeLensProvider } from '../../providers/PrestoCodeLensProvider';
 
 describe('CodeLens Tests', () => {
   let codeLensProvider: PrestoCodeLensProvider;
