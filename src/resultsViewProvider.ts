@@ -908,7 +908,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
       );
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const results = response.data.results[0]?.extensions;
+      const results = (response.data as any).results[0]?.extensions;
       if (results && results.length > 0) {
         const latestVersion = results[0].versions[0].version;
         this._postMessage({

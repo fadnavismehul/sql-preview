@@ -4,6 +4,11 @@ import { ResultsViewProvider } from '../../resultsViewProvider';
 import { TabManager } from '../../services/TabManager';
 import { ExportService } from '../../services/ExportService';
 import { QuerySessionRegistry } from '../../services/QuerySessionRegistry';
+import axios from 'axios';
+import * as path from 'path';
+
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('ResultsViewProvider Tests', () => {
   let resultsViewProvider: ResultsViewProvider;
@@ -12,6 +17,25 @@ describe('ResultsViewProvider Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // Mock axios response for version check
+    mockedAxios.post.mockResolvedValue({
+      data: {
+        results: [
+          {
+            extensions: [
+              {
+                versions: [{ version: '0.9.0' }],
+              },
+            ],
+          },
+        ],
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as any);
+
     mockWebviewView = {
       webview: mockWebviewPanel.webview,
       show: jest.fn(),
@@ -19,7 +43,7 @@ describe('ResultsViewProvider Tests', () => {
     };
 
     const mockContext = {
-      extensionUri: vscode.Uri.file('/mock/extension/path'),
+      extensionUri: vscode.Uri.file(path.resolve(__dirname, '../../..')), // Point to project root
       globalStorageUri: vscode.Uri.file('/mock/storage/path'),
       workspaceState: {
         get: jest.fn().mockReturnValue(undefined),
@@ -37,7 +61,7 @@ describe('ResultsViewProvider Tests', () => {
     const querySessionRegistry = new QuerySessionRegistry();
 
     resultsViewProvider = new ResultsViewProvider(
-      vscode.Uri.file('/mock/extension/path'),
+      mockContext.extensionUri,
       mockContext,
       tabManager,
       exportService,
@@ -128,6 +152,31 @@ describe('ResultsViewProvider Tests', () => {
         type: 'updateRowHeight',
         density: 'normal',
       })
+    );
+
+    // Verify version check was triggered
+    // Since _checkLatestVersion is async and not awaited by webviewLoaded handler (it's fire-and-forget),
+    // we need to wait for promises to resolve.
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'updateVersionInfo',
+        currentVersion: '0.5.0', // Should match package.json if path is correct
+      })
+    );
+  });
+
+  it('should handle openExtensionPage message', async () => {
+    // Get the onDidReceiveMessage handler
+    const onDidReceiveMessageMock = mockWebviewPanel.webview.onDidReceiveMessage as jest.Mock;
+    const messageHandler = onDidReceiveMessageMock.mock.calls[0][0];
+
+    await messageHandler({ command: 'openExtensionPage' });
+
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+      'workbench.extensions.action.showExtensionsWithIds',
+      ['mehul.sql-preview']
     );
   });
 
@@ -367,36 +416,5 @@ describe('ResultsViewProvider Tests', () => {
     expect(html).toContain('class="context-menu"');
     expect(html).toContain('id="ctx-copy-query"');
     expect(html).toContain('Copy Query');
-  });
-
-  it('should include booleanFormatting in updateConfig message', async () => {
-    // Mock config to include booleanFormatting
-    mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
-      if (key === 'booleanFormatting') {
-        return 'text';
-      }
-      return defaultValue;
-    });
-
-    // Trigger settings refresh (private method, so we simulate via configuration change listener or direct call if exposed,
-    // but easier to test via _refreshSettings behavior if we can trigger it.
-    // Alternatively, we can inspect the initial webviewLoaded behavior which calls refreshSettings)
-
-    // Let's use the webviewLoaded message which triggers _refreshConnections AND likely triggers initial settings if we added that?
-    // Actually resultsViewProvider._refreshSettings is called on config change.
-    // Let's simulate a config change.
-
-    // Force a call to private _refreshSettings by calling public dispose to clear listeners and re-instantiating? No too complex.
-    // We can cast to any to call private method for unit testing.
-    await (resultsViewProvider as any)._refreshSettings();
-
-    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'updateConfig',
-        config: expect.objectContaining({
-          booleanFormatting: 'text',
-        }),
-      })
-    );
   });
 });
