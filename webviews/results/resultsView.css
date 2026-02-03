@@ -152,6 +152,8 @@ body {
 
 .tab-content.active {
     display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .no-tabs-message {
@@ -497,7 +499,28 @@ body {
     color: var(--vscode-textPreformat-foreground);
 }
 
+
+/* --- Boolean Cell Styles --- */
+.bool-true {
+    color: #4CAF50;
+    /* Green */
+    font-weight: 500;
+}
+
+.bool-false {
+    color: #F44336;
+    /* Red/Orange */
+    font-weight: 500;
+}
+
+.bool-null {
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+    opacity: 0.8;
+}
+
 /* --- Cancel Button & Warning Badge --- */
+
 .cancel-button {
     background-color: var(--vscode-button-secondaryBackground);
     color: var(--vscode-button-secondaryForeground);
@@ -1215,4 +1238,164 @@ body {
 .tab-close:focus-visible {
     outline: 1px solid var(--vscode-focusBorder);
     outline-offset: -1px;
+}
+
+/* --- Side Panel (Premium Look) --- */
+
+.side-panel {
+    /* Fixed positioning removed, now lives in container */
+    width: 100%;
+    height: 100%;
+    background-color: var(--vscode-editor-background);
+    display: flex;
+    /* Always flex, visibility handled by container */
+    flex-direction: column;
+    z-index: 10;
+
+}
+
+/* Transition removed as we are resizing container */
+
+.side-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 35px;
+    /* Fixed height for consistency */
+    padding: 0 16px;
+    background-color: var(--vscode-editorGroupHeader-tabsBackground);
+    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border));
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.side-panel-title {
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--vscode-panelTitle-activeForeground, var(--vscode-editor-foreground));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.side-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+}
+
+.side-panel-button {
+    background: transparent;
+    border: none;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    padding: 4px;
+    margin: 0;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    transition: background-color 0.1s;
+}
+
+.side-panel-button:hover {
+    background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.side-panel-button svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+    pointer-events: none;
+}
+
+.side-panel-content {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+    font-family: var(--vscode-editor-font-family, 'Fira Code', 'Consolas', monospace);
+    font-size: var(--sql-preview-font-size, var(--vscode-editor-font-size));
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    user-select: text;
+    color: var(--vscode-editor-foreground);
+    background-color: var(--vscode-editor-background);
+}
+
+/* --- Split Layout --- */
+
+.split-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    /* Critical for visibility */
+}
+
+.results-grid {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    width: 100%;
+}
+
+.side-panel-container {
+    width: 400px;
+    /* Default open width, but starts display:none via JS or default class */
+    height: 100%;
+    border-left: 1px solid var(--vscode-panel-border, var(--vscode-editorWidget-border));
+    background-color: var(--vscode-editor-background);
+    display: none;
+    flex-shrink: 0;
+    position: relative;
+}
+
+/* Update Side Panel to fit in container */
+.side-panel {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--vscode-editor-background);
+
+}
+
+
+
+.side-panel-resizer {
+    position: absolute;
+    left: -4px;
+    /* Hit area expands slightly */
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    /* Larger hit area */
+    cursor: col-resize;
+    z-index: 2001;
+    background: transparent;
+}
+
+/* Visual indicator on hover/drag */
+.side-panel-resizer::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: transparent;
+    transition: background-color 0.2s;
+}
+
+.side-panel-resizer:hover::after,
+.side-panel-resizer.resizing::after {
+    background-color: var(--vscode-focusBorder);
 }

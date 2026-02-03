@@ -163,6 +163,8 @@ function copyRangeToClipboard(tab) {
 }
 let activeTabId = null;
 let currentRowHeightDensity = 'normal';
+let currentBooleanFormatting = 'text'; // Default to text (DataGrip style) as per user request
+let sidePanel = null; // SidePanel instance
 
 // --- Elements ---
 const tabList = document.getElementById('tab-list');
@@ -774,11 +776,7 @@ class JsonCellRenderer {
         this.value = params.value;
         this.updateValue();
 
-        // Add click handler to button or element
-        this.eGui.addEventListener('click', (e) => {
-            e.stopPropagation(); // prevent row selection if intended?
-            showJsonModal(params.colDef.headerName, this.value);
-        });
+        // No specific click listeners needed here, grid handles double click
     }
 
     getGui() {
@@ -809,6 +807,45 @@ class JsonCellRenderer {
             this.eGui.title = "Click to view full JSON";
         } else {
             this.eGui.innerHTML = `<span class="code-value">${escapeHtml(displayValue)}</span>`;
+        }
+    }
+
+    refresh(params) {
+        this.value = params.value;
+        this.updateValue();
+        return true;
+    }
+}
+
+
+class BooleanCellRenderer {
+    init(params) {
+        this.eGui = document.createElement('span');
+        this.value = params.value;
+        this.updateValue();
+    }
+
+    getGui() {
+        return this.eGui;
+    }
+
+    updateValue() {
+        if (this.value === null || this.value === undefined) {
+            this.eGui.className = 'bool-null';
+            this.eGui.textContent = 'null';
+            return;
+        }
+
+        if (this.value === true || String(this.value).toLowerCase() === 'true') {
+            this.eGui.className = 'bool-true';
+            this.eGui.textContent = 'true';
+        } else if (this.value === false || String(this.value).toLowerCase() === 'false') {
+            this.eGui.className = 'bool-false';
+            this.eGui.textContent = 'false';
+        } else {
+            // Fallback for weird values
+            this.eGui.className = '';
+            this.eGui.textContent = String(this.value);
         }
     }
 
@@ -894,6 +931,9 @@ function updateTabWithResults(tabId, data, title) {
     data.columns.forEach(col => {
         const type = col.type.toLowerCase();
         const isJson = type.includes('json') || type.includes('array') || type.includes('map') || type.includes('struct') || type.includes('row');
+        // Simple heuristic for boolean types.
+        // Common SQL names: boolean, bool, bit (sometimes)
+        const isBoolean = type === 'boolean' || type === 'bool' || type === 'tinyint(1)';
 
         // Calculate standard width based on header length
         // Approx 9px per char + padding (80px for filter icon space). Max 300px, Min 100px.
@@ -907,7 +947,7 @@ function updateTabWithResults(tabId, data, title) {
             resizable: true,
             width: width, // Manual width calculation
             headerTooltip: col.type,
-            cellRenderer: isJson ? JsonCellRenderer : undefined,
+            cellRenderer: isBoolean && currentBooleanFormatting === 'text' ? BooleanCellRenderer : (isJson ? JsonCellRenderer : undefined),
         });
     });
 
@@ -993,6 +1033,19 @@ function updateTabWithResults(tabId, data, title) {
         ensureDomOrder: true,
         suppressMenuHide: true,
 
+        onCellDoubleClicked: (params) => {
+            logToHost('info', `DEBUG: Double click detected on ${params.colDef.headerName}`);
+            // Check if sidePanel exists and is initialized
+            if (typeof sidePanel !== 'undefined' && sidePanel) {
+                const headerName = params.colDef.headerName;
+                const value = params.value;
+                logToHost('info', `DEBUG: Opening side panel for ${headerName}`);
+                sidePanel.show(headerName, value);
+            } else {
+                logToHost('error', `DEBUG: sidePanel is undefined or not initialized`);
+            }
+        },
+
         defaultColDef: {
             minWidth: 100,
             filter: CustomSetFilter,
@@ -1017,12 +1070,42 @@ function updateTabWithResults(tabId, data, title) {
     const toolbar = createToolbar(tabId, gridOptions, data);
     tab.content.appendChild(toolbar);
 
+    // Create Split Layout Container
+    const splitContainer = document.createElement('div');
+    splitContainer.className = 'split-container';
+    tab.content.appendChild(splitContainer);
+
     // Create Grid Container
     const gridDiv = document.createElement('div');
-    gridDiv.className = 'ag-theme-quartz results-grid'; // Added results-grid class
-    // gridDiv.style.height = '100%'; // CSS handles this via flex
-    // gridDiv.style.width = '100%';
-    tab.content.appendChild(gridDiv);
+    gridDiv.className = 'ag-theme-quartz results-grid';
+    splitContainer.appendChild(gridDiv);
+
+    // Create Side Panel Container (Initially hidden or zero width)
+    const sidePanelContainer = document.createElement('div');
+    sidePanelContainer.className = 'side-panel-container';
+    splitContainer.appendChild(sidePanelContainer);
+
+    // Initialize SidePanel logic specific to this tab (or global reused)
+    // We'll reuse the global sidePanel but re-parent it or adjust logic?
+    // Better: Ensure SidePanel is a singleton that can attach/detach or just stay global?
+    // User wants it "beside the table". Global fixed side panel is effectively "beside" if we adjust grid margin?
+    // Better: Make SidePanel part of the layout.
+
+    // Let's create a new SidePanel instance per tab OR re-attach the global one.
+    // Given tabs switch display:none, we can have one global instance but we need to ensure it's
+    // visualy adjacent. 
+    // Actually, simply appending the global sidePanel.element to the active tab's sidePanelContainer
+    // when tab is activated is cleaner.
+
+    // For now, let's keep SidePanel global, but change its implementation to NOT be fixed position,
+    // but rather static relative to parent.
+
+    if (sidePanel) {
+        // If we want per-tab state, we might need multiple instances.
+        // But current simple implementation:
+        // We'll append sidePanel.element to the CURRENT tab's sidePanelContainer when showing it.
+        // For now, let's just make sure the sidePanel attaches to the DOM correctly.
+    }
 
     if (typeof agGrid !== 'undefined') {
         // Capture API (Works for v31+)
@@ -1137,11 +1220,26 @@ function copyToClipboard(columns, rows, isTsv = true) {
     const body = rows.map(row => {
         return row.map(cell => {
             if (cell === null || cell === undefined) return '';
-            // Escape special chars if necessary (simple version)
-            const str = String(cell);
+
+            let str = '';
+            if (typeof cell === 'object') {
+                try {
+                    str = JSON.stringify(cell);
+                } catch (e) {
+                    str = String(cell);
+                }
+            } else {
+                str = String(cell);
+            }
+
             if (isTsv) {
+                // Remove tabs and newlines for TSV compatibility
                 return str.replace(/\t/g, ' ').replace(/\n/g, ' ');
             }
+
+            // For CSV, we'd need more robust escaping, but current usage is mostly TSV copy 
+            // or we can reuse similar logic? The existing code didn't do full CSV escaping here.
+            // But let's at least keep basic hygiene.
             return str;
         }).join(delimiter);
     }).join('\n');
@@ -1153,68 +1251,192 @@ function copyToClipboard(columns, rows, isTsv = true) {
     });
 }
 
+
 // --- JSON Modal ---
 
-function showJsonModal(title, jsonValue) {
-    // Check if modal container exists
-    let modal = document.getElementById('json-modal-overlay');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'json-modal-overlay';
-        modal.className = 'json-modal-overlay';
-        modal.innerHTML = `
-            <div class="json-modal">
-                <div class="json-modal-header">
-                    <span class="json-modal-title">JSON View</span>
-                    <div class="json-modal-actions">
-                        <button class="json-modal-button" id="json-copy-btn">Copy</button>
-                        <button class="json-modal-button" id="json-close-btn">Close</button>
-                    </div>
-                </div>
-                <pre class="json-modal-body" id="json-modal-content"></pre>
-            </div>
-        `;
-        document.body.appendChild(modal);
+// --- Side Panel Logic ---
 
-        // Close handlers
-        document.getElementById('json-close-btn').onclick = () => { modal.style.display = 'none'; };
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.style.display = 'none';
+class SidePanel {
+    constructor() {
+        this.element = document.createElement('div');
+        this.element.className = 'side-panel';
+        this.element.innerHTML = `
+            <div class="side-panel-resizer"></div>
+            <div class="side-panel-header">
+                <span class="side-panel-title">Details</span>
+                <div class="side-panel-actions">
+                    <button class="side-panel-button" title="Copy Content" id="sp-copy">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M4 4H12V13H4V4ZM3 4C3 3.44772 3.44772 3 4 3H12C12.5523 3 13 3.44772 13 4V13C13 13.5523 12.5523 14 12 14H4C3.44772 14 3 13.5523 3 13V4Z"/><path d="M4 1H12V2H4V1Z"/></svg>
+                    </button>
+                    <button class="side-panel-button" title="Close" id="sp-close">✕</button>
+                </div>
+            </div>
+            <div class="side-panel-content" id="sp-content"></div>
+        `;
+        // Do NOT append to body automatically. 
+        // Logic: specific tab will append this.element to its container when shown.
+
+        this.contentEl = this.element.querySelector('#sp-content');
+        this.titleEl = this.element.querySelector('.side-panel-title');
+        this.resizer = this.element.querySelector('.side-panel-resizer');
+
+        this.isResizing = false;
+        // Default width stored, but applied to container
+        this.currentWidth = 400;
+
+        this.attachListeners();
+    }
+
+    attachListeners() {
+        // Close
+        this.element.querySelector('#sp-close').onclick = () => this.hide();
+
+        // Copy
+        this.element.querySelector('#sp-copy').onclick = () => {
+            const text = this.contentEl.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                vscode.postMessage({ command: 'alert', text: '✅ Content copied to clipboard' });
+            });
+        };
+
+        // Resize
+        this.resizer.addEventListener('mousedown', (e) => {
+            this.isResizing = true;
+            this.resizer.classList.add('resizing');
+
+            // Capture initial X to calculate delta
+            this.startX = e.clientX;
+            // Get current width of the PARENT container
+            const container = this.element.parentElement;
+            if (container) {
+                this.startWidth = container.offsetWidth;
+            } else {
+                this.startWidth = this.currentWidth;
+            }
+
+            document.addEventListener('mousemove', this.onMouseMove);
+            document.addEventListener('mouseup', this.onMouseUp);
+            e.preventDefault(); // Prevent text selection
         });
 
-        // Copy handler
-        document.getElementById('json-copy-btn').onclick = () => {
-            const content = document.getElementById('json-modal-content').innerText;
-            navigator.clipboard.writeText(content).then(() => {
-                const btn = document.getElementById('json-copy-btn');
-                const original = btn.textContent;
-                btn.textContent = 'Copied!';
-                setTimeout(() => btn.textContent = original, 1500);
-            });
+        this.onMouseMove = (e) => {
+            if (!this.isResizing) return;
+
+            // Delta: Moving LEFT (negative) increases width. Moving RIGHT (positive) decreases width.
+            const delta = this.startX - e.clientX;
+            const newWidth = this.startWidth + delta;
+
+            const container = this.element.parentElement;
+            if (container) {
+                // Max width: 80% of window (prevent locking yourself out)
+                const maxW = document.body.clientWidth * 0.8;
+                // Min width: 200px
+                if (newWidth > 200 && newWidth < maxW) {
+                    this.currentWidth = newWidth;
+                    container.style.width = `${newWidth}px`;
+                    // If using flex, we might need flex-basis or simply width + flex-shrink: 0 (which it has)
+                }
+            }
+        };
+
+        this.onMouseUp = () => {
+            this.isResizing = false;
+            this.resizer.classList.remove('resizing');
+            document.removeEventListener('mousemove', this.onMouseMove);
+            document.removeEventListener('mouseup', this.onMouseUp);
         };
     }
 
-    const contentEl = document.getElementById('json-modal-content');
-    const titleEl = modal.querySelector('.json-modal-title');
+    show(title, content) {
+        // 1. Find Active Tab
+        if (!activeTabId) return;
+        const tab = tabs.get(activeTabId);
+        if (!tab) return;
 
-    titleEl.textContent = title || 'JSON View';
-
-    let displayStr = '';
-    try {
-        if (typeof jsonValue === 'string') {
-            // Try to parse if it's a stringified JSON
-            const parsed = JSON.parse(jsonValue);
-            displayStr = JSON.stringify(parsed, null, 2);
-        } else {
-            displayStr = JSON.stringify(jsonValue, null, 2);
+        // 2. Find Container in Active Tab
+        const container = tab.content.querySelector('.side-panel-container');
+        if (!container) {
+            logToHost('error', 'Side panel container not found in active tab');
+            return;
         }
-    } catch (e) {
-        displayStr = String(jsonValue);
+
+        // 3. Move Side Panel Element to this Container
+        if (this.element.parentElement !== container) {
+            container.appendChild(this.element);
+        }
+
+        // 4. Set Content
+        this.titleEl.textContent = title || 'Details';
+        let displayStr = '';
+        try {
+            if (typeof content === 'string') {
+                if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
+                    const parsed = JSON.parse(content);
+                    displayStr = JSON.stringify(parsed, null, 2);
+                } else {
+                    displayStr = content;
+                }
+            } else {
+                displayStr = JSON.stringify(content, null, 2);
+            }
+        } catch (e) {
+            displayStr = String(content);
+        }
+        this.contentEl.textContent = displayStr;
+
+        // 5. Set Initial Width (20% of split-container) if not set or just default
+        // User requested: "open up at 20% of the width"
+        // We can check parent width
+        const splitContainer = container.parentElement;
+        if (splitContainer) {
+            const availableWidth = splitContainer.clientWidth;
+            // If this is the *first* time showing or reset needed?
+            // Let's stick to the user req: "open up at 20%".
+            // Maybe only if it was hidden?
+            if (container.style.display === 'none' || !container.style.display) {
+                this.currentWidth = Math.floor(availableWidth * 0.2);
+                // Min width check
+                this.currentWidth = Math.max(250, this.currentWidth);
+            }
+        }
+
+        container.style.width = `${this.currentWidth}px`;
+        container.style.display = 'flex'; // Show container
+
+        // Ensure grid resizes to fit
+        if (tab.api) {
+            setTimeout(() => {
+                tab.api.sizeColumnsToFit();
+            }, 50);
+        }
     }
 
-    contentEl.textContent = displayStr;
-    modal.style.display = 'flex';
+    hide() {
+        const container = this.element.parentElement;
+        if (container) {
+            container.style.display = 'none';
+            // Resize grid back
+            if (activeTabId) {
+                const tab = tabs.get(activeTabId);
+                if (tab && tab.api) {
+                    setTimeout(() => {
+                        tab.api.sizeColumnsToFit();
+                    }, 50);
+                }
+            }
+        }
+    }
 }
+
+// Initialize Side Panel
+window.addEventListener('DOMContentLoaded', () => {
+    sidePanel = new SidePanel();
+});
+// Also init immediately if DOMContent already fired (scripts at end of body)
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    if (!sidePanel) sidePanel = new SidePanel();
+}
+
 
 
 function updateTabWithError(tabId, error, query, title) {
@@ -1451,6 +1673,7 @@ function saveAllSettings() {
         fontSize: parseInt(document.getElementById('cfg-fontSize').value, 10),
         rowHeight: document.getElementById('cfg-rowHeight').value,
         tabNaming: document.getElementById('cfg-tabNaming').value,
+        booleanFormatting: document.getElementById('cfg-booleanFormatting').value,
 
         // Connector Settings
         defaultConnector: document.getElementById('cfg-defaultConnector').value,
@@ -1483,6 +1706,9 @@ function saveAllSettings() {
         // Check if message handler uses --vscode-editor-font-size
         // Previous code used --sql-preview-font-size here, but message handler used --vscode-editor-font-size?
         // I should stick to one. The 'updateFontSize' handler uses --vscode-editor-font-size.
+    }
+    if (settings.booleanFormatting) {
+        currentBooleanFormatting = settings.booleanFormatting;
     }
 }
 
@@ -1628,6 +1854,11 @@ function populateSettings(config) {
     document.getElementById('cfg-fontSize').value = config.fontSize || 0;
     document.getElementById('cfg-rowHeight').value = config.rowHeight || 'normal';
     document.getElementById('cfg-tabNaming').value = config.tabNaming || 'file-sequential';
+    document.getElementById('cfg-booleanFormatting').value = config.booleanFormatting || 'text';
+
+    if (config.booleanFormatting) {
+        currentBooleanFormatting = config.booleanFormatting;
+    }
 
     // Connector
     document.getElementById('cfg-defaultConnector').value = config.defaultConnector || 'trino';
