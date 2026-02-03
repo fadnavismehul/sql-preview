@@ -120,14 +120,47 @@ export function activate(context: vscode.ExtensionContext) {
   // Auth/Password Commands
   context.subscriptions.push(
     vscode.commands.registerCommand('sql.setPassword', async () => {
-      vscode.window.showInformationMessage(
-        'Please update ~/.sql-preview/config.json with credentials for SQL Preview Server.'
-      );
+      const manager = serviceContainer.connectionManager;
+      const connections = await manager.getConnections();
+      let profileId: string;
+
+      // Ensure at least one profile exists
+      if (connections.length === 0) {
+        profileId = 'default-' + Date.now();
+        // Create minimal default profile
+        const defaultProfile: any = {
+          id: profileId,
+          name: 'Default Connection',
+          type: 'trino', // Default
+          host: 'localhost',
+          port: 8080,
+          user: 'user',
+        };
+        await manager.saveConnection(defaultProfile);
+      } else {
+        profileId = connections[0]!.id;
+      }
+
+      const password = await vscode.window.showInputBox({
+        prompt: 'Enter Database Password',
+        password: true,
+        placeHolder: 'Password will be stored securely in VS Code Secret Storage',
+      });
+
+      if (password !== undefined && password.length > 0) {
+        await manager.updatePassword(profileId, password);
+        vscode.window.showInformationMessage('Password saved securely.');
+      }
     }),
     vscode.commands.registerCommand('sql.clearPassword', async () => {
-      vscode.window.showInformationMessage(
-        'Please update ~/.sql-preview/config.json to clear credentials.'
-      );
+      const manager = serviceContainer.connectionManager;
+      const connections = await manager.getConnections();
+      if (connections.length > 0) {
+        await manager.clearPasswordForConnection(connections[0]!.id);
+        vscode.window.showInformationMessage('Credentials cleared.');
+      } else {
+        vscode.window.showInformationMessage('No credentials found to clear.');
+      }
     })
   );
 }

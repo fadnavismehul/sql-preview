@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
 import axios from 'axios';
-import { TabData, ExtensionToWebviewMessage, ConnectionProfile } from '../../../common/types';
+import { TabData, ExtensionToWebviewMessage } from '../../../common/types';
 import { TabManager } from '../../../services/TabManager';
 import { ExportService } from '../../../services/ExportService';
 import { QuerySessionRegistry } from '../../../services/QuerySessionRegistry';
@@ -149,8 +149,6 @@ export class ResultsMessageHandler {
           // SQLite doesn't use auth header usually
         } else {
           // Trino
-          authHeader = undefined;
-
           testConfig = {
             host: config.host,
             port: parseInt(config.port, 10),
@@ -161,6 +159,19 @@ export class ResultsMessageHandler {
             sslVerify: config.sslVerify,
             maxRows: 1,
           };
+
+          // Try to retrieve password for default profile
+          const connections = await this._connectionManager.getConnections();
+          // Logic matches saveSettings: use first existing or generate default ID (though generating new one won't have password)
+          // If no connections exist, we can't find a password. User must have saved or set password.
+          if (connections.length > 0) {
+            const profileId = connections[0]!.id; // Assumption: Single default profile for now
+            const fullProfile = await this._connectionManager.getConnection(profileId);
+            if (fullProfile && fullProfile.password) {
+              const password = fullProfile.password;
+              authHeader = 'Basic ' + Buffer.from(`${config.user}:${password}`).toString('base64');
+            }
+          }
         }
 
         const result = await this._queryExecutor.testConnection(
@@ -181,7 +192,8 @@ export class ResultsMessageHandler {
       }
       case 'testMcpServer': {
         // Check Daemon Health
-        const req = http.get('http://localhost:8414/status', res => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const req = http.get('http://localhost:8414/status', (res: any) => {
           if (res.statusCode === 200) {
             this._delegate.postMessage({
               type: 'testMcpResult',
@@ -197,7 +209,7 @@ export class ResultsMessageHandler {
           }
         });
 
-        req.on('error', e => {
+        req.on('error', (e: any) => {
           this._delegate.postMessage({
             type: 'testMcpResult',
             success: false,
@@ -257,26 +269,21 @@ export class ResultsMessageHandler {
           writeConfig('mcpEnabled', s.mcpEnabled),
           writeConfig('mcpPort', s.mcpPort),
           writeConfig('defaultConnector', s.defaultConnector),
-          // duplicate in original: writeConfig('mcpEnabled', s.mcpEnabled),
-          // duplicate in original: writeConfig('mcpPort', s.mcpPort),
-          // duplicate in original: writeConfig('defaultConnector', s.defaultConnector),
           writeConfig('databasePath', s.databasePath),
         ]);
 
         // Sync with ConnectionManager (Default Profile)
         const existing = await this._connectionManager.getConnections();
         const profileId =
-          existing.length > 0 && existing[0] ? existing[0].id : 'default-' + Date.now();
+          existing.length > 0 && existing[0] ? existing[0]!.id : 'default-' + Date.now();
 
-        let profile: ConnectionProfile;
+        let profile: import('../../../common/types').ConnectionProfile;
         if (s.defaultConnector === 'sqlite') {
           profile = {
             id: profileId,
             name: 'Default Connection',
             type: 'sqlite',
             databasePath: s.databasePath || '',
-            // Populate ConnectionProfileCommon properties
-            // SQLite profile doesn't have host/port/user/ssl in interface, force cast or omit
           } as any;
         } else {
           profile = {
@@ -293,33 +300,66 @@ export class ResultsMessageHandler {
           };
         }
         await this._connectionManager.saveConnection(profile);
+        // Note: saveConnection preserves existing password via simple merge check or secrets logic
+        // But here we construct a new object. saveConnection implementation handles merging?
+        // Checking ConnectionManager: it receives the profile. It does NOT merge "password" from retrieval unless provided.
+        // But we want to PRESERVE password if it exists.
+        // Wait, ConnectionManager.saveConnection splits password.
+        // If we pass a profile WITHOUT password field, does it delete it?
+        // "if (password !== undefined)" -> checks field presence.
+        // In our constructing above, 'password' key is missing (undefined).
+        // So saveConnection(profile) where password is undefined => It will NOT touch the secret. Correct.
 
         // Refresh settings to confirm
-        const hasPassword = false;
-        this._delegate.postMessage({
-          type: 'updateConfig',
-          config: {
-            ...s,
-            hasPassword,
-          },
-        });
+        this._delegate.refreshSettings(); // This will fetch stored password status
 
         vscode.window.setStatusBarMessage('SQL Preview settings saved.', 2000);
         return;
       }
-      case 'setPassword':
-        vscode.commands.executeCommand('sql.setPassword').then(() => {
-          // Refresh after delay to pick up change
-          setTimeout(() => {
-            // Hacky loopback: we need to trigger refreshSettings logic
-            // But we are in the handler. We can just call refreshSettingsDelegate
-            this._delegate.refreshSettings();
-          }, 1000);
+      case 'setPassword': {
+        const password = await vscode.window.showInputBox({
+          prompt: 'Enter Database Password',
+          password: true,
+          placeHolder: 'Password will be stored securely in VS Code Secret Storage',
         });
+
+        if (password !== undefined && password.length > 0) {
+          const existing = await this._connectionManager.getConnections();
+          // Ensure a profile exists
+          let profileId: string;
+          if (existing.length === 0) {
+            // Should create one first?
+            // Quick fix: create a default one with default settings
+            profileId = 'default-' + Date.now();
+            // We need some minimal config.
+            const defaultProfile: any = {
+              id: profileId,
+              name: 'Default Connection',
+              type: 'trino',
+              host: 'localhost',
+              port: 8080,
+              user: 'user',
+            };
+            await this._connectionManager.saveConnection(defaultProfile);
+          } else {
+            profileId = existing[0]!.id;
+          }
+
+          await this._connectionManager.updatePassword(profileId, password);
+          vscode.window.showInformationMessage('Password saved securely.');
+          this._delegate.refreshSettings();
+        }
         return;
-      case 'clearPassword':
-        vscode.commands.executeCommand('sql.clearPassword');
+      }
+      case 'clearPassword': {
+        const existing = await this._connectionManager.getConnections();
+        if (existing.length > 0) {
+          await this._connectionManager.clearPasswordForConnection(existing[0]!.id);
+          vscode.window.showInformationMessage('Password cleared.');
+          this._delegate.refreshSettings();
+        }
         return;
+      }
       case 'logMessage':
         this.log(`[Webview ${data.level.toUpperCase()}] ${data.message}`);
         return;
