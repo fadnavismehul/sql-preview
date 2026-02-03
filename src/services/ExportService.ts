@@ -155,7 +155,18 @@ export class ExportService {
     if (val === null || val === undefined) {
       return '';
     }
-    let str = String(val);
+
+    let str: string;
+
+    if (typeof val === 'object') {
+      try {
+        str = JSON.stringify(val);
+      } catch (e) {
+        str = String(val);
+      }
+    } else {
+      str = String(val);
+    }
 
     // Sanitize CSV Injection (Formula Injection)
     if (/^[=+\-@]/.test(str)) {

@@ -59,11 +59,11 @@ describe('ExportService Security', () => {
       // Yield data
       yield {
         data: [
-            ['=1+1'],
-            ['@SUM(1,1)'],
-            ['-10'], // Valid number, should NOT be escaped
-            ['+5'],  // Valid number, should NOT be escaped
-            ['-cmd|'], // Not a number, should be escaped
+          ['=1+1'],
+          ['@SUM(1,1)'],
+          ['-10'], // Valid number, should NOT be escaped
+          ['+5'], // Valid number, should NOT be escaped
+          ['-cmd|'], // Not a number, should be escaped
         ],
       };
     }
@@ -84,7 +84,7 @@ describe('ExportService Security', () => {
     // lines[0] is header "val"
 
     // Check line 1: =1+1 should be escaped
-    assert.strictEqual(lines[1], "'=1+1", "Should escape =1+1");
+    assert.strictEqual(lines[1], "'=1+1", 'Should escape =1+1');
 
     // Check line 2: @SUM(1,1) should be escaped and quoted because of comma
     // Expected: "'@SUM(1,1)" (quoted because of comma)
@@ -92,10 +92,10 @@ describe('ExportService Security', () => {
     // fs.createWriteStream().write() calls might be separate for header and rows.
     // Let's debug capturedOutput if test fails.
 
-    assert.strictEqual(lines[2], `"'@SUM(1,1)"`, "Should escape @SUM(1,1) and handle quotes");
+    assert.strictEqual(lines[2], `"'@SUM(1,1)"`, 'Should escape @SUM(1,1) and handle quotes');
 
-    assert.strictEqual(lines[3], "-10", "Should NOT escape -10");
-    assert.strictEqual(lines[4], "+5", "Should NOT escape +5");
-    assert.strictEqual(lines[5], "'-cmd|", "Should escape -cmd|");
+    assert.strictEqual(lines[3], '-10', 'Should NOT escape -10');
+    assert.strictEqual(lines[4], '+5', 'Should NOT escape +5');
+    assert.strictEqual(lines[5], "'-cmd|", 'Should escape -cmd|');
   });
 });

@@ -332,7 +332,11 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
             writeConfig('mcpEnabled', s.mcpEnabled),
             writeConfig('mcpPort', s.mcpPort),
             writeConfig('defaultConnector', s.defaultConnector),
+            writeConfig('mcpEnabled', s.mcpEnabled),
+            writeConfig('mcpPort', s.mcpPort),
+            writeConfig('defaultConnector', s.defaultConnector),
             writeConfig('databasePath', s.databasePath),
+            writeConfig('booleanFormatting', s.booleanFormatting),
           ]);
 
           // Sync with ConnectionManager (Default Profile)
@@ -849,6 +853,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
         mcpPort: config.get('mcpPort'),
         defaultConnector: config.get('defaultConnector'),
         databasePath: config.get('databasePath'),
+        booleanFormatting: config.get('booleanFormatting'),
         hasPassword,
         mcpStatus: {
           running: !!config.get('mcpEnabled'),
@@ -982,6 +987,16 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                     <select id="cfg-tabNaming">
                                         <option value="query-snippet">Query Content</option>
                                         <option value="file-sequential">Sequential</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group" style="flex:1;">
+                                    <label for="cfg-booleanFormatting">Boolean Format</label>
+                                    <select id="cfg-booleanFormatting">
+                                        <option value="text">True/False/Null (DataGrip)</option>
+                                        <option value="checkbox">Checkbox (Default)</option>
                                     </select>
                                 </div>
                             </div>

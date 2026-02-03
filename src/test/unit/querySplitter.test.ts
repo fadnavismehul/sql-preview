@@ -1,8 +1,4 @@
-import {
-  splitSqlQueries,
-  getQueryAtOffset,
-  iterateSqlStatements,
-} from '../../utils/querySplitter';
+import { splitSqlQueries, getQueryAtOffset, iterateSqlStatements } from '../../utils/querySplitter';
 
 describe('QuerySplitter', () => {
   describe('splitSqlQueries', () => {

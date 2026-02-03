@@ -359,6 +359,7 @@ describe('ResultsViewProvider Tests', () => {
       fileName: 'my query script.sql',
     });
   });
+
   it('should include context menu in webview HTML', () => {
     // Access the HTML set on the webview
     const html = mockWebviewPanel.webview.html;
@@ -366,5 +367,36 @@ describe('ResultsViewProvider Tests', () => {
     expect(html).toContain('class="context-menu"');
     expect(html).toContain('id="ctx-copy-query"');
     expect(html).toContain('Copy Query');
+  });
+
+  it('should include booleanFormatting in updateConfig message', async () => {
+    // Mock config to include booleanFormatting
+    mockWorkspaceConfig.get.mockImplementation((key: string, defaultValue: any) => {
+      if (key === 'booleanFormatting') {
+        return 'text';
+      }
+      return defaultValue;
+    });
+
+    // Trigger settings refresh (private method, so we simulate via configuration change listener or direct call if exposed,
+    // but easier to test via _refreshSettings behavior if we can trigger it.
+    // Alternatively, we can inspect the initial webviewLoaded behavior which calls refreshSettings)
+
+    // Let's use the webviewLoaded message which triggers _refreshConnections AND likely triggers initial settings if we added that?
+    // Actually resultsViewProvider._refreshSettings is called on config change.
+    // Let's simulate a config change.
+
+    // Force a call to private _refreshSettings by calling public dispose to clear listeners and re-instantiating? No too complex.
+    // We can cast to any to call private method for unit testing.
+    await (resultsViewProvider as any)._refreshSettings();
+
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'updateConfig',
+        config: expect.objectContaining({
+          booleanFormatting: 'text',
+        }),
+      })
+    );
   });
 });

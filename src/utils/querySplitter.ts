@@ -1,9 +1,7 @@
 /**
  * Tokenizes SQL text into statements and their ranges.
  */
-export function* iterateSqlStatements(
-  text: string
-): Generator<{
+export function* iterateSqlStatements(text: string): Generator<{
   statement: string;
   start: number;
   end: number;
