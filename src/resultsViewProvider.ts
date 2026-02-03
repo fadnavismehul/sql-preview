@@ -1020,7 +1020,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                     <div class="version-header" style="font-weight: 600; font-size: 13px;">SQL Preview <span id="version-number" style="opacity: 0.8; font-weight: normal;"></span></div>
                                     <div id="version-status" class="version-status" style="font-size: 11px; opacity: 0.7;">Checking for updates...</div>
                                 </div>
-                                <button id="update-btn" class="secondary-button small" style="display:none; padding: 4px 8px; font-size: 11px;">Update</button>
+                                <button id="update-btn" class="primary-button small" style="display:none; padding: 4px 8px; font-size: 11px;">Update</button>
                             </div>
                         </div>
                     </div>
@@ -1115,7 +1115,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                             <label>Password</label>
                                             <div class="input-with-actions">
                                                 <span id="password-status" class="status-badge">(Checking...)</span>
-                                                <button id="set-password-btn" class="secondary-button small">Set</button>
+                                                <button id="set-password-btn" class="primary-button small">Set</button>
                                                 <button id="clear-password-btn" class="danger-button small">Clear</button>
                                             </div>
                                         </div>
@@ -1136,7 +1136,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                     </div>
 
                                     <div class="form-group" style="margin-top: 15px;">
-                                        <button id="test-connection-btn" class="secondary-button" style="width: auto;">Test Connection</button>
+                                        <button id="test-connection-btn" class="primary-button" style="width: auto;">Test Connection</button>
                                         <span id="test-connection-status" class="status-badge" style="margin-left: 10px;"></span>
                                     </div>
                                 </div>
@@ -1180,7 +1180,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
                                         </div>
                                     </div>
                                     
-                                        <button id="test-mcp-btn" class="secondary-button" style="width: auto;">Test MCP Server</button>
+                                        <button id="test-mcp-btn" class="primary-button" style="width: auto;">Test MCP Server</button>
                                         <span id="test-mcp-status" class="status-badge"></span>
                                     </div>
                                 </div>
