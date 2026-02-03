@@ -163,7 +163,6 @@ function copyRangeToClipboard(tab) {
 }
 let activeTabId = null;
 let currentRowHeightDensity = 'normal';
-let currentBooleanFormatting = 'text'; // Default to text (DataGrip style) as per user request
 
 
 
@@ -948,7 +947,7 @@ function updateTabWithResults(tabId, data, title) {
             resizable: true,
             width: width, // Manual width calculation
             headerTooltip: col.type,
-            cellRenderer: isBoolean && currentBooleanFormatting === 'text' ? BooleanCellRenderer : (isJson ? JsonCellRenderer : undefined),
+            cellRenderer: isBoolean ? BooleanCellRenderer : (isJson ? JsonCellRenderer : undefined),
         });
     });
 
@@ -1663,7 +1662,8 @@ function saveAllSettings() {
         fontSize: parseInt(document.getElementById('cfg-fontSize').value, 10),
         rowHeight: document.getElementById('cfg-rowHeight').value,
         tabNaming: document.getElementById('cfg-tabNaming').value,
-        booleanFormatting: document.getElementById('cfg-booleanFormatting').value,
+        tabNaming: document.getElementById('cfg-tabNaming').value,
+        // booleanFormatting removed
 
         // Connector Settings
         defaultConnector: document.getElementById('cfg-defaultConnector').value,
@@ -1697,9 +1697,7 @@ function saveAllSettings() {
         // Previous code used --sql-preview-font-size here, but message handler used --vscode-editor-font-size?
         // I should stick to one. The 'updateFontSize' handler uses --vscode-editor-font-size.
     }
-    if (settings.booleanFormatting) {
-        currentBooleanFormatting = settings.booleanFormatting;
-    }
+
 }
 
 // Attach listeners to all config inputs
@@ -1844,11 +1842,7 @@ function populateSettings(config) {
     document.getElementById('cfg-fontSize').value = config.fontSize || 0;
     document.getElementById('cfg-rowHeight').value = config.rowHeight || 'normal';
     document.getElementById('cfg-tabNaming').value = config.tabNaming || 'file-sequential';
-    document.getElementById('cfg-booleanFormatting').value = config.booleanFormatting || 'text';
 
-    if (config.booleanFormatting) {
-        currentBooleanFormatting = config.booleanFormatting;
-    }
 
     // Connector
     document.getElementById('cfg-defaultConnector').value = config.defaultConnector || 'trino';

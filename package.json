@@ -233,20 +233,6 @@
           ],
           "order": 11
         },
-        "sqlPreview.booleanFormatting": {
-          "type": "string",
-          "enum": [
-            "text",
-            "checkbox"
-          ],
-          "default": "text",
-          "description": "Format for displaying boolean values.",
-          "enumDescriptions": [
-            "Show as true/false/null text (DataGrip style)",
-            "Show as checkboxes (default AG Grid behavior)"
-          ],
-          "order": 16
-        },
         "sqlPreview.mcpEnabled": {
           "type": "boolean",
           "default": false,
