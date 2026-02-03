@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { mockWebviewPanel, mockWorkspaceConfig } from '../setup';
-import { ResultsViewProvider } from '../../resultsViewProvider';
+import { ResultsViewProvider } from '../../ui/webviews/results/ResultsViewProvider';
 import { TabManager } from '../../services/TabManager';
 import { ExportService } from '../../services/ExportService';
 import { QuerySessionRegistry } from '../../services/QuerySessionRegistry';
@@ -388,7 +388,7 @@ describe('ResultsViewProvider Tests', () => {
   });
 
   it('should filter tabs when active editor changes', () => {
-    (resultsViewProvider as any)._filterTabsByFile('file:///path/to/script.sql');
+    (resultsViewProvider as any).filterTabsByFile('file:///path/to/script.sql');
 
     // This updates the view, but might not change active tab if there isn't one.
     // However, it sends filterTabs message.
@@ -400,7 +400,7 @@ describe('ResultsViewProvider Tests', () => {
   });
 
   it('should decode and filter tabs when active editor has encoded characters', () => {
-    (resultsViewProvider as any)._filterTabsByFile('file:///path/to/my%20query%20script.sql');
+    (resultsViewProvider as any).filterTabsByFile('file:///path/to/my%20query%20script.sql');
 
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'filterTabs',

@@ -1,0 +1,387 @@
+import * as vscode from 'vscode';
+import * as http from 'http';
+import axios from 'axios';
+import { TabData, ExtensionToWebviewMessage, ConnectionProfile } from '../../../common/types';
+import { TabManager } from '../../../services/TabManager';
+import { ExportService } from '../../../services/ExportService';
+import { QuerySessionRegistry } from '../../../services/QuerySessionRegistry';
+import { ConnectionManager } from '../../../services/ConnectionManager';
+import { QueryExecutor } from '../../../core/execution/QueryExecutor';
+import { Logger } from '../../../core/logging/Logger';
+
+export interface MessageHandlerDelegate {
+  postMessage(message: ExtensionToWebviewMessage): void;
+  restoreTabs(): void;
+  refreshSettings(): Promise<void>;
+  filterTabsByFile(fileUri: string | undefined): void;
+  getActiveEditorUri(): string | undefined;
+}
+
+export class ResultsMessageHandler {
+  constructor(
+    private readonly _delegate: MessageHandlerDelegate,
+    private readonly _tabManager: TabManager,
+    private readonly _exportService: ExportService,
+    private readonly _querySessionRegistry: QuerySessionRegistry,
+    private readonly _connectionManager: ConnectionManager,
+    private readonly _queryExecutor: QueryExecutor,
+    private readonly _extensionUri: vscode.Uri
+  ) {}
+
+  public async handleMessage(data: any) {
+    switch (data.command) {
+      case 'alert':
+        vscode.window.showInformationMessage(data.text);
+        return;
+      case 'createNewTab':
+        vscode.commands.executeCommand('sql.runQueryNewTab');
+        return;
+      case 'lockMcpPort': {
+        const target = vscode.ConfigurationTarget.Workspace;
+        await vscode.workspace.getConfiguration('sqlPreview').update('mcpPort', data.port, target);
+        vscode.window.showInformationMessage(`MCP Port locked to ${data.port} for this workspace.`);
+        return;
+      }
+      case 'webviewLoaded': {
+        this._delegate.restoreTabs();
+        const activeUri = this._delegate.getActiveEditorUri();
+        if (activeUri) {
+          this._delegate.filterTabsByFile(activeUri);
+        }
+        // Send current row height setting
+        const config = vscode.workspace.getConfiguration('sqlPreview');
+        const density = config.get<string>('rowHeight', 'normal');
+        this._delegate.postMessage({ type: 'updateRowHeight', density });
+        // eslint-disable-next-line no-console
+        this._refreshConnections().catch(err => this.log(String(err)));
+        this._checkLatestVersion().catch(err => this.log(`Error checking version: ${err}`));
+        return;
+      }
+      case 'openExtensionPage':
+        vscode.commands.executeCommand('workbench.extensions.action.showExtensionsWithIds', [
+          'mehul.sql-preview',
+        ]);
+        return;
+
+      case 'tabClosed':
+        this.log(`Tab closed: ${data.tabId}`);
+        this._tabManager.removeTab(data.tabId);
+        // We need to trigger save state in the parent, but TabManager updates are sync.
+        // The parent provider should listen to TabManager or we trigger save explicitly?
+        // Original code called _saveState() directly.
+        // Ideally we should have a callback or event.
+        // For now, let's assume the delegate or parent handles persistence via other means
+        // OR we add a saveState method to delegate.
+        // Let's assume the main provider saves state when its own methods are called or we need to expose save.
+        // The original logic saved state on EVERY message.
+        // We might need to bubble up an event 'onStateChange'.
+        // For simplicity, let's ask delegate to save.
+        // But the detailed implementation plan didn't specify 'saveState' on delegate.
+        // We will emit an event or call a method if we add it.
+        // Actually, let's look at the original code: it calls _saveState() often.
+        // Let's rely on the TabManager updates and maybe expose a 'persistState' on delegate?
+        // Let's stick to the plan: modularize.
+        // We can emit an event?
+        // Let's just assume we can call a method passed in or defined.
+        // Checking existing `ResultsViewProvider.ts`, `_saveState` is private.
+        // We'll trust the caller to handle persistence if we don't have it here,
+        // BUT the original code did it here.
+        // Let's add `saveState` to the delegate interface for now to be safe.
+        // Wait, the interface above only has `postMessage`, `restoreTabs`, etc.
+        // Let's add `saveState`.
+        if ((this._delegate as any).saveState) {
+          await (this._delegate as any).saveState();
+        }
+        return;
+      case 'updateTabState': {
+        const updates: Partial<TabData> = {};
+        if (data.title) {
+          updates.title = data.title;
+        }
+        if (data.query) {
+          updates.query = data.query;
+        }
+        this._tabManager.updateTab(data.tabId, updates);
+        if ((this._delegate as any).saveState) {
+          await (this._delegate as any).saveState();
+        }
+        return;
+      }
+      case 'tabSelected':
+        this._tabManager.setActiveTab(data.tabId);
+        if ((this._delegate as any).saveState) {
+          await (this._delegate as any).saveState();
+        }
+        return;
+      case 'exportResults': {
+        const tab = this._tabManager.getTab(data.tabId);
+        if (tab) {
+          this._exportService.exportResults(tab);
+        }
+        return;
+      }
+      case 'cancelQuery': {
+        this.log(`Cancelling query for tab: ${data.tabId}`);
+        try {
+          this._querySessionRegistry.cancelSession(data.tabId);
+          this.log(`Cancellation signal sent for tab: ${data.tabId}`);
+        } catch (e) {
+          this.log(`Error cancelling session: ${e}`);
+        }
+        return;
+      }
+      case 'testConnection': {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const config = data.config;
+
+        const workspaceConfig = vscode.workspace.getConfiguration('sqlPreview');
+        const connectorType =
+          config.defaultConnector || workspaceConfig.get<string>('defaultConnector', 'trino');
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let testConfig: any;
+        let authHeader: string | undefined;
+
+        if (connectorType === 'sqlite') {
+          testConfig = {
+            databasePath: config.databasePath,
+          };
+          // SQLite doesn't use auth header usually
+        } else {
+          // Trino
+          authHeader = undefined;
+
+          testConfig = {
+            host: config.host,
+            port: parseInt(config.port, 10),
+            user: config.user,
+            catalog: config.catalog,
+            schema: config.schema,
+            ssl: config.ssl,
+            sslVerify: config.sslVerify,
+            maxRows: 1,
+          };
+        }
+
+        const result = await this._queryExecutor.testConnection(
+          connectorType,
+          testConfig,
+          authHeader
+        );
+        this._delegate.postMessage({
+          type: 'testConnectionResult',
+          success: result.success,
+          ...(result.error ? { error: result.error } : {}),
+        } as ExtensionToWebviewMessage);
+        return;
+      }
+      case 'refreshSettings': {
+        await this._delegate.refreshSettings();
+        return;
+      }
+      case 'testMcpServer': {
+        // Check Daemon Health
+        const req = http.get('http://localhost:8414/status', res => {
+          if (res.statusCode === 200) {
+            this._delegate.postMessage({
+              type: 'testMcpResult',
+              success: true,
+              message: 'Server is running and reachable.',
+            });
+          } else {
+            this._delegate.postMessage({
+              type: 'testMcpResult',
+              success: false,
+              error: `Server responded with HTTP ${res.statusCode}`,
+            });
+          }
+        });
+
+        req.on('error', e => {
+          this._delegate.postMessage({
+            type: 'testMcpResult',
+            success: false,
+            error: `Connection Failed: ${e.message}. Ensure Server is running.`,
+          });
+        });
+
+        req.end();
+        return;
+      }
+      case 'saveSettings': {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const s = data.settings as any;
+
+        let resource: vscode.Uri | undefined;
+        const activeUri = this._delegate.getActiveEditorUri();
+        if (activeUri) {
+          try {
+            resource = vscode.Uri.parse(activeUri);
+          } catch (e) {
+            // Ignore invalid URIs
+          }
+        } else {
+          const folders = vscode.workspace.workspaceFolders;
+          if (folders && folders.length > 0) {
+            resource = folders[0]?.uri;
+          }
+        }
+
+        const config = vscode.workspace.getConfiguration('sqlPreview', resource);
+
+        // Helper to write to correct target (Global Default, Workspace Override Maintenance)
+        const writeConfig = async (key: string, value: unknown) => {
+          const inspect = config.inspect(key);
+          const target =
+            inspect?.workspaceValue !== undefined
+              ? vscode.ConfigurationTarget.Workspace
+              : vscode.ConfigurationTarget.Global;
+          await config.update(key, value, target);
+        };
+
+        // Batch updates
+        await Promise.all([
+          writeConfig('maxRowsToDisplay', s.maxRowsToDisplay),
+          writeConfig('fontSize', s.fontSize),
+          writeConfig('rowHeight', s.rowHeight),
+          writeConfig('tabNaming', s.tabNaming),
+
+          writeConfig('host', s.host),
+          writeConfig('port', s.port),
+          writeConfig('user', s.user),
+          writeConfig('catalog', s.catalog),
+          writeConfig('schema', s.schema),
+          writeConfig('ssl', s.ssl),
+          writeConfig('sslVerify', s.sslVerify),
+
+          writeConfig('mcpEnabled', s.mcpEnabled),
+          writeConfig('mcpPort', s.mcpPort),
+          writeConfig('defaultConnector', s.defaultConnector),
+          // duplicate in original: writeConfig('mcpEnabled', s.mcpEnabled),
+          // duplicate in original: writeConfig('mcpPort', s.mcpPort),
+          // duplicate in original: writeConfig('defaultConnector', s.defaultConnector),
+          writeConfig('databasePath', s.databasePath),
+        ]);
+
+        // Sync with ConnectionManager (Default Profile)
+        const existing = await this._connectionManager.getConnections();
+        const profileId =
+          existing.length > 0 && existing[0] ? existing[0].id : 'default-' + Date.now();
+
+        let profile: ConnectionProfile;
+        if (s.defaultConnector === 'sqlite') {
+          profile = {
+            id: profileId,
+            name: 'Default Connection',
+            type: 'sqlite',
+            databasePath: s.databasePath || '',
+            // Populate ConnectionProfileCommon properties
+            // SQLite profile doesn't have host/port/user/ssl in interface, force cast or omit
+          } as any;
+        } else {
+          profile = {
+            id: profileId,
+            name: 'Default Connection',
+            type: 'trino',
+            host: s.host || 'localhost',
+            port: s.port || 8080,
+            user: s.user || 'user',
+            catalog: s.catalog,
+            schema: s.schema,
+            ssl: s.ssl || false,
+            sslVerify: s.sslVerify !== false,
+          };
+        }
+        await this._connectionManager.saveConnection(profile);
+
+        // Refresh settings to confirm
+        const hasPassword = false;
+        this._delegate.postMessage({
+          type: 'updateConfig',
+          config: {
+            ...s,
+            hasPassword,
+          },
+        });
+
+        vscode.window.setStatusBarMessage('SQL Preview settings saved.', 2000);
+        return;
+      }
+      case 'setPassword':
+        vscode.commands.executeCommand('sql.setPassword').then(() => {
+          // Refresh after delay to pick up change
+          setTimeout(() => {
+            // Hacky loopback: we need to trigger refreshSettings logic
+            // But we are in the handler. We can just call refreshSettingsDelegate
+            this._delegate.refreshSettings();
+          }, 1000);
+        });
+        return;
+      case 'clearPassword':
+        vscode.commands.executeCommand('sql.clearPassword');
+        return;
+      case 'logMessage':
+        this.log(`[Webview ${data.level.toUpperCase()}] ${data.message}`);
+        return;
+    }
+  }
+
+  private async _refreshConnections() {
+    const connections = await this._connectionManager.getConnections();
+    this._delegate.postMessage({ type: 'updateConnections', connections });
+  }
+
+  private async _checkLatestVersion() {
+    try {
+      // Get current version from package.json
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const packageJson = require(this._extensionUri.fsPath + '/package.json');
+      const currentVersion = packageJson.version;
+
+      this._delegate.postMessage({
+        type: 'updateVersionInfo',
+        currentVersion,
+        latestVersion: null, // Loading state
+      });
+
+      // Fetch latest version from VS Code Marketplace
+      const response = await axios.post(
+        'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery',
+        {
+          filters: [
+            {
+              criteria: [
+                { filterType: 7, value: 'mehul.sql-preview' },
+                { filterType: 8, value: 'Microsoft.VisualStudio.Code' },
+              ],
+            },
+          ],
+          flags: 0x200, // Include latest version only
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json;api-version=3.0-preview.1',
+          },
+        }
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const results = (response.data as any).results[0]?.extensions;
+      if (results && results.length > 0) {
+        const latestVersion = results[0].versions[0].version;
+        this._delegate.postMessage({
+          type: 'updateVersionInfo',
+          currentVersion,
+          latestVersion,
+        });
+      }
+    } catch (e) {
+      this.log(`Failed to check for updates: ${e}`);
+    }
+  }
+
+  private log(message: string) {
+    Logger.getInstance().info(message);
+  }
+}

@@ -1757,7 +1757,9 @@ if (testConnectionBtn) {
             catalog: document.getElementById('cfg-catalog').value,
             schema: document.getElementById('cfg-schema').value,
             ssl: document.getElementById('cfg-ssl').checked,
-            sslVerify: document.getElementById('cfg-sslVerify').checked
+            sslVerify: document.getElementById('cfg-sslVerify').checked,
+            databasePath: document.getElementById('cfg-databasePath').value,
+            defaultConnector: document.getElementById('cfg-defaultConnector').value
         };
 
         testConnectionBtn.textContent = 'Testing...';

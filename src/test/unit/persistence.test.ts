@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ResultsViewProvider } from '../../resultsViewProvider';
+import { ResultsViewProvider } from '../../ui/webviews/results/ResultsViewProvider';
 import { QuerySessionRegistry } from '../../services/QuerySessionRegistry';
 import { TabManager } from '../../services/TabManager';
 import { ExportService } from '../../services/ExportService';

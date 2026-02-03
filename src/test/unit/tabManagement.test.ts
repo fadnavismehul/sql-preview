@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as sinon from 'sinon';
-import { ResultsViewProvider } from '../../resultsViewProvider';
+import { ResultsViewProvider } from '../../ui/webviews/results/ResultsViewProvider';
 import { TabManager } from '../../services/TabManager';
 import { ExportService } from '../../services/ExportService';
 import { QuerySessionRegistry } from '../../services/QuerySessionRegistry';

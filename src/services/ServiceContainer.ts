@@ -1,5 +1,5 @@
 import { QueryExecutor } from '../core/execution/QueryExecutor';
-import { ResultsViewProvider } from '../resultsViewProvider';
+import { ResultsViewProvider } from '../ui/webviews/results/ResultsViewProvider';
 import { TabManager } from './TabManager';
 import { ExportService } from './ExportService';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
