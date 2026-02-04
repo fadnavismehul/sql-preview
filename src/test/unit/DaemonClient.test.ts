@@ -6,11 +6,11 @@ import { DaemonClient } from '../../services/DaemonClient';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 
 // Mock dependencies
-// Mock dependencies
 jest.mock('fs', () => ({
   existsSync: jest.fn(),
   openSync: jest.fn(),
   unlinkSync: jest.fn(),
+  readFileSync: jest.fn(),
 }));
 jest.mock('net');
 jest.mock('child_process');
@@ -58,8 +58,8 @@ describe('DaemonClient', () => {
     (cp.spawn as jest.Mock).mockReturnValue(mockChildProcess);
 
     // Mock fs common setup
-    (fs.existsSync as jest.Mock).mockReturnValue(false); // Default: socket doesn't exist
-    (fs.openSync as jest.Mock).mockReturnValue(123); // Mock file descriptor
+    (fs.existsSync as jest.Mock).mockReturnValue(false);
+    (fs.openSync as jest.Mock).mockReturnValue(123);
 
     // Initialize client
     client = new DaemonClient(mockContext);
@@ -67,7 +67,6 @@ describe('DaemonClient', () => {
 
   describe('start', () => {
     it('should connect to existing socket if available', async () => {
-      // Setup: Connect succeeds immediately
       (net.createConnection as jest.Mock).mockReturnValueOnce(mockSocket);
       mockSocket.on.mockImplementation((event: string, cb: any) => {
         if (event === 'connect') {
@@ -83,9 +82,7 @@ describe('DaemonClient', () => {
     });
 
     it('should spawn daemon if connection fails initially', async () => {
-      // Setup: First connect fails, then spawn, then connect succeeds
-
-      // 1. Initial connect fails (socket doesn't exist or refused)
+      // 1. Initial connect fails
       const failSocket = {
         on: jest.fn((event, cb) => {
           if (event === 'error') {
@@ -94,7 +91,7 @@ describe('DaemonClient', () => {
         }),
       };
 
-      // 2. Poll connect succeeds
+      // Success socket
       const successSocket = {
         ...mockSocket,
         on: jest.fn((event, cb) => {
@@ -106,21 +103,32 @@ describe('DaemonClient', () => {
 
       (net.createConnection as jest.Mock)
         .mockReturnValueOnce(failSocket)
-        .mockReturnValue(successSocket); // subsequent calls succeed
+        .mockReturnValue(successSocket);
 
-      // Mock socket file appearing after spawn
-      (fs.existsSync as jest.Mock)
-        .mockReturnValueOnce(false) // Check before clean
-        .mockReturnValueOnce(true); // Check during poll
+      // fs logic:
+      // 1. cleanupStaleDaemon(pid) -> false
+      // 2. socket stale check -> false
+      // 3. poll loop -> true
+
+      let callCount = 0;
+      (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
+        if (pathArg.includes('server.pid')) {
+          return false;
+        }
+        if (pathArg.includes('srv.sock')) {
+          callCount++;
+          return callCount > 1; // 1st check false, 2nd true
+        }
+        return false;
+      });
 
       await client.start();
 
       expect(cp.spawn).toHaveBeenCalled();
-      expect(net.createConnection).toHaveBeenCalledTimes(2); // 1 fail, 1 success
+      expect(net.createConnection).toHaveBeenCalledTimes(2);
     });
 
     it('should cleanup stale socket before spawning', async () => {
-      // 1. Initial connect fails
       const failSocket = {
         on: jest.fn((event, cb) => {
           if (event === 'error') {
@@ -128,12 +136,6 @@ describe('DaemonClient', () => {
           }
         }),
       };
-      (net.createConnection as jest.Mock).mockReturnValueOnce(failSocket);
-
-      // 2. fs.existsSync returns true for socket path (stale)
-      (fs.existsSync as jest.Mock).mockReturnValueOnce(true).mockReturnValue(true);
-
-      // 3. Poll connect succeeds
       const successSocket = {
         ...mockSocket,
         on: jest.fn((event, cb) => {
@@ -142,18 +144,84 @@ describe('DaemonClient', () => {
           }
         }),
       };
-      (net.createConnection as jest.Mock).mockReturnValue(successSocket);
+
+      (net.createConnection as jest.Mock)
+        .mockReturnValueOnce(failSocket)
+        .mockReturnValue(successSocket);
+
+      // fs logic:
+      // 1. cleanupStaleDaemon(pid) -> false
+      // 2. socket stale check -> TRUE -> unlink
+      // 3. poll loop -> TRUE
+      (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
+        if (pathArg.includes('server.pid')) {
+          return false;
+        }
+        if (pathArg.includes('srv.sock')) {
+          return true; // Always true (stale found, then loop matches)
+        }
+        return false;
+      });
 
       await client.start();
 
       expect(fs.unlinkSync).toHaveBeenCalled();
       expect(cp.spawn).toHaveBeenCalled();
     });
+
+    it('should kill stale daemon process if PID file exists', async () => {
+      const failSocket = {
+        on: jest.fn((event, cb) => {
+          if (event === 'error') {
+            cb(new Error('Connect failed'));
+          }
+        }),
+      };
+      const successSocket = {
+        ...mockSocket,
+        on: jest.fn((event, cb) => {
+          if (event === 'connect') {
+            cb();
+          }
+        }),
+      };
+
+      (net.createConnection as jest.Mock)
+        .mockReturnValueOnce(failSocket)
+        .mockReturnValue(successSocket);
+
+      // fs logic:
+      // 1. cleanupStaleDaemon(pid) -> TRUE -> read -> kill -> unlink
+      // 2. socket stale check -> false
+      // 3. poll loop -> true
+
+      let socketCheckCount = 0;
+      (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
+        if (pathArg.includes('server.pid')) {
+          return true;
+        }
+        if (pathArg.includes('srv.sock')) {
+          socketCheckCount++;
+          return socketCheckCount > 1;
+        }
+        return false;
+      });
+      (fs.readFileSync as jest.Mock).mockReturnValue('9999');
+
+      const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
+
+      await client.start();
+
+      expect(killSpy).toHaveBeenCalledWith(9999, 'SIGTERM');
+      expect(fs.unlinkSync).toHaveBeenCalledWith(expect.stringContaining('server.pid'));
+      expect(cp.spawn).toHaveBeenCalled();
+
+      killSpy.mockRestore();
+    });
   });
 
   describe('runQuery', () => {
     it('should call executing tool and return Tab ID', async () => {
-      // Setup client to be connected (conceptually)
       mockClientInstance.callTool.mockResolvedValue({
         content: [{ type: 'text', text: 'Query submitted. Tab ID: tab-123' }],
       });
@@ -229,7 +297,7 @@ describe('DaemonClient', () => {
       await client.stop();
 
       expect(mockClientInstance.close).toHaveBeenCalled();
-      expect(mockSocket.end).toHaveBeenCalled(); // via transport.close()
+      expect(mockSocket.end).toHaveBeenCalled();
     });
   });
 });

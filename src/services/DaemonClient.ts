@@ -102,7 +102,10 @@ export class DaemonClient {
       // Ignore error, proceed to start
     }
 
-    // 2. Clean up stale socket
+    // 2. Kill stale daemon if exists
+    await this.cleanupStaleDaemon();
+
+    // 3. Clean up stale socket
     if (fs.existsSync(this.socketPath)) {
       try {
         fs.unlinkSync(this.socketPath);
@@ -234,6 +237,38 @@ export class DaemonClient {
     await this.client.close();
     if (this.transport) {
       await this.transport.close();
+    }
+  }
+
+  private async cleanupStaleDaemon() {
+    const configDir = path.join(os.homedir(), '.sql-preview');
+    const pidPath = path.join(configDir, 'server.pid');
+
+    if (fs.existsSync(pidPath)) {
+      try {
+        const pid = parseInt(fs.readFileSync(pidPath, 'utf8'), 10);
+        if (!isNaN(pid)) {
+          // Check if process exists and kill it
+          try {
+            process.kill(pid, 'SIGTERM');
+            // Give it a moment to exit
+            await new Promise(r => setTimeout(r, 200));
+            // Force kill if still running
+            try {
+              process.kill(pid, 0);
+              process.kill(pid, 'SIGKILL');
+            } catch (e) {
+              // Already gone
+            }
+          } catch (e) {
+            // Process probably doesn't exist
+          }
+        }
+        // Remove PID file
+        fs.unlinkSync(pidPath);
+      } catch (e) {
+        // Ignore read/unlink errors
+      }
     }
   }
 }

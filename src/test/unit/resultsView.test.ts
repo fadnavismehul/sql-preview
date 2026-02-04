@@ -162,7 +162,7 @@ describe('ResultsViewProvider Tests', () => {
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'updateVersionInfo',
-        currentVersion: '0.5.2', // Should match package.json if path is correct
+        currentVersion: '0.5.4', // Should match package.json if path is correct
       })
     );
   });
