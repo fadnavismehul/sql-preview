@@ -54,6 +54,7 @@ describe('DaemonClient', () => {
       on: jest.fn(),
       stderr: { on: jest.fn() },
       stdout: { on: jest.fn() },
+      exitCode: null, // Explicitly null to simulate running process
     };
     (cp.spawn as jest.Mock).mockReturnValue(mockChildProcess);
 
@@ -218,9 +219,94 @@ describe('DaemonClient', () => {
 
       killSpy.mockRestore();
     });
+
+    it('should throw error with logs if daemon exits prematurely', async () => {
+      // Setup: Connect fails, spawn happens
+      (net.createConnection as jest.Mock).mockReturnValue({
+        on: jest.fn((event, cb) => {
+          if (event === 'error') {
+            cb(new Error('Connect failed'));
+          }
+        }),
+      });
+
+      // Mock Child Process with implicit exitCode and stderr
+      const mockStderr = { on: jest.fn() };
+      mockChildProcess = {
+        unref: jest.fn(),
+        on: jest.fn(),
+        stderr: mockStderr,
+        stdout: { on: jest.fn() },
+        exitCode: null, // Initially running
+      };
+      (cp.spawn as jest.Mock).mockReturnValue(mockChildProcess);
+
+      // Simulate stderr data
+      mockStderr.on.mockImplementation((event, cb) => {
+        if (event === 'data') {
+          cb('Module not found: express');
+        }
+      });
+
+      // fs logic: loop a few times then die
+      let checks = 0;
+      (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
+        if (pathArg.includes('srv.sock')) {
+          checks++;
+          if (checks > 2) {
+            // Simulate crash
+            mockChildProcess.exitCode = 1;
+          }
+          return false;
+        }
+        return false;
+      });
+
+      await expect(client.start()).rejects.toThrow(
+        'Daemon exited prematurely with code 1. Logs: Module not found: express'
+      );
+    });
   });
 
   describe('runQuery', () => {
+    it('should await readyPromise before execution', async () => {
+      // Mock start() to create a purely pending promise (via readyPromise)
+      // We can't easily mock private property.
+      // Instead, we simulate start() behavior where ensureServerRunning takes time.
+
+      let resolveStart: () => void;
+      const startPromise = new Promise<void>(r => (resolveStart = r));
+
+      // Spy on ensureServerRunning by replacing the method on the instance
+      // Note: ensureServerRunning is private, so we cast to any
+      (client as any).ensureServerRunning = jest.fn(() => startPromise);
+
+      // Mock the callTool response AHEAD of time so it's ready when runQuery resumes
+      mockClientInstance.callTool.mockResolvedValue({
+        content: [{ type: 'text', text: 'Tab ID: tab-1' }],
+      });
+
+      // Call start - this initializes readyPromise
+      const startCall = client.start();
+
+      // Now call runQuery. It should await readyPromise.
+      const queryPromise = client.runQuery('SELECT 1');
+
+      // It maintains pending because startPromise is pending
+      const race = Promise.race([queryPromise, Promise.resolve('pending')]);
+      await expect(race).resolves.toBe('pending');
+
+      // Verify tool wasn't called yet
+      expect(mockClientInstance.callTool).not.toHaveBeenCalled();
+
+      // Now resolve start
+      resolveStart!();
+      await startCall; // Ensure start completes
+
+      // Expected result
+      await expect(queryPromise).resolves.toBe('tab-1');
+    });
+
     it('should call executing tool and return Tab ID', async () => {
       mockClientInstance.callTool.mockResolvedValue({
         content: [{ type: 'text', text: 'Query submitted. Tab ID: tab-123' }],

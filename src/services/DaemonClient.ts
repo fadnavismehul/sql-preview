@@ -71,6 +71,8 @@ export class DaemonClient {
   private sessionId: string;
   private process: cp.ChildProcess | undefined;
   private socketPath: string;
+  private readyPromise: Promise<void> | undefined;
+  private startupLogBuffer = '';
 
   constructor(private readonly context: vscode.ExtensionContext) {
     // Short session ID to save tokens for LLM agents
@@ -90,7 +92,8 @@ export class DaemonClient {
   }
 
   public async start() {
-    await this.ensureServerRunning();
+    this.readyPromise = this.ensureServerRunning();
+    await this.readyPromise;
   }
 
   private async ensureServerRunning() {
@@ -118,9 +121,15 @@ export class DaemonClient {
     await this.spawnDaemon();
 
     // 4. Wait for socket (Poll)
-    const timeout = 10000;
+    const timeout = 30000;
     const start = Date.now();
     while (Date.now() - start < timeout) {
+      if (this.process && this.process.exitCode !== null) {
+        throw new Error(
+          `Daemon exited prematurely with code ${this.process.exitCode}. Logs: ${this.startupLogBuffer || 'No logs captured'}`
+        );
+      }
+
       if (fs.existsSync(this.socketPath)) {
         try {
           await this.connect();
@@ -152,6 +161,23 @@ export class DaemonClient {
     });
 
     this.process.unref(); // Let it run independently
+
+    // Capture stderr for debugging startup failures
+    if (this.process.stderr) {
+      this.process.stderr.on('data', data => {
+        // We might want to log this to the main logger, but for now we store it to include in error messages
+        // if startup fails. Valid startup might have logs too, so we buffer a bit.
+        const chunk = data.toString();
+        // Append to a buffer property we'll add to the class
+        this.startupLogBuffer = (this.startupLogBuffer || '') + chunk;
+        // Limit buffer size
+        if (this.startupLogBuffer.length > 2000) {
+          this.startupLogBuffer = this.startupLogBuffer.substring(
+            this.startupLogBuffer.length - 2000
+          );
+        }
+      });
+    }
   }
 
   private async connect() {
@@ -175,6 +201,9 @@ export class DaemonClient {
   }
 
   public async runQuery(sql: string, newTab = true, connectionProfile?: unknown): Promise<string> {
+    if (this.readyPromise) {
+      await this.readyPromise;
+    }
     // Call run_query tool
     const result = await this.client.callTool({
       name: 'run_query',
@@ -204,6 +233,9 @@ export class DaemonClient {
   }
 
   public async getTabInfo(tabId: string, offset = 0, limit?: number) {
+    if (this.readyPromise) {
+      await this.readyPromise;
+    }
     const result = await this.client.callTool({
       name: 'get_tab_info',
       arguments: {
@@ -224,6 +256,9 @@ export class DaemonClient {
   }
 
   public async cancelQuery(tabId: string) {
+    if (this.readyPromise) {
+      await this.readyPromise;
+    }
     await this.client.callTool({
       name: 'cancel_query',
       arguments: {

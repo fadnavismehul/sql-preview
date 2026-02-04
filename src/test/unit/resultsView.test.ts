@@ -6,6 +6,7 @@ import { ExportService } from '../../services/ExportService';
 import { QuerySessionRegistry } from '../../services/QuerySessionRegistry';
 import axios from 'axios';
 import * as path from 'path';
+import * as packageJson from '../../../package.json';
 
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -162,7 +163,7 @@ describe('ResultsViewProvider Tests', () => {
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'updateVersionInfo',
-        currentVersion: '0.5.4', // Should match package.json if path is correct
+        currentVersion: packageJson.version,
       })
     );
   });
