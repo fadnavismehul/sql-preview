@@ -40,6 +40,9 @@ export class QueryExecutor {
       if (active) {
         profile = await this.connectionManager.getConnection(active.id);
       }
+    } else {
+      // Fallback to workspace config if no saved connections
+      profile = await this.connectionManager.getWorkspaceFallbackProfile();
     }
 
     try {

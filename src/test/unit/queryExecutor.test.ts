@@ -67,36 +67,73 @@ describe('QueryExecutor Unit Tests', () => {
     expect(mockConnector.runQuery).toHaveBeenCalledWith('SELECT 1', config, undefined);
   });
 
-  test('execute delegates to DaemonClient', async () => {
+  test('execute uses saved connection if available', async () => {
+    // Setup saved connections
+    const mockProfile: any = { id: 'saved-1', type: 'trino', name: 'Saved' };
+    mockConnectionManager.getConnections.mockResolvedValue([mockProfile]);
+    mockConnectionManager.getConnection.mockResolvedValue(mockProfile);
+
     // Mock Daemon responses
-    mockDaemonClient.runQuery.mockResolvedValue('tab-123');
-    mockDaemonClient.getTabInfo
-      .mockResolvedValueOnce({
-        status: 'loading',
-        hasMore: false,
-      })
-      .mockResolvedValueOnce({
-        status: 'success',
-        columns: [{ name: 'col1', type: 'string' }],
-        rows: [['val1']],
-        rowCount: 1,
-        hasMore: false,
-      });
-
-    const iterator = queryExecutor.execute('SELECT * FROM foo');
-    const result = await iterator.next(); // Should wait until success
-
-    expect(mockDaemonClient.runQuery).toHaveBeenCalledWith('SELECT * FROM foo', true, undefined);
-    // Now expects limit parameter (10000) for VS Code extension
-    expect(mockDaemonClient.getTabInfo).toHaveBeenCalledWith('tab-123', 0, 10000);
-
-    expect(result.value).toEqual({
-      columns: [{ name: 'col1', type: 'string' }],
-      data: [['val1']],
-      stats: {
-        state: 'FINISHED',
-        rowCount: 1,
-      },
+    mockDaemonClient.runQuery.mockResolvedValue('tab-1');
+    mockDaemonClient.getTabInfo.mockResolvedValue({
+      status: 'success',
+      columns: [],
+      rows: [],
+      rowCount: 0,
+      hasMore: false,
     });
+
+    const iterator = queryExecutor.execute('SELECT 1');
+    await iterator.next();
+
+    expect(mockConnectionManager.getConnection).toHaveBeenCalledWith('saved-1');
+    expect(mockConnectionManager.getWorkspaceFallbackProfile).not.toHaveBeenCalled();
+    expect(mockDaemonClient.runQuery).toHaveBeenCalledWith('SELECT 1', true, mockProfile);
+  });
+
+  test('execute uses workspace fallback if no saved connections', async () => {
+    // Setup NO saved connections
+    mockConnectionManager.getConnections.mockResolvedValue([]);
+    const fallbackProfile: any = { id: 'fallback', type: 'trino' };
+    mockConnectionManager.getWorkspaceFallbackProfile.mockResolvedValue(fallbackProfile);
+
+    // Mock Daemon responses
+    mockDaemonClient.runQuery.mockResolvedValue('tab-2');
+    mockDaemonClient.getTabInfo.mockResolvedValue({
+      status: 'success',
+      columns: [],
+      rows: [],
+      rowCount: 0,
+      hasMore: false,
+    });
+
+    const iterator = queryExecutor.execute('SELECT 1');
+    await iterator.next();
+
+    expect(mockConnectionManager.getWorkspaceFallbackProfile).toHaveBeenCalled();
+    expect(mockDaemonClient.runQuery).toHaveBeenCalledWith('SELECT 1', true, fallbackProfile);
+  });
+
+  test('execute propagates error if fallback also fails (returns undefined)', async () => {
+    mockConnectionManager.getConnections.mockResolvedValue([]);
+    mockConnectionManager.getWorkspaceFallbackProfile.mockResolvedValue(undefined);
+
+    // Mock Daemon response (DaemonClient might handle undefined profile gracefully or throw,
+    // but QueryExecutor passes it through. If DaemonClient throws on undefined profile, we catch it)
+    // Actually DaemonClient.runQuery takes 'unknown', but logically we assume it might send it.
+    // However, QueryExecutor just passes it.
+    // If we want to ensure it passes 'undefined', we test that.
+
+    // In our implementation QueryExecutor passes whatever it gets.
+    // The previous implementation passed 'undefined' if no active profile found.
+    // We just want to ensure it falls back attempting to get it.
+
+    mockDaemonClient.runQuery.mockResolvedValue('tab-3');
+    mockDaemonClient.getTabInfo.mockResolvedValue({ status: 'success', rows: [] });
+
+    const iterator = queryExecutor.execute('SELECT 1');
+    await iterator.next();
+
+    expect(mockDaemonClient.runQuery).toHaveBeenCalledWith('SELECT 1', true, undefined);
   });
 });

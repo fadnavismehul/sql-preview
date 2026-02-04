@@ -79,6 +79,40 @@ export class ConnectionManager {
     await this.context.secrets.delete(`${ConnectionManager.PASSWORD_KEY_PREFIX}${id}`);
   }
 
+  // --- Fallback ---
+
+  public async getWorkspaceFallbackProfile(): Promise<ConnectionProfile | undefined> {
+    const config = vscode.workspace.getConfiguration('sqlPreview');
+    const connectorType = config.get<string>('defaultConnector', 'trino');
+
+    if (connectorType === 'sqlite') {
+      return {
+        id: 'workspace-fallback-sqlite',
+        name: 'Workspace SQLite',
+        type: 'sqlite',
+        databasePath: config.get<string>('databasePath', ''),
+      } as import('../common/types').SQLiteConnectionProfile;
+    } else {
+      const legacyPassword = await this.context.secrets.get('sqlPreview.database.password');
+      const catalog = config.get<string>('catalog');
+      const schema = config.get<string>('schema');
+
+      return {
+        id: 'workspace-fallback-trino',
+        name: 'Workspace Trino',
+        type: 'trino',
+        host: config.get<string>('host', 'localhost'),
+        port: config.get<number>('port', 8080),
+        user: config.get<string>('user', 'user'),
+        ...(catalog ? { catalog } : {}),
+        ...(schema ? { schema } : {}),
+        ssl: config.get<boolean>('ssl', false),
+        sslVerify: config.get<boolean>('sslVerify', true),
+        ...(legacyPassword ? { password: legacyPassword } : {}),
+      } as import('../common/types').TrinoConnectionProfile;
+    }
+  }
+
   // --- Migration ---
 
   public async migrateLegacySettings(): Promise<void> {
