@@ -1220,9 +1220,9 @@ body {
 
 /* Destructive action styling */
 .danger-button {
-    background-color: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-errorForeground);
-    border: 1px solid transparent;
+    background-color: var(--vscode-button-dangerBackground, #ee4444);
+    color: var(--vscode-button-dangerForeground, #ffffff);
+    border: 1px solid var(--vscode-button-border, transparent);
     padding: 6px 12px;
     font-size: 13px;
     cursor: pointer;
@@ -1230,8 +1230,7 @@ body {
 }
 
 .danger-button:hover {
-    background-color: var(--vscode-button-secondaryHoverBackground);
-    border-color: var(--vscode-errorForeground);
+    background-color: var(--vscode-button-dangerHoverBackground, #cf3131);
 }
 
 .tab:focus-visible {
