@@ -14,7 +14,9 @@ describe('Verification Script (Regression)', () => {
     beforeEach(() => {
         jest.resetModules();
         mockExecSync.mockReset();
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         consoleErrorStub = jest.spyOn(console, 'error').mockImplementation(() => { });
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         consoleLogStub = jest.spyOn(console, 'log').mockImplementation(() => { });
 
         // Mock process.exit to throw so we can catch it
@@ -35,6 +37,7 @@ describe('Verification Script (Regression)', () => {
         // File is at src/test/unit/scripts/verifyPackage.test.ts
         // scripts is at ./scripts (from root)
 
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const scriptModule = require('../../../../scripts/verify-package-content');
         checkPackageContent = scriptModule.checkPackageContent;
     });
