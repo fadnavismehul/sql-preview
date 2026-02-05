@@ -426,34 +426,21 @@ function createTab(tabId, query, title, sourceFileUri) {
     contentElement.setAttribute('role', 'tabpanel');
     contentElement.setAttribute('aria-labelledby', 'tab-' + tabId);
 
-    // Initial Loading State
+    // Structural Wrapper: Main Interaction Area + Loading Overlay
     contentElement.innerHTML = `
-    <div class="loading-container">
-        <div class="spinner"></div>
-        <div class="loading-text">Preparing query...</div>
-        ${query ? `<div class="query-preview"><pre>${escapeHtml(query)}</pre></div>` : ''}
-        <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
-    </div>
-  `;
+        <div class="tab-main-content" id="main-${tabId}"></div>
+        <div class="custom-loading-overlay" id="overlay-${tabId}" style="display:none;"></div>
+    `;
 
     tabContentContainer.appendChild(contentElement);
-
-    // Attach listener programmatically to avoid CSP inline-script blocking
-    const cancelBtn = contentElement.querySelector(`#cancel-${tabId}`);
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-            logToHost('info', `Cancel button clicked for tab ${tabId}`);
-            vscode.postMessage({ command: 'cancelQuery', tabId: tabId });
-        });
-    } else {
-        logToHost('error', `Could not find cancel button for tab ${tabId}`);
-    }
 
     // Store tab reference
     tabs.set(tabId, {
         id: tabId,
         element: tabElement,
         content: contentElement,
+        mainContent: contentElement.querySelector(`#main-${tabId}`),
+        overlay: contentElement.querySelector(`#overlay-${tabId}`),
         gridOptions: null, // Will be init when results arrive
         query: query,
         title: title,
@@ -866,21 +853,8 @@ class BooleanCellRenderer {
     }
 }
 
-function updateTabWithResults(tabId, data, title) {
-    const tab = tabs.get(tabId);
-    if (!tab) return;
-
-    if (title) {
-        tab.title = title;
-        tab.element.querySelector('.tab-label').textContent = title;
-    }
-
-    // Clear loading/error content
-    tab.content.innerHTML = '';
-    tab.columns = data.columns; // Store columns for copy operations
-
-    // Determine Columns and Renderers
-    // Determine Columns and Renderers
+// Helper to generate Column Defs
+function getColumnDefs(data, tabId) {
     const columnDefs = [];
 
     // 1. Add Row Selector Column (Blank)
@@ -942,11 +916,8 @@ function updateTabWithResults(tabId, data, title) {
         const type = col.type.toLowerCase();
         const isJson = type.includes('json') || type.includes('array') || type.includes('map') || type.includes('struct') || type.includes('row');
         // Simple heuristic for boolean types.
-        // Common SQL names: boolean, bool, bit (sometimes)
         const isBoolean = type === 'boolean' || type === 'bool' || type === 'tinyint(1)';
 
-        // Calculate standard width based on header length
-        // Approx 9px per char + padding (80px for filter icon space). Max 300px, Min 100px.
         const width = Math.min(Math.max(col.name.length * 9 + 80, 100), 250);
 
         columnDefs.push({
@@ -955,13 +926,66 @@ function updateTabWithResults(tabId, data, title) {
             sortable: true,
             filter: CustomSetFilter, // Use Custom Set Filter (Community)
             resizable: true,
-            width: width, // Manual width calculation
+            width: width,
             headerTooltip: col.type,
             cellRenderer: isBoolean ? BooleanCellRenderer : (isJson ? JsonCellRenderer : undefined),
         });
     });
 
-    // Setup AG Grid
+    return columnDefs;
+}
+
+function updateTabWithResults(tabId, data, title) {
+    const tab = tabs.get(tabId);
+    if (!tab) return;
+
+    if (title) {
+        tab.title = title;
+        tab.element.querySelector('.tab-label').textContent = title;
+    }
+
+    // Hide Overlay
+    if (tab.overlay) {
+        tab.overlay.style.display = 'none';
+    }
+
+    // Prepare data
+    const columnDefs = getColumnDefs(data, tabId);
+    const rowData = data.rows.map(row => {
+        const obj = {};
+        data.columns.forEach((col, index) => {
+            obj[col.name] = row[index];
+        });
+        return obj;
+    });
+
+    tab.columns = data.columns; // Store columns for copy operations
+
+    // REUSE GRID if available
+    if (tab.api) {
+        // Update Grid Options
+        tab.api.setGridOption('columnDefs', columnDefs);
+        tab.api.setGridOption('rowData', rowData);
+
+        // Update Toolbar (Replace old controls)
+        const oldToolbar = tab.mainContent.querySelector('.controls');
+        const newToolbar = createToolbar(tabId, tab.gridOptions, data);
+        if (oldToolbar) {
+            oldToolbar.replaceWith(newToolbar);
+        } else {
+            tab.mainContent.prepend(newToolbar);
+        }
+
+        // Resize columns to fit if needed, or maintain user width?
+        // Usually safer to allow user to keep their widths, but if columns CHANGED, we might want to resize.
+        // For now, let's just let AG Grid handle strict column def updates.
+
+        return;
+    }
+
+    // FULL REBUILD (First time)
+    tab.mainContent.innerHTML = '';
+
     // Calculate row and header heights based on current density
     let rowH = 35;
     let headH = 42;
@@ -974,14 +998,7 @@ function updateTabWithResults(tabId, data, title) {
     }
 
     const gridOptions = {
-        rowData: data.rows.map(row => {
-            // Convert array of values to object {col1: val1, ...} based on columns
-            const obj = {};
-            data.columns.forEach((col, index) => {
-                obj[col.name] = row[index];
-            });
-            return obj;
-        }),
+        rowData: rowData,
         columnDefs: columnDefs,
         pagination: true,
         paginationPageSize: 100,
@@ -994,7 +1011,6 @@ function updateTabWithResults(tabId, data, title) {
         rowSelection: 'multiple',
         suppressRowClickSelection: true,
 
-        // Community Features
         // Community Features
         enableCellTextSelection: false, // Disabled to allow custom cell drag selection
 
@@ -1066,8 +1082,6 @@ function updateTabWithResults(tabId, data, title) {
             }
         },
 
-        // Status Bar (Removed Enterprise)
-
         // Custom Icons
         icons: {
             // Use the Funnel icon for the 'menu' (hamburger) to make it intuitive
@@ -1079,12 +1093,12 @@ function updateTabWithResults(tabId, data, title) {
 
     // Create Toolbar
     const toolbar = createToolbar(tabId, gridOptions, data);
-    tab.content.appendChild(toolbar);
+    tab.mainContent.appendChild(toolbar);
 
     // Create Split Layout Container
     const splitContainer = document.createElement('div');
     splitContainer.className = 'split-container';
-    tab.content.appendChild(splitContainer);
+    tab.mainContent.appendChild(splitContainer);
 
     // Create Grid Container
     const gridDiv = document.createElement('div');
@@ -1095,21 +1109,6 @@ function updateTabWithResults(tabId, data, title) {
     const sidePanelContainer = document.createElement('div');
     sidePanelContainer.className = 'side-panel-container';
     splitContainer.appendChild(sidePanelContainer);
-
-    // Initialize SidePanel logic specific to this tab (or global reused)
-    // We'll reuse the global sidePanel but re-parent it or adjust logic?
-    // Better: Ensure SidePanel is a singleton that can attach/detach or just stay global?
-    // User wants it "beside the table". Global fixed side panel is effectively "beside" if we adjust grid margin?
-    // Better: Make SidePanel part of the layout.
-
-    // Let's create a new SidePanel instance per tab OR re-attach the global one.
-    // Given tabs switch display:none, we can have one global instance but we need to ensure it's
-    // visualy adjacent. 
-    // Actually, simply appending the global sidePanel.element to the active tab's sidePanelContainer
-    // when tab is activated is cleaner.
-
-    // For now, let's keep SidePanel global, but change its implementation to NOT be fixed position,
-    // but rather static relative to parent.
 
     // Initialize SidePanel logic specific to this tab
     tab.sidePanel = new SidePanel(tabId);
@@ -1147,7 +1146,7 @@ function updateTabWithResults(tabId, data, title) {
             }
         }
     } else {
-        tab.content.innerHTML = '<div class="error-message">Error: AG Grid library not loaded.</div>';
+        tab.mainContent.innerHTML = '<div class="error-message">Error: AG Grid library not loaded.</div>';
     }
 }
 
@@ -1447,14 +1446,24 @@ function updateTabWithError(tabId, error, query, title) {
         tab.element.querySelector('.tab-label').textContent = title;
     }
 
-    tab.content.innerHTML = `
-        <div class="error-container">
+    // Hide overlay
+    if (tab.overlay) {
+        tab.overlay.style.display = 'none';
+    }
 
+    // Reset formatted content
+    tab.mainContent.innerHTML = `
+        <div class="error-container">
             <h3>Query Failed</h3>
             <p class="error-message">${escapeHtml(error.message)}</p>
             ${error.details ? `<pre class="error-details">${escapeHtml(error.details)}</pre>` : ''}
         </div>
     `;
+
+    // Clear API reference since grid is gone
+    tab.api = null;
+    tab.gridOptions = null;
+    tab.sidePanel = null;
 }
 
 function showLoading(tabId, query, title) {
@@ -1462,31 +1471,41 @@ function showLoading(tabId, query, title) {
     if (!tab) {
         // If tab doesn't exist yet, create it
         createTab(tabId, query, title);
+        // createTab already sets up structure but doesn't show loading overlay by default in new logic
+        // so we need to recursively call showLoading or just fall through if we refactor createTab
+        // BUT createTab calls activateTab, etc.
+        // Let's just recurse once safely.
+        const newTab = tabs.get(tabId);
+        if (newTab) showLoading(tabId, query, title);
         return;
     }
 
     // Force activation
     activateTab(tabId);
 
-    // Reset content to loading
-    tab.content.innerHTML = `
-        <div class="loading-container">
-        <div class="spinner"></div>
-        <div class="loading-text">Running query...</div>
-        <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
-        <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
-    </div>
-    `;
+    // Show Overlay with Loading Content
+    if (tab.overlay) {
+        tab.overlay.innerHTML = `
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <div class="loading-text">Running query...</div>
+                <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
+                <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
+            </div>
+        `;
+        tab.overlay.style.display = 'flex';
 
-    // Attach listener programmatically to avoid CSP inline-script blocking
-    const cancelBtn = tab.content.querySelector(`#cancel-${tabId}`);
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-            logToHost('info', `Cancel button clicked for tab ${tabId}`);
-            vscode.postMessage({ command: 'cancelQuery', tabId: tabId });
-        });
+        // Attach listener programmatically
+        const cancelBtn = tab.overlay.querySelector(`#cancel-${tabId}`);
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                logToHost('info', `Cancel button clicked for tab ${tabId}`);
+                vscode.postMessage({ command: 'cancelQuery', tabId: tabId });
+            });
+        }
     } else {
-        logToHost('error', `Could not find cancel button for tab ${tabId} in showLoading`);
+        // Fallback for some reason?
+        logToHost('error', `Tab ${tabId} missing overlay element.`);
     }
 }
 
