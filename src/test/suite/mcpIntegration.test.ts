@@ -92,7 +92,7 @@ describe('MCP Integration Test Suite', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Accept: 'text/event-stream',
+            Accept: '*/*',
           },
         },
         res => {

@@ -20,8 +20,21 @@ export class SocketTransport implements Transport {
     // We assume newline-delimited JSON for simplicity in this V1
     let buffer = '';
 
+    const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB limit
+
     socket.on('data', chunk => {
       buffer += chunk.toString();
+
+      if (buffer.length > MAX_BUFFER_SIZE) {
+        if (this.onerror) {
+          this.onerror(
+            new Error(`Message buffer exceeded ${MAX_BUFFER_SIZE} bytes. Closing connection.`)
+          );
+        }
+        socket.destroy();
+        return;
+      }
+
       const lines = buffer.split('\n');
       // Keep the last partial line in the buffer
       buffer = lines.pop() || '';
