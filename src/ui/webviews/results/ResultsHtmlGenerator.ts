@@ -198,8 +198,8 @@ export class ResultsHtmlGenerator {
                                             <label>Password</label>
                                             <div class="input-with-actions">
                                                 <span id="password-status" class="status-badge">(Checking...)</span>
-                                                <button id="set-password-btn" class="primary-button small">Set</button>
-                                                <button id="clear-password-btn" class="danger-button small">Clear</button>
+                                                <button id="set-password-btn" class="primary-button">Set</button>
+                                                <button id="clear-password-btn" class="danger-button">Clear</button>
                                             </div>
                                         </div>
 
@@ -245,8 +245,8 @@ export class ResultsHtmlGenerator {
                                             <label>Connection URL</label>
                                             <div class="code-snippet">
                                                 <pre id="mcp-snippet" style="text-align: left; white-space: pre;">{
-
     "sql-preview": {
+      "type": "streamable-http",
       "url": "http://localhost:8414/mcp"
     }
 }</pre>

@@ -1881,7 +1881,7 @@ function populateSettings(config) {
     // Ensure snippet shows 8414 to match standard
     const snippetEl = document.getElementById('mcp-snippet');
     if (snippetEl) {
-        snippetEl.textContent = `http://localhost:8414/mcp`;
+        snippetEl.textContent = `{\n    "sql-preview": {\n      "type": "streamable-http",\n      "url": "http://localhost:8414/mcp"\n    }\n}`;
     }
 }
 
