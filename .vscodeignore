@@ -34,8 +34,5 @@ tsconfig.json
 src/
 **/*.ts
 **/*.map
-**/node_modules/.bin/**
-**/node_modules/*/.github/**
-**/node_modules/*/test/**
-**/node_modules/*/docs/**
+**/node_modules/**
  
