@@ -286,11 +286,14 @@ body {
     align-items: center;
     justify-content: flex-start;
     /* Top align */
+    width: 100%;
+    /* Ensure it takes full width */
     height: 100%;
     padding: 10vh 20px 20px;
     /* Push down a bit from top */
     color: var(--vscode-descriptionForeground);
     text-align: center;
+    box-sizing: border-box;
 }
 
 .loading-text {
@@ -300,24 +303,25 @@ body {
 }
 
 .query-preview {
-    width: 80%;
-    /* Occupy 80% of viewer as requested */
+    width: 90%;
+    /* Occupy 90% of screen */
     max-width: none;
     /* Remove width cap */
     background-color: var(--vscode-editor-background);
     border: 1px solid var(--vscode-editorWidget-border);
     border-radius: 4px;
-    padding: 16px;
+    padding: 20px;
     overflow: auto;
     /* Allow scroll if needed */
-    font-size: 1.1em;
-    /* Slightly larger text for readability */
-    min-height: 150px;
-    /* Ensure it's not too small */
+    font-size: 1.25em;
+    /* Readable text */
+    min-height: 250px;
+    /* Substantial height */
     max-height: 60vh;
-    /* Prevent pushing buttons off screen */
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    /* Add some depth */
+    /* Prevent overflow */
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    /* Pop out */
+    text-align: left;
 }
 
 .query-preview pre {
