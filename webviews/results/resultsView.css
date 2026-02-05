@@ -310,18 +310,17 @@ body {
     background-color: var(--vscode-editor-background);
     border: 1px solid var(--vscode-editorWidget-border);
     border-radius: 4px;
-    padding: 20px;
+    padding: 16px;
     overflow: auto;
     /* Allow scroll if needed */
-    font-size: 1.25em;
-    /* Readable text */
-    min-height: 250px;
-    /* Substantial height */
+    font-size: 1.1em;
+    /* Slightly larger text for readability */
+    min-height: 150px;
+    /* Ensure it's not too small */
     max-height: 60vh;
-    /* Prevent overflow */
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-    /* Pop out */
-    text-align: left;
+    /* Prevent pushing buttons off screen */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    /* Add some depth */
 }
 
 .query-preview pre {
