@@ -14,7 +14,7 @@ export class QueryExecutor {
     private readonly connectionManager: ConnectionManager,
     private readonly daemonClient: DaemonClient,
     private readonly driverManager: import('../../services/DriverManager').DriverManager
-  ) { }
+  ) {}
 
   /**
    * Orchestrates the query execution via Daemon.
