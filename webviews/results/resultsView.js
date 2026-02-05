@@ -484,7 +484,7 @@ function activateTab(tabId) {
         next.element.classList.add('active');
         next.content.classList.add('active');
         next.element.setAttribute('aria-selected', 'true');
-        next.element.focus();
+
 
         // Track last active for this file
         if (next.sourceFileUri) {

@@ -10,6 +10,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 // logic: we can implement one easily. It just needs to read/write JSON-RPC.
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
+import { Logger } from '../core/logging/Logger';
 
 class SocketClientTransport implements Transport {
   private socket: net.Socket;
@@ -73,6 +74,7 @@ export class DaemonClient {
   private socketPath: string;
   private readyPromise: Promise<void> | undefined;
   private startupLogBuffer = '';
+  private isConnected = false;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     // Short session ID to save tokens for LLM agents
@@ -150,25 +152,32 @@ export class DaemonClient {
     // but assuming compiled 'out' structure for production/standard run.
     const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'Daemon.js');
 
-    const logPath = path.join(os.homedir(), '.sql-preview', 'daemon.log');
-    const out = fs.openSync(logPath, 'a');
-    const err = fs.openSync(logPath, 'a');
-
     this.process = cp.spawn('node', [serverPath], {
       detached: true,
-      stdio: ['ignore', out, err],
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, SQL_PREVIEW_DAEMON: '1' },
     });
 
     this.process.unref(); // Let it run independently
 
-    // Capture stderr for debugging startup failures
+    const outputChannel = Logger.getInstance().getOutputChannel();
+
+    // Pipe stdout
+    if (this.process.stdout) {
+      this.process.stdout.on('data', data => {
+        outputChannel.append(data.toString());
+      });
+    }
+
+    // Capture stderr for debugging startup failures AND log to output
     if (this.process.stderr) {
       this.process.stderr.on('data', data => {
-        // We might want to log this to the main logger, but for now we store it to include in error messages
-        // if startup fails. Valid startup might have logs too, so we buffer a bit.
         const chunk = data.toString();
-        // Append to a buffer property we'll add to the class
+
+        // Stream to output channel
+        outputChannel.append(chunk);
+
+        // Append to startup buffer
         this.startupLogBuffer = (this.startupLogBuffer || '') + chunk;
         // Limit buffer size
         if (this.startupLogBuffer.length > 2000) {
@@ -185,6 +194,7 @@ export class DaemonClient {
       const socket = net.createConnection(this.socketPath);
 
       socket.on('connect', () => {
+        this.isConnected = true;
         this.transport = new SocketClientTransport(socket);
         this.client
           .connect(this.transport)
@@ -194,14 +204,21 @@ export class DaemonClient {
           .catch(reject);
       });
 
+      socket.on('close', () => {
+        this.isConnected = false;
+      });
+
       socket.on('error', err => {
+        this.isConnected = false;
         reject(err);
       });
     });
   }
 
   public async runQuery(sql: string, newTab = true, connectionProfile?: unknown): Promise<string> {
-    if (this.readyPromise) {
+    if (!this.isConnected) {
+      await this.start();
+    } else if (this.readyPromise) {
       await this.readyPromise;
     }
     // Call run_query tool
@@ -233,7 +250,9 @@ export class DaemonClient {
   }
 
   public async getTabInfo(tabId: string, offset = 0, limit?: number) {
-    if (this.readyPromise) {
+    if (!this.isConnected) {
+      await this.start();
+    } else if (this.readyPromise) {
       await this.readyPromise;
     }
     const result = await this.client.callTool({
@@ -256,7 +275,9 @@ export class DaemonClient {
   }
 
   public async cancelQuery(tabId: string) {
-    if (this.readyPromise) {
+    if (!this.isConnected) {
+      await this.start();
+    } else if (this.readyPromise) {
       await this.readyPromise;
     }
     await this.client.callTool({
