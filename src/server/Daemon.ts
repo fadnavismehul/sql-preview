@@ -123,50 +123,65 @@ export class Daemon {
     // Session Management API
     this.app.get('/sessions', (_req, res) => {
       this.refreshActivity();
-      res.json(
-        this.sessionManager.getAllSessions().map(s => ({
-          id: s.id,
-          displayName: s.displayName,
-          clientType: s.clientType,
-          tabCount: s.tabs.size,
-        }))
-      );
+      try {
+        res.json(
+          this.sessionManager.getAllSessions().map(s => ({
+            id: s.id,
+            displayName: s.displayName,
+            clientType: s.clientType,
+            tabCount: s.tabs.size,
+          }))
+        );
+      } catch (err) {
+        logger.error('[Daemon] Error in /sessions:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+      }
     });
 
     this.app.get('/sessions/:id/tabs', (req, res) => {
       this.refreshActivity();
-      const session = this.sessionManager.getSession(req.params.id);
-      if (!session) {
-        res.status(404).json({ error: 'Session not found' });
-        return;
+      try {
+        const session = this.sessionManager.getSession(req.params.id);
+        if (!session) {
+          res.status(404).json({ error: 'Session not found' });
+          return;
+        }
+        res.json(
+          Array.from(session.tabs.values()).map(t => ({
+            id: t.id,
+            title: t.title,
+            status: t.status,
+            rowCount: t.rows?.length || 0,
+          }))
+        );
+      } catch (err) {
+        logger.error('[Daemon] Error in /sessions/:id/tabs:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
       }
-      res.json(
-        Array.from(session.tabs.values()).map(t => ({
-          id: t.id,
-          title: t.title,
-          status: t.status,
-          rowCount: t.rows?.length || 0,
-        }))
-      );
     });
 
     this.app.get('/sessions/:sid/tabs/:tid', (req, res) => {
       this.refreshActivity();
-      const session = this.sessionManager.getSession(req.params.sid);
-      if (!session) {
-        res.status(404).json({ error: 'Session not found' });
-        return;
+      try {
+        const session = this.sessionManager.getSession(req.params.sid);
+        if (!session) {
+          res.status(404).json({ error: 'Session not found' });
+          return;
+        }
+        const tab = session.tabs.get(req.params.tid);
+        if (!tab) {
+          res.status(404).json({ error: 'Tab not found' });
+          return;
+        }
+        res.json({
+          ...tab,
+          // Send a slice of rows if huge? For now send all.
+          // Or if 'offset' query param exists
+        });
+      } catch (err) {
+        logger.error('[Daemon] Error in /sessions/:sid/tabs/:tid:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
       }
-      const tab = session.tabs.get(req.params.tid);
-      if (!tab) {
-        res.status(404).json({ error: 'Tab not found' });
-        return;
-      }
-      res.json({
-        ...tab,
-        // Send a slice of rows if huge? For now send all.
-        // Or if 'offset' query param exists
-      });
     });
 
     // Error handling middleware (must be last)
@@ -174,10 +189,12 @@ export class Daemon {
       (err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
         void _next;
         logger.error(`[Daemon] Express Error on ${req.method} ${req.url}:`, err);
-        res.status(500).json({
-          error: 'Internal Server Error',
-          message: err.message || 'Unknown error',
-        });
+        if (!res.headersSent) {
+          res.status(500).json({
+            error: 'Internal Server Error',
+            message: err.message || 'Unknown error',
+          });
+        }
       }
     );
   }
@@ -193,10 +210,15 @@ export class Daemon {
       logger.error('[Daemon] CRITICAL: Uncaught Exception:', error);
       // Give logger a chance to flush
       setTimeout(() => this.stop(), 100).unref();
+      // Force exit if stop takes too long
+      setTimeout(() => process.exit(1), 1000).unref();
     });
 
     process.on('unhandledRejection', (reason, promise) => {
       logger.error(`[Daemon] CRITICAL: Unhandled Rejection at: ${promise} reason: ${reason}`);
+      // Consider if we should exit here. For now, log and maybe we can recover?
+      // Best practice is often to crash, but for a dev tool daemon, maybe staying alive is better if possible.
+      // However, if state is corrupt... let's log heavily.
     });
 
     // 2. Graceful Shutdown
@@ -231,30 +253,52 @@ export class Daemon {
   public async start() {
     const configDir = path.join(os.homedir(), '.sql-preview');
     if (!fs.existsSync(configDir)) {
-      fs.mkdirSync(configDir, { recursive: true });
+      try {
+        fs.mkdirSync(configDir, { recursive: true });
+      } catch (e) {
+        logger.error('[Daemon] Failed to create config dir:', e);
+        process.exit(1);
+      }
     }
 
     // 1. PID Check (Prevent multiple instances)
     const pidPath = path.join(configDir, 'server.pid');
-    if (fs.existsSync(pidPath)) {
-      const existingPid = parseInt(fs.readFileSync(pidPath, 'utf8'), 10);
-      try {
-        // Check if process is actually running
-        process.kill(existingPid, 0);
-        logger.error(`[Daemon] ERROR: Another instance is already running (PID: ${existingPid})`);
-        process.exit(1);
-      } catch (e) {
-        // Process is not running, stale PID file
-        logger.info(`[Daemon] Cleaning up stale PID file for ${existingPid}`);
-        fs.unlinkSync(pidPath);
-      }
-    }
-
-    // Write current PID
     try {
+      if (fs.existsSync(pidPath)) {
+        const pidContent = fs.readFileSync(pidPath, 'utf8');
+        const existingPid = parseInt(pidContent, 10);
+
+        if (!isNaN(existingPid)) {
+          try {
+            // Check if process is actually running
+            process.kill(existingPid, 0);
+            logger.error(
+              `[Daemon] ERROR: Another instance is already running (PID: ${existingPid})`
+            );
+            process.exit(1);
+          } catch (e) {
+            // Process is not running (man process.kill says throws if process not found)
+            if ((e as NodeJS.ErrnoException).code === 'ESRCH') {
+              logger.info(`[Daemon] Cleaning up stale PID file for ${existingPid}`);
+              fs.unlinkSync(pidPath);
+            } else {
+              // Other error (EPERM etc) - process exists but we can't signal it? Assume running.
+              logger.error(`[Daemon] ERROR: Cannot check process ${existingPid}: ${e}`);
+              process.exit(1);
+            }
+          }
+        } else {
+          // Invalid PID file content
+          logger.warn('[Daemon] Invalid PID file found, removing.');
+          fs.unlinkSync(pidPath);
+        }
+      }
+
+      // Write current PID
       fs.writeFileSync(pidPath, process.pid.toString());
     } catch (e) {
-      logger.error('[Daemon] Failed to write PID file:', e);
+      logger.error('[Daemon] Startup error checking PID:', e);
+      process.exit(1);
     }
 
     // Serve Static UI

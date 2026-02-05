@@ -12,7 +12,8 @@ export class QueryExecutor {
   constructor(
     private readonly connectorRegistry: ConnectorRegistry,
     private readonly connectionManager: ConnectionManager,
-    private readonly daemonClient: DaemonClient
+    private readonly daemonClient: DaemonClient,
+    private readonly driverManager: import('../../services/DriverManager').DriverManager
   ) {}
 
   /**
@@ -41,8 +42,20 @@ export class QueryExecutor {
         profile = await this.connectionManager.getConnection(active.id);
       }
     } else {
-      // Fallback to workspace config if no saved connections
       profile = await this.connectionManager.getWorkspaceFallbackProfile();
+    }
+
+    // Inject Driver Path if needed (Extension Host Side)
+    if (profile && (profile.type === 'sqlite' || profile.type === 'postgres')) {
+      try {
+        const packageName = profile.type === 'sqlite' ? 'sqlite3' : 'pg';
+        const driverPath = await this.driverManager.getDriver(packageName);
+        // Inject into profile for Daemon to use
+        (profile as any).driverPath = driverPath;
+      } catch (e) {
+        this.logger.error(`Failed to resolve driver for ${profile.type}`, e);
+        // We let it proceed, maybe it works if globally installed or bundled (fallback)
+      }
     }
 
     try {

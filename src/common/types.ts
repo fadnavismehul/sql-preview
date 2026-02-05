@@ -68,6 +68,7 @@ export interface BaseConnectionProfile {
   password?: string; // Optional: runtime only, not persisted plain-text in some contexts
   ssl: boolean;
   sslVerify?: boolean; // Defaults to true
+  driverPath?: string; // Optional: local path to the driver package
 }
 
 export interface TrinoConnectionProfile extends BaseConnectionProfile {
@@ -88,6 +89,7 @@ export interface SQLiteConnectionProfile {
   type: 'sqlite';
   databasePath: string;
   password?: string; // Optional: some sqlite builds support encryption
+  driverPath?: string; // Optional: local path to the driver package
 }
 
 export type ConnectionProfile =

@@ -44,7 +44,8 @@ export class ServiceContainer {
     this.queryExecutor = new QueryExecutor(
       this.connectorRegistry,
       this.connectionManager,
-      this.daemonClient
+      this.daemonClient,
+      this.driverManager
     );
     this.tabManager = new TabManager();
     this.exportService = new ExportService(this.queryExecutor);

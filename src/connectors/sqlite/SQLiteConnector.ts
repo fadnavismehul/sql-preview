@@ -4,6 +4,7 @@ import { QueryPage, ColumnDef } from '../../common/types';
 
 export interface SQLiteConfig extends ConnectorConfig {
   databasePath: string;
+  driverPath?: string;
 }
 
 export class SQLiteConnector implements IConnector<SQLiteConfig> {
@@ -24,14 +25,20 @@ export class SQLiteConnector implements IConnector<SQLiteConfig> {
     abortSignal?: AbortSignal
   ): AsyncGenerator<QueryPage, void, unknown> {
     // Lazy load sqlite3 to avoid startup crashes if native bindings are missing
+    // or if we are using dynamic driver loading
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let sqlite3: any;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      sqlite3 = require('sqlite3');
+      if (config.driverPath) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        sqlite3 = require(config.driverPath);
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        sqlite3 = require('sqlite3');
+      }
     } catch (e) {
       throw new Error(
-        'SQLite3 module not found. Please ensure it is installed and rebuilt for your platform.'
+        `SQLite3 module not found (path: ${config.driverPath || 'default'}). Please ensure it is installed and rebuilt for your platform.`
       );
     }
 
