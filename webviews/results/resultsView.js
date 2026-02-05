@@ -32,6 +32,7 @@ logToHost('info', 'Webview script initialized.');
 
 // --- State ---
 const tabs = new Map();
+const lastActiveTabByFile = new Map();
 
 // --- Custom Range Selection State ---
 const rangeSelection = {
@@ -484,6 +485,12 @@ function activateTab(tabId) {
         next.content.classList.add('active');
         next.element.setAttribute('aria-selected', 'true');
         next.element.focus();
+
+        // Track last active for this file
+        if (next.sourceFileUri) {
+            lastActiveTabByFile.set(next.sourceFileUri, tabId);
+        }
+
         // Notify extension of user selection
         vscode.postMessage({ command: 'tabSelected', tabId: tabId });
     }
@@ -1545,13 +1552,23 @@ function filterTabsByFile(fileUri, fileName) {
             curr.content.classList.remove('active');
         }
 
-        if (firstVisibleId) {
+        // Try to restore last active tab for this file
+        const lastActive = lastActiveTabByFile.get(fileUri);
+        if (lastActive && tabs.has(lastActive) && tabs.get(lastActive).element.style.display !== 'none') {
+            activateTab(lastActive);
+        } else if (firstVisibleId) {
             activateTab(firstVisibleId);
         } else {
             activeTabId = null;
         }
     } else if (!activeTabId && firstVisibleId) {
-        activateTab(firstVisibleId);
+        // No active tab at all (maybe startup), select first visible
+        const lastActive = lastActiveTabByFile.get(fileUri);
+        if (lastActive && tabs.has(lastActive) && tabs.get(lastActive).element.style.display !== 'none') {
+            activateTab(lastActive);
+        } else {
+            activateTab(firstVisibleId);
+        }
     }
 
     if (noTabsMessage) {
