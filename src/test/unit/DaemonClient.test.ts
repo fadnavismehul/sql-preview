@@ -16,6 +16,24 @@ jest.mock('net');
 jest.mock('child_process');
 jest.mock('@modelcontextprotocol/sdk/client/index.js');
 
+// Mock Logger
+const mockOutputChannel = {
+  append: jest.fn(),
+  appendLine: jest.fn(),
+  show: jest.fn(),
+};
+jest.mock('../../core/logging/Logger', () => ({
+  Logger: {
+    getInstance: jest.fn(() => ({
+      getOutputChannel: jest.fn(() => mockOutputChannel),
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+    })),
+  },
+}));
+
 describe('DaemonClient', () => {
   let client: DaemonClient;
   let mockContext: vscode.ExtensionContext;
@@ -266,28 +284,100 @@ describe('DaemonClient', () => {
         'Daemon exited prematurely with code 1. Logs: Module not found: express'
       );
     });
+
+    it('should stream daemon logs to Output Channel', async () => {
+      // Setup successful spawn
+      (net.createConnection as jest.Mock).mockReturnValue({
+        on: jest.fn((event, cb) => {
+          if (event === 'connect') {
+            cb();
+          } // Connection success
+        }),
+      });
+      (fs.existsSync as jest.Mock).mockReturnValue(false); // No stale pid
+
+      const mockStdout = { on: jest.fn() };
+      const mockStderr = { on: jest.fn() };
+
+      const childProcess = {
+        unref: jest.fn(),
+        on: jest.fn(),
+        stderr: mockStderr,
+        stdout: mockStdout,
+        exitCode: null,
+      };
+      (cp.spawn as jest.Mock).mockReturnValue(childProcess);
+
+      // We need to fail the FIRST connection attempt to trigger spawn
+      (net.createConnection as jest.Mock)
+        .mockReturnValueOnce({
+          // Fail first
+          on: jest.fn((event, cb) => {
+            if (event === 'error') {
+              cb(new Error('fail'));
+            }
+          }),
+        })
+        .mockReturnValue({
+          // Success second
+          on: jest.fn((event, cb) => {
+            if (event === 'connect') {
+              cb();
+            }
+          }),
+        });
+
+      // Mock fs logic for polling
+      let checks = 0;
+      (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
+        if (pathArg.includes('srv.sock')) {
+          checks++;
+          return checks > 1;
+        }
+        return false;
+      });
+
+      await client.start();
+
+      // Trigger data events
+      const stdoutCallback = mockStdout.on.mock.calls.find(call => call[0] === 'data')[1];
+      const stderrCallback = mockStderr.on.mock.calls.find(call => call[0] === 'data')[1];
+
+      stdoutCallback('Server listening on 8414');
+      stderrCallback('Init warning');
+
+      expect(mockOutputChannel.append).toHaveBeenCalledWith(
+        expect.stringContaining('Server listening on 8414')
+      );
+      expect(mockOutputChannel.append).toHaveBeenCalledWith(
+        expect.stringContaining('Init warning')
+      );
+    });
   });
 
   describe('runQuery', () => {
+    beforeEach(() => {
+      // Simulate connected state for these tests to avoid triggering auto-reconnect
+      (client as any).isConnected = true;
+    });
+
     it('should await readyPromise before execution', async () => {
-      // Mock start() to create a purely pending promise (via readyPromise)
-      // We can't easily mock private property.
-      // Instead, we simulate start() behavior where ensureServerRunning takes time.
+      // For this test, we want to test the readyPromise logic (if connection is in progress?)
+      // Use case: isConnected is true, but readyPromise is pending?
+      // Actually isConnected=true means readyPromise resolved (usually).
+      // But if we want to test "await readyPromise", we might need to toggle it.
+
+      // If isConnected is true, it skips await start().
+      // It goes to else if (this.readyPromise).
 
       let resolveStart: () => void;
       const startPromise = new Promise<void>(r => (resolveStart = r));
+      (client as any).readyPromise = startPromise;
 
-      // Spy on ensureServerRunning by replacing the method on the instance
-      // Note: ensureServerRunning is private, so we cast to any
-      (client as any).ensureServerRunning = jest.fn(() => startPromise);
-
-      // Mock the callTool response AHEAD of time so it's ready when runQuery resumes
+      // Mock the callTool response AHEAD of time
       mockClientInstance.callTool.mockResolvedValue({
         content: [{ type: 'text', text: 'Tab ID: tab-1' }],
       });
-
-      // Call start - this initializes readyPromise
-      const startCall = client.start();
 
       // Now call runQuery. It should await readyPromise.
       const queryPromise = client.runQuery('SELECT 1');
@@ -296,14 +386,11 @@ describe('DaemonClient', () => {
       const race = Promise.race([queryPromise, Promise.resolve('pending')]);
       await expect(race).resolves.toBe('pending');
 
-      // Verify tool wasn't called yet
       expect(mockClientInstance.callTool).not.toHaveBeenCalled();
 
-      // Now resolve start
       resolveStart!();
-      await startCall; // Ensure start completes
+      // We must handle the promise
 
-      // Expected result
       await expect(queryPromise).resolves.toBe('tab-1');
     });
 
@@ -339,9 +426,35 @@ describe('DaemonClient', () => {
 
       await expect(client.runQuery('SELECT 1')).rejects.toThrow('Failed to extract Tab ID');
     });
+
+    it('should auto-reconnect if disconnected before running query', async () => {
+      // Force disconnected state
+      (client as any).isConnected = false;
+
+      // Mock start to verify it is called
+      const startSpy = jest.spyOn(client, 'start').mockResolvedValue(undefined);
+
+      // Force disconnected state (default isConnected is false)
+      // But we need to make sure readyPromise is undefined so it calls start
+      // On fresh client, readyPromise is undefined.
+      // But runQuery checks !isConnected.
+
+      // Explicitly mock successful tool call
+      mockClientInstance.callTool.mockResolvedValue({
+        content: [{ type: 'text', text: 'Tab ID: tab-reconnect' }],
+      });
+
+      await client.runQuery('SELECT 1');
+
+      expect(startSpy).toHaveBeenCalled();
+    });
   });
 
   describe('getTabInfo', () => {
+    beforeEach(() => {
+      (client as any).isConnected = true;
+    });
+
     it('should return parsed tab info', async () => {
       const mockInfo = { id: 'tab-1', status: 'success' };
       mockClientInstance.callTool.mockResolvedValue({
@@ -358,6 +471,10 @@ describe('DaemonClient', () => {
   });
 
   describe('cancelQuery', () => {
+    beforeEach(() => {
+      (client as any).isConnected = true;
+    });
+
     it('should call cancel tool', async () => {
       mockClientInstance.callTool.mockResolvedValue({});
 
