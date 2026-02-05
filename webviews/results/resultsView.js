@@ -1488,9 +1488,9 @@ function showLoading(tabId, query, title) {
         tab.overlay.innerHTML = `
             <div class="loading-container">
                 <div class="spinner"></div>
+                <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
                 <div class="loading-text">Running query...</div>
                 <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
-                <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
             </div>
         `;
         tab.overlay.style.display = 'flex';
