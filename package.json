@@ -239,14 +239,6 @@
           "description": "(Beta) Enable the MCP Server to allow LLM agents to interact with SQL Preview.",
           "order": 20
         },
-        "sqlPreview.mcpPort": {
-          "type": "number",
-          "default": 3000,
-          "description": "(Beta) Target port for the MCP (Model Context Protocol) server. If busy, the next available port (up to +10) will be used.",
-          "minimum": 1024,
-          "maximum": 65535,
-          "order": 21
-        },
         "sqlPreview.mcpSafeMode": {
           "type": "boolean",
           "default": true,

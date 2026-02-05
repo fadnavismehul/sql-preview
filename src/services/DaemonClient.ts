@@ -76,15 +76,19 @@ export class DaemonClient {
   private startupLogBuffer = '';
   private isConnected = false;
 
+  private configDir: string;
+
   constructor(private readonly context: vscode.ExtensionContext) {
     // Short session ID to save tokens for LLM agents
     this.sessionId = Math.random().toString(36).substring(2, 10);
 
-    // Determine Socket Path (Same as Daemon)
-    // TODO: Shared constant
+    // Determine Socket Path
     const homeDir = os.homedir();
-    const configDir = path.join(homeDir, '.sql-preview');
-    this.socketPath = path.join(configDir, 'srv.sock');
+    const devPort = process.env['SQL_PREVIEW_MCP_PORT'];
+    this.configDir = devPort
+      ? path.join(homeDir, '.sql-preview-debug')
+      : path.join(homeDir, '.sql-preview');
+    this.socketPath = path.join(this.configDir, 'srv.sock');
 
     this.client = new Client({ name: 'vscode-extension', version: '1.0.0' }, { capabilities: {} });
   }
@@ -152,10 +156,17 @@ export class DaemonClient {
     // but assuming compiled 'out' structure for production/standard run.
     const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'Daemon.js');
 
+    const devPort = process.env['SQL_PREVIEW_MCP_PORT'];
+
     this.process = cp.spawn('node', [serverPath], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, SQL_PREVIEW_DAEMON: '1' },
+      env: {
+        ...process.env,
+        SQL_PREVIEW_DAEMON: '1',
+        SQL_PREVIEW_HOME: this.configDir,
+        ...(devPort ? { MCP_PORT: devPort } : {}),
+      },
     });
 
     this.process.unref(); // Let it run independently
@@ -297,8 +308,7 @@ export class DaemonClient {
   }
 
   private async cleanupStaleDaemon() {
-    const configDir = path.join(os.homedir(), '.sql-preview');
-    const pidPath = path.join(configDir, 'server.pid');
+    const pidPath = path.join(this.configDir, 'server.pid');
 
     if (fs.existsSync(pidPath)) {
       try {

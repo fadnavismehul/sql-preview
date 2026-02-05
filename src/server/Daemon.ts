@@ -34,19 +34,24 @@ export class Daemon {
   private connectorRegistry: ConnectorRegistry;
   private queryExecutor: DaemonQueryExecutor;
 
-  private readonly HTTP_PORT = 8414;
+  private readonly HTTP_PORT: number;
   private readonly SOCKET_PATH: string;
+  private readonly CONFIG_DIR: string;
 
   constructor() {
     this.app = express();
 
-    // Determine Socket Path
+    // Check for port override
+    this.HTTP_PORT = process.env['MCP_PORT'] ? parseInt(process.env['MCP_PORT'], 10) : 8414;
+
+    // Determine Config Dir
     const homeDir = os.homedir();
-    const configDir = path.join(homeDir, '.sql-preview');
-    if (!fs.existsSync(configDir)) {
-      fs.mkdirSync(configDir, { recursive: true });
+    this.CONFIG_DIR = process.env['SQL_PREVIEW_HOME'] || path.join(homeDir, '.sql-preview');
+
+    if (!fs.existsSync(this.CONFIG_DIR)) {
+      fs.mkdirSync(this.CONFIG_DIR, { recursive: true });
     }
-    this.SOCKET_PATH = path.join(configDir, 'srv.sock');
+    this.SOCKET_PATH = path.join(this.CONFIG_DIR, 'srv.sock');
 
     // 1. Initialize Managers
     this.sessionManager = new SessionManager();
@@ -251,18 +256,8 @@ export class Daemon {
   }
 
   public async start() {
-    const configDir = path.join(os.homedir(), '.sql-preview');
-    if (!fs.existsSync(configDir)) {
-      try {
-        fs.mkdirSync(configDir, { recursive: true });
-      } catch (e) {
-        logger.error('[Daemon] Failed to create config dir:', e);
-        process.exit(1);
-      }
-    }
-
     // 1. PID Check (Prevent multiple instances)
-    const pidPath = path.join(configDir, 'server.pid');
+    const pidPath = path.join(this.CONFIG_DIR, 'server.pid');
     try {
       if (fs.existsSync(pidPath)) {
         const pidContent = fs.readFileSync(pidPath, 'utf8');
@@ -403,7 +398,7 @@ export class Daemon {
     }
 
     // Cleanup PID and Socket
-    const pidPath = path.join(os.homedir(), '.sql-preview', 'server.pid');
+    const pidPath = path.join(this.CONFIG_DIR, 'server.pid');
     if (fs.existsSync(pidPath)) {
       try {
         fs.unlinkSync(pidPath);

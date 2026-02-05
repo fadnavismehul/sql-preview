@@ -92,12 +92,12 @@ describe('DaemonMcpToolManager', () => {
   });
 
   describe('get_tab_info', () => {
-    it('should return tab info', async () => {
+    it('should return preview summary by default', async () => {
       const tab = {
         id: 'tab1',
         title: 'Result',
         status: 'success',
-        rows: [['val']],
+        rows: Array(20).fill(['val']), // 20 rows
         columns: [{ name: 'col', type: 'varchar' }],
       };
       mockSession.tabs.set('tab1', tab);
@@ -108,11 +108,40 @@ describe('DaemonMcpToolManager', () => {
       });
 
       const content = JSON.parse(result.content[0].text);
-      expect(content.id).toBe('tab1');
-      expect(content.rowCount).toBe(1);
+      expect(content.meta).toBeDefined();
+      expect(content.meta.totalRows).toBe(20);
+      expect(content.preview).toHaveLength(10); // Default preview limit
+      expect(content.message).toContain('Showing 10 of 20 rows');
+      expect(content.resourceUri).toContain('sql-preview://sessions/session1/tabs/tab1');
     });
 
-    it('should return default to active tab', async () => {
+    it('should return page of rows when mode="page"', async () => {
+      const tab = {
+        id: 'tab1',
+        title: 'Result', // title is in page mode
+        status: 'success',
+        rows: Array(20).fill(['val']),
+        columns: [{ name: 'col', type: 'varchar' }],
+      };
+      mockSession.tabs.set('tab1', tab);
+
+      const result: any = await manager.handleToolCall('get_tab_info', {
+        session: 'session1',
+        tabId: 'tab1',
+        mode: 'page',
+        limit: 5,
+        offset: 5,
+      });
+
+      const content = JSON.parse(result.content[0].text);
+      expect(content.rows).toHaveLength(5);
+      expect(content.offset).toBe(5);
+      expect(content.limit).toBe(5);
+      expect(content.hasMore).toBe(true);
+      expect(content.meta.totalRows).toBe(20);
+    });
+
+    it('should default to active tab', async () => {
       const tab = {
         id: 'tab1',
         rows: [],
@@ -125,7 +154,8 @@ describe('DaemonMcpToolManager', () => {
       });
 
       const content = JSON.parse(result.content[0].text);
-      expect(content.id).toBe('tab1');
+      // In preview mode, id is not at root, but resourceUri contains it
+      expect(content.resourceUri).toContain('tab1');
     });
   });
 

@@ -44,7 +44,7 @@ export class DaemonMcpToolManager {
       {
         name: 'get_tab_info',
         description:
-          'Get information about a result tab in a session, including query status and result rows. Use this after run_query to check if execution completed and retrieve data.',
+          'Get information about a result tab in a session. Defaults to a "preview" mode with metadata and a small sample. Use mode="page" to retrieve full pages of rows.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -57,14 +57,20 @@ export class DaemonMcpToolManager {
               description:
                 'The Tab ID to retrieve (optional, defaults to the most recently active tab in the session)',
             },
+            mode: {
+              type: 'string',
+              enum: ['preview', 'page'],
+              description:
+                'Retrieval mode. "preview" (default) returns stats + 10 rows. "page" returns specific rows defined by offset/limit.',
+            },
             offset: {
               type: 'number',
-              description: 'Optional row offset to fetch from (for pagination, default: 0)',
+              description: 'Row offset for "page" mode (default: 0)',
             },
             limit: {
               type: 'number',
               description:
-                'Maximum number of rows to return (default: 100). Use with offset for pagination.',
+                'Number of rows to return. Default: 100 for "page" mode, 10 for "preview" mode.',
             },
           },
           required: ['session'],
@@ -302,7 +308,13 @@ export class DaemonMcpToolManager {
 
   private async handleGetTabInfo(args: unknown) {
     const typedArgs = args as
-      | { session?: string; tabId?: string; offset?: number; limit?: number }
+      | {
+          session?: string;
+          tabId?: string;
+          mode?: 'preview' | 'page';
+          offset?: number;
+          limit?: number;
+        }
       | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {
@@ -324,34 +336,70 @@ export class DaemonMcpToolManager {
       return { content: [{ type: 'text', text: 'Tab not found.' }] };
     }
 
-    const offset = typedArgs?.offset || 0;
-    const limit = typedArgs?.limit ?? 100; // Default to 100 rows per request
+    const mode = typedArgs?.mode || 'preview';
     const totalRows = tab.rows?.length ?? 0;
-    const rows = tab.rows ? tab.rows.slice(offset, offset + limit) : [];
-    const hasMore = offset + rows.length < totalRows;
+    const resourceUri = `sql-preview://sessions/${sessionId}/tabs/${tabId}`;
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(
-            {
-              id: tab.id,
-              title: tab.title,
-              status: tab.status,
-              rowCount: totalRows,
-              columns: tab.columns,
-              rows: rows,
-              offset: offset,
-              limit: limit,
-              hasMore: hasMore,
-              error: tab.error,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
+    if (mode === 'preview') {
+      // Smart Summary Mode
+      const previewLimit = typedArgs?.limit || 10;
+      const previewRows = tab.rows ? tab.rows.slice(0, previewLimit) : [];
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                status: tab.status,
+                meta: {
+                  totalRows: totalRows,
+                  columns: tab.columns,
+                },
+                preview: previewRows,
+                message: `Showing ${previewRows.length} of ${totalRows} rows. Use mode='page' for pagination or read_resource for full data.`,
+                resourceUri: resourceUri,
+                error: tab.error,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } else {
+      // Page Mode (Legacy / Explicit Fetch)
+      const offset = typedArgs?.offset || 0;
+      const limit = typedArgs?.limit ?? 100;
+      const rows = tab.rows ? tab.rows.slice(offset, offset + limit) : [];
+      const hasMore = offset + rows.length < totalRows;
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                id: tab.id,
+                title: tab.title,
+                status: tab.status,
+                meta: {
+                  totalRows: totalRows,
+                  columns: tab.columns,
+                },
+                rows: rows,
+                offset: offset,
+                limit: limit,
+                hasMore: hasMore,
+                resourceUri: resourceUri,
+                error: tab.error,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
   }
 }

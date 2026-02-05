@@ -121,10 +121,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
         this.postMessage({ type: 'updateRowHeight', density });
       }
 
-      if (
-        e.affectsConfiguration('sqlPreview.mcpEnabled') ||
-        e.affectsConfiguration('sqlPreview.mcpPort')
-      ) {
+      if (e.affectsConfiguration('sqlPreview.mcpEnabled')) {
         this.refreshSettings();
       }
     });
@@ -194,14 +191,16 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
         ssl: config.get('ssl'),
         sslVerify: config.get('sslVerify'),
         mcpEnabled: config.get('mcpEnabled'),
-        mcpPort: config.get('mcpPort'),
+
         defaultConnector: config.get('defaultConnector'),
         databasePath: config.get('databasePath'),
 
         hasPassword,
         mcpStatus: {
           running: !!config.get('mcpEnabled'),
-          port: 8414,
+          port: process.env['SQL_PREVIEW_MCP_PORT']
+            ? parseInt(process.env['SQL_PREVIEW_MCP_PORT'], 10)
+            : 8414,
           error: false,
         },
       },
