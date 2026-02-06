@@ -84,8 +84,4 @@ export class FileConnectionManager {
     this.writeConfig(config);
     this.inMemoryPasswords.delete(id);
   }
-
-  public setPasswordForSession(id: string, password: string) {
-    this.inMemoryPasswords.set(id, password);
-  }
 }

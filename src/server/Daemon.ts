@@ -24,10 +24,14 @@ export class Daemon {
   private httpServer: http.Server | null = null;
   private socketServer: net.Server | null = null;
   private toolManager: DaemonMcpToolManager;
-  private mcpServer!: Server;
-  private mcpTransport!: StreamableHTTPServerTransport;
-  // private activeServers = new Map<string, Server>();
-  // private activeTransports = new Map<string, SSEServerTransport>();
+  private mcpSessions = new Map<
+    string,
+    {
+      server: Server;
+      transport: StreamableHTTPServerTransport;
+      lastActive: number;
+    }
+  >();
 
   private sessionManager: SessionManager;
   private connectionManager: FileConnectionManager;
@@ -72,7 +76,29 @@ export class Daemon {
     // Singleton Server/Transport initialization REMOVED in favor of per-connection logic in setupRoutes
 
     this.setupRoutes();
+    this.setupRoutes();
     this.setupLifecycle();
+    this.setupEventBroadcasting();
+  }
+
+  private connectedMcpServers = new Set<Server>();
+
+  private setupEventBroadcasting() {
+    // Listen to changes in SessionManager
+    this.sessionManager.on('tab-added', () => this.broadcastResourceChange());
+    this.sessionManager.on('tab-updated', () => this.broadcastResourceChange());
+  }
+
+  private broadcastResourceChange() {
+    logger.info(`[Daemon] Broadcasting resource/list_changed to ${this.connectedMcpServers.size} servers`);
+    this.connectedMcpServers.forEach(async server => {
+      try {
+        await server.notification({ method: 'notifications/resources/list_changed' });
+      } catch (e) {
+        // Ignore send errors
+        logger.error('[Daemon] Failed to broadcast notification', e);
+      }
+    });
   }
 
   private setupRoutes() {
@@ -95,35 +121,76 @@ export class Daemon {
         uptime: Math.floor(process.uptime()),
         memory: process.memoryUsage(),
         sessions: this.sessionManager.getAllSessions().length,
+        mcpSessions: this.mcpSessions.size,
         pid: process.pid,
       });
     });
 
-    // Streamable HTTP Transport (Global)
-    this.mcpTransport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => {
-        return `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      },
-    });
+    // MCP Endpoint (Multi-Session Support)
+    const mcpHandler = async (req: express.Request, res: express.Response) => {
+      logger.info(`[Daemon] /mcp request: ${req.method} ${req.url} (Original: ${req.originalUrl})`);
+      try {
+        // 1. Determine Session ID
+        let sessionId =
+          (req.query['sessionId'] as string) || (req.headers['mcp-session-id'] as string);
 
-    this.mcpServer = new Server(
-      { name: 'sql-preview-daemon', version: '1.0.0' },
-      { capabilities: { resources: {}, tools: {} } }
-    );
+        if (!sessionId) {
+          // Generate a new Session ID if none provided
+          sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        }
 
-    // Register Handlers
-    new DaemonMcpServer(this.mcpServer, this.sessionManager, this.toolManager);
+        // 2. Get or Create Session
+        let mcpSession = this.mcpSessions.get(sessionId);
 
-    // Connection moved to start()
+        if (!mcpSession) {
+          logger.info(`[Daemon] Creating new MCP session: ${sessionId}`);
 
-    // MCP Endpoint
-    this.app.use('/mcp', async (req, res) => {
-      await this.mcpTransport.handleRequest(req, res);
-    });
+          // Create dedicated Transport
+          // "Stateless" mode: We manage the session ID at the Daemon/Route level.
+          // This allows the transport to accept the initial GET request (SSE connection)
+          // without requiring a prior POST 'initialize' (which is the SDK's stateful behavior).
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: undefined,
+          });
 
-    // Legacy /sse alias removed
+          // Create dedicated Server
+          const server = new Server(
+            { name: 'sql-preview-daemon', version: '1.0.0' },
+            { capabilities: { resources: {}, tools: {} } }
+          );
 
-    // Legacy /messages alias removed
+          // Register tools (Shared ToolManager)
+          new DaemonMcpServer(server, this.sessionManager, this.toolManager);
+
+          // Store
+          mcpSession = { server, transport, lastActive: Date.now() };
+          this.mcpSessions.set(sessionId, mcpSession);
+
+          // Connect
+          await server.connect(transport);
+        } else {
+          // Update activity
+          mcpSession.lastActive = Date.now();
+        }
+
+        // 3. Delegate to Transport
+        await mcpSession.transport.handleRequest(req, res);
+
+        // 4. Force-announce endpoint (StreamableHTTPServerTransport doesn't do it automatically)
+        // Only write if the response is still open (i.e. successful SSE connection)
+        if (!res.writableEnded && req.method === 'GET' && req.headers.accept?.includes('text/event-stream')) {
+          res.write(`event: endpoint\ndata: /mcp?sessionId=${sessionId}\n\n`);
+        }
+      } catch (err) {
+        logger.error('[Daemon] Error in mcpHandler:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Internal Server Error' });
+        }
+      }
+    };
+
+    this.app.get('/mcp', mcpHandler);
+    this.app.post('/mcp', mcpHandler);
 
     // Session Management API
     this.app.get('/sessions', (_req, res) => {
@@ -205,6 +272,7 @@ export class Daemon {
   }
 
   private readonly IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+  private readonly MCP_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes for inactivity
   private lastActivityTime = Date.now();
   private idleCheckInterval: ReturnType<typeof setInterval> | undefined;
   private connectedSocketCount = 0;
@@ -238,15 +306,26 @@ export class Daemon {
     process.on('SIGINT', () => shutdown('SIGINT'));
     process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-    // 3. Idle Timeout
+    // 3. Idle Timeout & Session Cleanup
     this.idleCheckInterval = setInterval(() => {
-      const timeSinceActivity = Date.now() - this.lastActivityTime;
+      const now = Date.now();
+      const timeSinceActivity = now - this.lastActivityTime;
       const hasActiveSessions = this.connectedSocketCount > 0;
 
       // Only shut down if no sockets connected AND timeout exceeded
       if (!hasActiveSessions && timeSinceActivity > this.IDLE_TIMEOUT_MS) {
         logger.info(`[Daemon] Idle timeout (${this.IDLE_TIMEOUT_MS}ms) reached. Shutting down.`);
         shutdown('IDLE_TIMEOUT');
+      }
+
+      // Cleanup Stale MCP Sessions
+      for (const [id, session] of this.mcpSessions.entries()) {
+        if (now - session.lastActive > this.MCP_SESSION_TIMEOUT_MS) {
+          logger.info(`[Daemon] Cleaning up idle MCP session: ${id}`);
+          // Close/Cleanup logic if needed (Server.close() not exposed directly usually, connection drops)
+          // StreamableHTTPServerTransport doesn't have explicit close?
+          this.mcpSessions.delete(id);
+        }
       }
     }, 60 * 1000); // Check every minute
   }
@@ -305,8 +384,10 @@ export class Daemon {
 
     // Start HTTP Server
     await new Promise<void>((resolve, reject) => {
-      this.httpServer = this.app.listen(this.HTTP_PORT, '127.0.0.1', () => {
-        logger.info(`Daemon HTTP listening on http://127.0.0.1:${this.HTTP_PORT}`);
+      // Use 'localhost' to support both IPv4 and IPv6 depending on OS resolution.
+      // The client (fetch) might try ::1, so we must be listening on it.
+      this.httpServer = this.app.listen(this.HTTP_PORT, 'localhost', () => {
+        logger.info(`Daemon HTTP listening on http://localhost:${this.HTTP_PORT}`);
         resolve();
       });
       this.httpServer.on('error', reject);
@@ -315,8 +396,7 @@ export class Daemon {
     // Start Socket Server
     await this.startSocketServer();
 
-    // Connect MCP Transport (Must be awaited to ensure readiness)
-    await this.mcpServer.connect(this.mcpTransport);
+    // MCP Server connection is now handled on-demand per session in /mcp route
   }
 
   private async startSocketServer() {
@@ -341,6 +421,7 @@ export class Daemon {
         { name: 'sql-preview-daemon-ipc', version: '1.0.0' },
         { capabilities: { resources: {}, tools: {} } }
       );
+      this.connectedMcpServers.add(server);
 
       // Register Handlers
       new DaemonMcpServer(server, this.sessionManager, this.toolManager);
@@ -350,6 +431,7 @@ export class Daemon {
 
       socket.on('close', () => {
         this.connectedSocketCount--;
+        this.connectedMcpServers.delete(server);
         logger.info('Client disconnected from Socket');
         // socket transport usually handles its own cleanup, but we could explicitly server.close()
       });

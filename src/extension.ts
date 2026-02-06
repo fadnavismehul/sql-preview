@@ -31,7 +31,8 @@ export function activate(context: vscode.ExtensionContext) {
     // We do this in the background so it doesn't block startup
     serviceContainer.connectionManager
       .migrateLegacySettings()
-      .catch(err => Logger.getInstance().error(`Migration error`, err));
+      .then(() => serviceContainer.connectionManager.sync())
+      .catch(err => Logger.getInstance().error(`Migration/Sync error`, err));
 
     // Register Webview Provider
     context.subscriptions.push(

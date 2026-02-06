@@ -26,7 +26,7 @@ export class ResultsMessageHandler {
     private readonly _connectionManager: ConnectionManager,
     private readonly _queryExecutor: QueryExecutor,
     private readonly _extensionUri: vscode.Uri
-  ) {}
+  ) { }
 
   public async handleMessage(data: any) {
     switch (data.command) {
@@ -192,8 +192,16 @@ export class ResultsMessageHandler {
       }
       case 'testMcpServer': {
         // Check Daemon Health
+        const config = vscode.workspace.getConfiguration('sqlPreview');
+        const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
+        const configPort = config.get<number>('mcpPort', 8414);
+
+        // Prefer port sent from UI, then Env Var, then Config
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const req = http.get('http://localhost:8414/status', (res: any) => {
+        const port = (data as any).port || (envPort ? parseInt(envPort, 10) : configPort);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const req = http.get(`http://localhost:${port}/status`, (res: any) => {
           if (res.statusCode === 200) {
             this._delegate.postMessage({
               type: 'testMcpResult',
@@ -290,7 +298,7 @@ export class ResultsMessageHandler {
             id: profileId,
             name: 'Default Connection',
             type: 'trino',
-            host: s.host || 'localhost',
+            host: s.host || '127.0.0.1',
             port: s.port || 8080,
             user: s.user || 'user',
             catalog: s.catalog,
@@ -336,7 +344,7 @@ export class ResultsMessageHandler {
               id: profileId,
               name: 'Default Connection',
               type: 'trino',
-              host: 'localhost',
+              host: '127.0.0.1',
               port: 8080,
               user: 'user',
             };

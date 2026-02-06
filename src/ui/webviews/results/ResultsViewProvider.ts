@@ -505,6 +505,47 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
 
   // --- Private ---
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public syncRemoteTabs(sessions: any[]) {
+    // We want to merge remote tabs into our local view
+    let changes = false;
+
+    for (const session of sessions) {
+      if (session.tabs) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const remoteTab of session.tabs) {
+          // Check if we already have this tab
+          const existing = this._tabManager.getTab(remoteTab.tabId);
+
+          if (!existing) {
+            // New Remote Tab
+            this.createTabWithId(remoteTab.tabId, remoteTab.query, `Remote: ${remoteTab.tabId}`, undefined);
+            const tab = this._tabManager.getTab(remoteTab.tabId);
+            if (tab) {
+              tab.isRemote = true;
+              tab.sessionId = session.sessionId;
+              tab.status = remoteTab.status;
+              tab.title = `Remote: ${remoteTab.tabId}`; // Maybe use session name?
+              // We don't have columns/rows here, we'd need to fetch them.
+            }
+            changes = true;
+          } else {
+            // Update status
+            if (existing.status !== remoteTab.status) {
+              existing.status = remoteTab.status;
+              changes = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (changes) {
+      this._saveState();
+      this.restoreTabs(); // Full refresh for now to be safe
+    }
+  }
+
   private _ensureVisible() {
     if (this._view) {
       this._view.show?.(true);

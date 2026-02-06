@@ -5,7 +5,7 @@ export class ConnectionManager {
   private static readonly STORAGE_KEY = 'sqlPreview.connections';
   private static readonly PASSWORD_KEY_PREFIX = 'sqlPreview.password.';
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(private readonly context: vscode.ExtensionContext) { }
 
   public async getConnections(): Promise<ConnectionProfile[]> {
     const connections = this.context.globalState.get<ConnectionProfile[]>(
@@ -38,12 +38,16 @@ export class ConnectionManager {
         await this.deletePassword(profile.id);
       }
     }
+
+    // Sync to Daemon
+    this.syncToDaemon(connections);
   }
 
   public async deleteConnection(id: string): Promise<void> {
     let connections = await this.getConnections();
     connections = connections.filter(c => c.id !== id);
     await this.context.globalState.update(ConnectionManager.STORAGE_KEY, connections);
+    this.syncToDaemon(connections);
     await this.deletePassword(id);
   }
 
@@ -169,5 +173,52 @@ export class ConnectionManager {
 
     // Optional: clear legacy password?
     // Better to leave it for safety in case they downgrade.
+  }
+
+  // --- Daemon Sync ---
+
+  private getDaemonConfigPath(): string {
+    const os = require('os');
+    const path = require('path');
+    const homeDir = os.homedir();
+
+    // Check for Dev Port override logic mirroring DaemonClient
+    const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
+    const configDir = envPort
+      ? path.join(homeDir, '.sql-preview-debug')
+      : path.join(homeDir, '.sql-preview');
+
+    return path.join(configDir, 'config.json');
+  }
+
+  public async sync(): Promise<void> {
+    const connections = await this.getConnections();
+    this.syncToDaemon(connections);
+  }
+
+  private syncToDaemon(connections: ConnectionProfile[]) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const configPath = this.getDaemonConfigPath();
+
+      const dir = path.dirname(configPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      // Read existing to preserve any manual secrets if possible? 
+      // For now, simple overwrite of profiles. Daemon FileConnectionManager is simple.
+      // We strip passwords before writing (security).
+      const safeConnections = connections.map(c => {
+        const { password, ...rest } = c;
+        return rest;
+      });
+
+      fs.writeFileSync(configPath, JSON.stringify({ connections: safeConnections }, null, 2), 'utf8');
+    } catch (e) {
+      // Ignore sync errors (e.g. permission)
+      console.error('Failed to sync connections to daemon:', e);
+    }
   }
 }

@@ -188,6 +188,8 @@ describe('DaemonMcpToolManager', () => {
       const list = JSON.parse(result.content[0].text);
       expect(list).toHaveLength(1);
       expect(list[0].id).toBe('session1');
+      expect(list[0].tabs).toBeDefined();
+      expect(Array.isArray(list[0].tabs)).toBe(true);
     });
   });
 });

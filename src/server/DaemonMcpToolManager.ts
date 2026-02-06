@@ -7,7 +7,7 @@ export class DaemonMcpToolManager {
   constructor(
     private readonly sessionManager: SessionManager,
     private readonly queryExecutor: DaemonQueryExecutor
-  ) {}
+  ) { }
 
   public getTools() {
     return [
@@ -159,6 +159,12 @@ export class DaemonMcpToolManager {
               id: s.id,
               displayName: s.displayName,
               clientType: s.clientType,
+              tabs: Array.from(s.tabs.values()).map(t => ({
+                tabId: t.id,
+                title: t.title,
+                status: t.status,
+                query: t.query,
+              })),
             })),
             null,
             2
@@ -172,12 +178,12 @@ export class DaemonMcpToolManager {
     try {
       const typedArgs = args as
         | {
-            sql?: string;
-            session?: string;
-            displayName?: string;
-            newTab?: boolean;
-            connectionProfile?: unknown;
-          }
+          sql?: string;
+          session?: string;
+          displayName?: string;
+          newTab?: boolean;
+          connectionProfile?: unknown;
+        }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       const sessionId = typedArgs?.session;
@@ -214,7 +220,7 @@ export class DaemonMcpToolManager {
         status: 'loading',
       };
 
-      session.tabs.set(tabId, tab);
+      this.sessionManager.addTab(sessionId, tab);
       session.activeTabId = tabId;
       session.lastActivityAt = new Date();
 
@@ -284,7 +290,11 @@ export class DaemonMcpToolManager {
           tab.columns = columns;
         }
         if (page.data && page.data.length > 0) {
-          tab.rows.push(...page.data);
+          this.sessionManager.updateTab(sessionId, tabId, {
+            columns: page.columns ? page.columns : tab.columns,
+            rows: page.data && page.data.length > 0 ? [...tab.rows, ...page.data] : tab.rows,
+            status: 'loading'
+          });
         }
         if (page.supportsPagination !== undefined) {
           tab.supportsPagination = page.supportsPagination;
@@ -293,28 +303,25 @@ export class DaemonMcpToolManager {
         // Actually 'loading' is fine until done.
       }
 
-      tab.status = 'success';
+      this.sessionManager.updateTab(sessionId, tabId, { status: 'success', totalRowsInFirstBatch: tab.rows.length });
       tab.totalRowsInFirstBatch = tab.rows.length;
     } catch (err) {
-      tab.status = 'error';
-      // Check if aborted
-      if (signal?.aborted) {
-        tab.error = 'Query cancelled by user';
-      } else {
-        tab.error = err instanceof Error ? err.message : String(err);
-      }
+      this.sessionManager.updateTab(sessionId, tabId, {
+        status: 'error',
+        error: signal?.aborted ? 'Query cancelled by user' : (err instanceof Error ? err.message : String(err))
+      });
     }
   }
 
   private async handleGetTabInfo(args: unknown) {
     const typedArgs = args as
       | {
-          session?: string;
-          tabId?: string;
-          mode?: 'preview' | 'page';
-          offset?: number;
-          limit?: number;
-        }
+        session?: string;
+        tabId?: string;
+        mode?: 'preview' | 'page';
+        offset?: number;
+        limit?: number;
+      }
       | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {

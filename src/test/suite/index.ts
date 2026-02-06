@@ -23,8 +23,8 @@ export async function run(): Promise<void> {
       if (stat.isDirectory()) {
         findTestFiles(filePath, fileList);
       } else {
-        // Filter for integration tests primarily as requested
-        if (file.endsWith('.test.js')) {
+        // Filter for mcpIntegration test ONLY
+        if (file.endsWith('mcpIntegration.test.js')) {
           fileList.push(filePath);
         }
       }

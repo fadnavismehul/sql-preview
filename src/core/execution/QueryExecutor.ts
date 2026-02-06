@@ -96,13 +96,14 @@ export class QueryExecutor {
         // 2. Query just completed (final yield, even if empty - e.g., DELETE returning 0 rows)
         // 3. First poll with columns (to show grid structure before data arrives)
         const hasNewRows = newRows.length > 0;
-        const isFirstPollWithColumns = info.columns && currentOffset === 0 && !hasNewRows;
+        const validColumns = info.meta?.columns || info.columns;
+        const isFirstPollWithColumns = validColumns && currentOffset === 0 && !hasNewRows;
         const isFinalEmptyResult = isComplete && currentOffset === 0 && !hasNewRows;
 
         if (hasNewRows || isFirstPollWithColumns || isFinalEmptyResult) {
           currentOffset += newRows.length;
           yield {
-            columns: info.columns,
+            columns: validColumns,
             data: newRows,
             supportsPagination: info.supportsPagination,
             stats: {

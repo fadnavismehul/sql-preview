@@ -60,6 +60,11 @@ export class ServiceContainer {
       this.connectionManager,
       this.queryExecutor
     );
+
+    // Wire up Daemon Notifications
+    this.daemonClient.onRefresh = () => {
+      this.syncRemoteSessions();
+    };
   }
 
   public static initialize(context: vscode.ExtensionContext): ServiceContainer {
@@ -83,5 +88,14 @@ export class ServiceContainer {
       throw new Error('ServiceContainer not initialized. Call initialize(context) first.');
     }
     return ServiceContainer.instance;
+  }
+
+  private async syncRemoteSessions() {
+    try {
+      const sessions = await this.daemonClient.listSessions();
+      this.resultsViewProvider.syncRemoteTabs(sessions);
+    } catch (e) {
+      Logger.getInstance().error('Failed to sync remote sessions', e);
+    }
   }
 }

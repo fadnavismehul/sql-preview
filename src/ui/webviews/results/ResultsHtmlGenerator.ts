@@ -5,34 +5,34 @@ import { getNonce } from '../../../utils/nonce';
  * Responsible for generating the HTML content for the Results Webview.
  */
 export class ResultsHtmlGenerator {
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+    constructor(private readonly _extensionUri: vscode.Uri) { }
 
-  public getHtmlForWebview(webview: vscode.Webview): string {
-    const nonce = getNonce();
-    // Local Vendor Assets for AG Grid (Community)
-    const agGridScriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(
-        this._extensionUri,
-        'media',
-        'vendor',
-        'ag-grid',
-        'ag-grid-community.min.js'
-      )
-    );
-    const agGridStylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'vendor', 'ag-grid', 'ag-grid.min.css')
-    );
-    const agGridThemeStylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(
-        this._extensionUri,
-        'media',
-        'vendor',
-        'ag-grid',
-        'ag-theme-quartz.min.css'
-      )
-    );
+    public getHtmlForWebview(webview: vscode.Webview): string {
+        const nonce = getNonce();
+        // Local Vendor Assets for AG Grid (Community)
+        const agGridScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(
+                this._extensionUri,
+                'media',
+                'vendor',
+                'ag-grid',
+                'ag-grid-community.min.js'
+            )
+        );
+        const agGridStylesUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'vendor', 'ag-grid', 'ag-grid.min.css')
+        );
+        const agGridThemeStylesUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(
+                this._extensionUri,
+                'media',
+                'vendor',
+                'ag-grid',
+                'ag-theme-quartz.min.css'
+            )
+        );
 
-    const csp = `
+        const csp = `
         default-src 'none'; 
         script-src 'nonce-${nonce}' ${webview.cspSource};
         style-src ${webview.cspSource} 'unsafe-inline';
@@ -41,20 +41,25 @@ export class ResultsHtmlGenerator {
         connect-src https://sentry.io ${webview.cspSource};
     `;
 
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'resultsView.js')
-    );
-    const stylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'resultsView.css')
-    );
-    const themeStylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'theme.css')
-    );
-    const customFontSize = vscode.workspace
-      .getConfiguration('sqlPreview')
-      .get<number>('fontSize', 0);
+        const scriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'resultsView.js')
+        );
+        const stylesUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'resultsView.css')
+        );
+        const themeStylesUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'theme.css')
+        );
+        const customFontSize = vscode.workspace
+            .getConfiguration('sqlPreview')
+            .get<number>('fontSize', 0);
+        const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
+        const configPort = vscode.workspace
+            .getConfiguration('sqlPreview')
+            .get<number>('mcpPort', 8414);
+        const mcpPort = envPort ? parseInt(envPort, 10) : configPort;
 
-    return `<!DOCTYPE html>
+        return `<!DOCTYPE html>
 		<html lang="en">
 		<head>
 			<meta charset="UTF-8">
@@ -236,7 +241,7 @@ export class ResultsHtmlGenerator {
                                     <div class="form-row align-center" style="margin-top:10px;">
                                         <label class="toggle-label"><input type="checkbox" id="cfg-mcpEnabled"> Enable MCP Server</label>
                                         <div class="form-group horizontal" style="margin-left:auto;">
-                                            <span style="color:var(--vscode-descriptionForeground);">Port: <strong>8414</strong></span>
+                                            <span style="color:var(--vscode-descriptionForeground);">Port: <strong>${mcpPort}</strong></span>
                                         </div>
                                     </div>
 
@@ -247,7 +252,7 @@ export class ResultsHtmlGenerator {
                                                 <pre id="mcp-snippet" style="text-align: left; white-space: pre;">{
     "sql-preview": {
       "type": "streamable-http",
-      "url": "http://localhost:8414/mcp"
+      "url": "http://127.0.0.1:${mcpPort}/mcp"
     }
 }</pre>
                                                 <button id="copy-mcp-config" class="icon-button" title="Copy Config" aria-label="Copy MCP Config">📋</button>
@@ -283,5 +288,5 @@ export class ResultsHtmlGenerator {
 			<script nonce="${nonce}" src="${scriptUri}"></script>
 		</body>
 		</html>`;
-  }
+    }
 }

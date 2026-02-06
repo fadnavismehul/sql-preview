@@ -10,6 +10,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 // logic: we can implement one easily. It just needs to read/write JSON-RPC.
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { Logger } from '../core/logging/Logger';
 
 class SocketClientTransport implements Transport {
@@ -75,6 +76,7 @@ export class DaemonClient {
   private readyPromise: Promise<void> | undefined;
   private startupLogBuffer = '';
   private isConnected = false;
+  public onRefresh?: () => void;
 
   private configDir: string;
 
@@ -157,6 +159,8 @@ export class DaemonClient {
     const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'Daemon.js');
 
     const devPort = process.env['SQL_PREVIEW_MCP_PORT'];
+    const configPort = vscode.workspace.getConfiguration('sqlPreview').get<number>('mcpPort');
+    const portToUse = devPort || (configPort ? String(configPort) : undefined);
 
     this.process = cp.spawn('node', [serverPath], {
       detached: true,
@@ -165,7 +169,7 @@ export class DaemonClient {
         ...process.env,
         SQL_PREVIEW_DAEMON: '1',
         SQL_PREVIEW_HOME: this.configDir,
-        ...(devPort ? { MCP_PORT: devPort } : {}),
+        ...(portToUse ? { MCP_PORT: portToUse } : {}),
       },
     });
 
@@ -209,7 +213,16 @@ export class DaemonClient {
         this.transport = new SocketClientTransport(socket);
         this.client
           .connect(this.transport)
-          .then(() => {
+          .then(async () => {
+            // Listen for Resource Updates
+            this.client.setNotificationHandler(
+              z.object({ method: z.literal('notifications/resources/list_changed') }),
+              async () => {
+                const logger = Logger.getInstance();
+                logger.info('[DaemonClient] Received notifications/resources/list_changed');
+                this.onRefresh?.();
+              }
+            );
             resolve();
           })
           .catch(reject);
@@ -271,6 +284,7 @@ export class DaemonClient {
       arguments: {
         session: this.sessionId,
         tabId,
+        mode: 'page',
         offset,
         ...(limit !== undefined && { limit }),
       },
@@ -283,6 +297,21 @@ export class DaemonClient {
 
     const text = content[0].text;
     return JSON.parse(text);
+  }
+
+  public async listSessions() {
+    if (!this.isConnected) {
+      await this.start();
+    }
+    const result = await this.client.callTool({
+      name: 'list_sessions',
+      arguments: {},
+    });
+    const content = result.content as { type: string; text: string }[];
+    if (content && content[0]?.text) {
+      return JSON.parse(content[0].text);
+    }
+    return [];
   }
 
   public async cancelQuery(tabId: string) {

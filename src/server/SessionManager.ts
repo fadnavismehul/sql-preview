@@ -13,7 +13,9 @@ export interface Session {
   activeTabId?: string;
 }
 
-export class SessionManager {
+import { EventEmitter } from 'events';
+
+export class SessionManager extends EventEmitter {
   private sessions: Map<string, Session> = new Map();
   private readonly MAX_SESSIONS = 50;
   private readonly MAX_TABS_PER_SESSION = 20;
@@ -92,5 +94,26 @@ export class SessionManager {
       return false;
     }
     return session.tabs.size < this.MAX_TABS_PER_SESSION;
+  }
+
+  public addTab(sessionId: string, tab: TabData) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.tabs.set(tab.id, tab);
+      session.lastActivityAt = new Date();
+      this.emit('tab-added', { sessionId, tab });
+    }
+  }
+
+  public updateTab(sessionId: string, tabId: string, updates: Partial<TabData>) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      const tab = session.tabs.get(tabId);
+      if (tab) {
+        Object.assign(tab, updates);
+        session.lastActivityAt = new Date();
+        this.emit('tab-updated', { sessionId, tabId, tab });
+      }
+    }
   }
 }
