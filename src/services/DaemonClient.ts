@@ -81,8 +81,15 @@ export class DaemonClient {
   private configDir: string;
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    // Short session ID to save tokens for LLM agents
-    this.sessionId = Math.random().toString(36).substring(2, 10);
+    // Persistent Session ID
+    const STORAGE_KEY = 'sqlPreview.sessionId';
+    let storedId = this.context.workspaceState.get<string>(STORAGE_KEY);
+
+    if (!storedId) {
+      storedId = Math.random().toString(36).substring(2, 10);
+      this.context.workspaceState.update(STORAGE_KEY, storedId);
+    }
+    this.sessionId = storedId;
 
     // Determine Socket Path
     const homeDir = os.homedir();
@@ -97,6 +104,23 @@ export class DaemonClient {
 
   public getSessionId() {
     return this.sessionId;
+  }
+
+  public async closeTab(tabId: string) {
+    if (!this.isConnected) {
+      return;
+    }
+    try {
+      await this.client.callTool({
+        name: 'close_tab',
+        arguments: {
+          session: this.sessionId,
+          tabId: tabId,
+        },
+      });
+    } catch (e) {
+      Logger.getInstance().error(`Failed to close remote tab ${tabId}`, e);
+    }
   }
 
   public async start() {
@@ -133,8 +157,9 @@ export class DaemonClient {
     const start = Date.now();
     while (Date.now() - start < timeout) {
       if (this.process && this.process.exitCode !== null) {
+        const logs = this.startupLogBuffer || 'No logs captured';
         throw new Error(
-          `Daemon exited prematurely with code ${this.process.exitCode}. Logs: ${this.startupLogBuffer || 'No logs captured'}`
+          `Daemon exited prematurely with code ${this.process.exitCode}.\nLogs:\n${logs}`
         );
       }
 
@@ -215,12 +240,24 @@ export class DaemonClient {
           .connect(this.transport)
           .then(async () => {
             // Listen for Resource Updates
+            // Simple Debounce for Refresh
+            let refreshTimeout: NodeJS.Timeout | undefined;
+
             this.client.setNotificationHandler(
               z.object({ method: z.literal('notifications/resources/list_changed') }),
               async () => {
                 const logger = Logger.getInstance();
                 logger.info('[DaemonClient] Received notifications/resources/list_changed');
-                this.onRefresh?.();
+
+                if (refreshTimeout) {
+                  clearTimeout(refreshTimeout);
+                }
+
+                refreshTimeout = setTimeout(() => {
+                  logger.info('[DaemonClient] Debounce triggered: Refreshing sessions...');
+                  this.onRefresh?.();
+                  refreshTimeout = undefined;
+                }, 500);
               }
             );
             resolve();
@@ -239,7 +276,12 @@ export class DaemonClient {
     });
   }
 
-  public async runQuery(sql: string, newTab = true, connectionProfile?: unknown): Promise<string> {
+  public async runQuery(
+    sql: string,
+    newTab = true,
+    connectionProfile?: unknown,
+    tabId?: string
+  ): Promise<string> {
     if (!this.isConnected) {
       await this.start();
     } else if (this.readyPromise) {
@@ -253,6 +295,7 @@ export class DaemonClient {
         session: this.sessionId,
         newTab,
         connectionProfile,
+        tabId,
       },
     });
 

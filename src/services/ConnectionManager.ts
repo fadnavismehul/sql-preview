@@ -1,11 +1,15 @@
 import * as vscode from 'vscode';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 import { ConnectionProfile } from '../common/types';
+import { Logger } from '../core/logging/Logger';
 
 export class ConnectionManager {
   private static readonly STORAGE_KEY = 'sqlPreview.connections';
   private static readonly PASSWORD_KEY_PREFIX = 'sqlPreview.password.';
 
-  constructor(private readonly context: vscode.ExtensionContext) { }
+  constructor(private readonly context: vscode.ExtensionContext) {}
 
   public async getConnections(): Promise<ConnectionProfile[]> {
     const connections = this.context.globalState.get<ConnectionProfile[]>(
@@ -20,6 +24,7 @@ export class ConnectionManager {
     const index = connections.findIndex(c => c.id === profile.id);
 
     // Don't persist password in globalState
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...safeProfile } = profile;
 
     if (index !== -1) {
@@ -178,8 +183,6 @@ export class ConnectionManager {
   // --- Daemon Sync ---
 
   private getDaemonConfigPath(): string {
-    const os = require('os');
-    const path = require('path');
     const homeDir = os.homedir();
 
     // Check for Dev Port override logic mirroring DaemonClient
@@ -198,8 +201,6 @@ export class ConnectionManager {
 
   private syncToDaemon(connections: ConnectionProfile[]) {
     try {
-      const fs = require('fs');
-      const path = require('path');
       const configPath = this.getDaemonConfigPath();
 
       const dir = path.dirname(configPath);
@@ -207,18 +208,25 @@ export class ConnectionManager {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      // Read existing to preserve any manual secrets if possible? 
+      // Read existing to preserve any manual secrets if possible?
       // For now, simple overwrite of profiles. Daemon FileConnectionManager is simple.
       // We strip passwords before writing (security).
       const safeConnections = connections.map(c => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { password, ...rest } = c;
         return rest;
       });
 
-      fs.writeFileSync(configPath, JSON.stringify({ connections: safeConnections }, null, 2), 'utf8');
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({ connections: safeConnections }, null, 2),
+        'utf8'
+      );
     } catch (e) {
       // Ignore sync errors (e.g. permission)
-      console.error('Failed to sync connections to daemon:', e);
+      Logger.getInstance().error(
+        `Failed to sync connections to daemon: ${e instanceof Error ? e.message : String(e)}`
+      );
     }
   }
 }

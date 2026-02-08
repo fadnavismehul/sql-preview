@@ -22,10 +22,11 @@ export class QueryExecutor {
   async *execute(
     query: string,
     contextUri?: vscode.Uri,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    tabId?: string
   ): AsyncGenerator<QueryPage, void, unknown> {
     const correlationId = Math.random().toString(36).substring(7);
-    this.logger.info(`Starting query execution via Daemon`, { query }, correlationId);
+    this.logger.info(`Starting query execution via Daemon`, { query, tabId }, correlationId);
 
     // Resolve Connection Profile (Client Side) to pass to Daemon
     const connections = await this.connectionManager.getConnections();
@@ -59,8 +60,20 @@ export class QueryExecutor {
     }
 
     try {
-      // 1. Submit Query with Profile Override
-      const remoteTabId = await this.daemonClient.runQuery(query, true, profile);
+      // 1. Submit Query with Profile Override and Explicit Tab ID
+      const remoteTabId = await this.daemonClient.runQuery(query, true, profile, tabId);
+
+      // Yield immediate state to link tabs before first poll
+      yield {
+        columns: [],
+        data: [],
+        supportsPagination: false,
+        remoteTabId,
+        stats: {
+          state: 'RUNNING',
+          rowCount: 0,
+        },
+      };
 
       // 2. Poll for Results
       let isDone = false;
@@ -106,6 +119,7 @@ export class QueryExecutor {
             columns: validColumns,
             data: newRows,
             supportsPagination: info.supportsPagination,
+            remoteTabId,
             stats: {
               state: isComplete && !hasMore ? 'FINISHED' : 'RUNNING',
               rowCount: info.rowCount ?? currentOffset,

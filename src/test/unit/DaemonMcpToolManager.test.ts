@@ -34,6 +34,9 @@ describe('DaemonMcpToolManager', () => {
 
     sessionManager.getSession.mockReturnValue(mockSession);
     sessionManager.registerSession.mockReturnValue(mockSession);
+    sessionManager.addTab.mockImplementation((_id, tab) => {
+      mockSession.tabs.set(tab.id, tab);
+    });
   });
 
   describe('run_query', () => {
@@ -88,6 +91,38 @@ describe('DaemonMcpToolManager', () => {
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Failed to auto-register session');
+    });
+  });
+
+  describe('close_tab', () => {
+    it('should remove tab from session', async () => {
+      const tab = { id: 'tab1' };
+      mockSession.tabs.set('tab1', tab);
+
+      const result: any = await manager.handleToolCall('close_tab', {
+        session: 'session1',
+        tabId: 'tab1',
+      });
+
+      expect(sessionManager.removeTab).toHaveBeenCalledWith('session1', 'tab1');
+      expect(result.content[0].text).toContain('Tab tab1 closed');
+    });
+
+    it('should throw error if session not found', async () => {
+      sessionManager.getSession.mockReturnValue(undefined);
+
+      await expect(
+        manager.handleToolCall('close_tab', {
+          session: 'session1',
+          tabId: 'tab1',
+        })
+      ).rejects.toThrow('Session not found');
+    });
+
+    it('should throw error if params missing', async () => {
+      await expect(manager.handleToolCall('close_tab', { session: 'session1' })).rejects.toThrow(
+        'Session ID and Tab ID required'
+      );
     });
   });
 

@@ -87,10 +87,13 @@ export class Daemon {
     // Listen to changes in SessionManager
     this.sessionManager.on('tab-added', () => this.broadcastResourceChange());
     this.sessionManager.on('tab-updated', () => this.broadcastResourceChange());
+    this.sessionManager.on('tab-removed', () => this.broadcastResourceChange());
   }
 
   private broadcastResourceChange() {
-    logger.info(`[Daemon] Broadcasting resource/list_changed to ${this.connectedMcpServers.size} servers`);
+    logger.info(
+      `[Daemon] Broadcasting resource/list_changed to ${this.connectedMcpServers.size} servers`
+    );
     this.connectedMcpServers.forEach(async server => {
       try {
         await server.notification({ method: 'notifications/resources/list_changed' });
@@ -129,6 +132,8 @@ export class Daemon {
     // MCP Endpoint (Multi-Session Support)
     const mcpHandler = async (req: express.Request, res: express.Response) => {
       logger.info(`[Daemon] /mcp request: ${req.method} ${req.url} (Original: ${req.originalUrl})`);
+      logger.info(`[Daemon] Headers: ${JSON.stringify(req.headers)}`);
+      logger.info(`[Daemon] Query: ${JSON.stringify(req.query)}`);
       try {
         // 1. Determine Session ID
         let sessionId =
@@ -178,7 +183,11 @@ export class Daemon {
 
         // 4. Force-announce endpoint (StreamableHTTPServerTransport doesn't do it automatically)
         // Only write if the response is still open (i.e. successful SSE connection)
-        if (!res.writableEnded && req.method === 'GET' && req.headers.accept?.includes('text/event-stream')) {
+        if (
+          !res.writableEnded &&
+          req.method === 'GET' &&
+          req.headers.accept?.includes('text/event-stream')
+        ) {
           res.write(`event: endpoint\ndata: /mcp?sessionId=${sessionId}\n\n`);
         }
       } catch (err) {
@@ -384,10 +393,14 @@ export class Daemon {
 
     // Start HTTP Server
     await new Promise<void>((resolve, reject) => {
-      // Use 'localhost' to support both IPv4 and IPv6 depending on OS resolution.
-      // The client (fetch) might try ::1, so we must be listening on it.
-      this.httpServer = this.app.listen(this.HTTP_PORT, 'localhost', () => {
-        logger.info(`Daemon HTTP listening on http://localhost:${this.HTTP_PORT}`);
+      // Use '0.0.0.0' to ensure we listen on all interfaces (IPv4/IPv6 dual stack support depends on Node version/OS,
+      // but 0.0.0.0 covers 127.0.0.1 and usually allows ::1 if mapped).
+      // Use '0.0.0.0' to ensure we listen on all interfaces (IPv4/IPv6 dual stack support depends on Node version/OS,
+      // but 0.0.0.0 covers 127.0.0.1 and usually allows ::1 if mapped).
+      this.httpServer = this.app.listen(this.HTTP_PORT, '0.0.0.0', () => {
+        const addr = this.httpServer?.address();
+        const bind = typeof addr === 'string' ? `pipe ${addr}` : `port ${addr?.port}`;
+        logger.info(`Daemon HTTP listening on http://0.0.0.0:${this.HTTP_PORT} (${bind})`);
         resolve();
       });
       this.httpServer.on('error', reject);

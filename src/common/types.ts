@@ -9,12 +9,13 @@ export interface QueryPage {
   nextUri?: string | undefined;
   infoUri?: string | undefined;
   id?: string | undefined;
+  remoteTabId?: string | undefined; // To link local tab to remote daemon tab
   stats?:
-  | {
-    state: string;
-    [key: string]: unknown;
-  }
-  | undefined;
+    | {
+        state: string;
+        [key: string]: unknown;
+      }
+    | undefined;
   supportsPagination?: boolean | undefined;
 }
 
@@ -51,6 +52,7 @@ export interface TabData {
   // Remote/MCP specific
   isRemote?: boolean;
   sessionId?: string;
+  remoteId?: string | undefined;
   supportsPagination?: boolean | undefined;
 }
 
@@ -129,11 +131,11 @@ export type WebviewToExtensionMessage =
   | { command: 'webviewLoaded' }
   | { command: 'tabClosed'; tabId: string }
   | {
-    command: 'updateTabState';
-    tabId: string;
-    title?: string | undefined;
-    query?: string | undefined;
-  }
+      command: 'updateTabState';
+      tabId: string;
+      title?: string | undefined;
+      query?: string | undefined;
+    }
   | { command: 'tabSelected'; tabId: string }
   | { command: 'cancelQuery'; tabId: string }
   | { command: 'refreshConnections' }
@@ -150,29 +152,29 @@ export type WebviewToExtensionMessage =
 
 export type ExtensionToWebviewMessage =
   | {
-    type: 'createTab';
-    tabId: string;
-    query: string;
-    title: string;
-    sourceFileUri?: string | undefined;
-  }
+      type: 'createTab';
+      tabId: string;
+      query: string;
+      title: string;
+      sourceFileUri?: string | undefined;
+    }
   | { type: 'resultData'; tabId: string; data: QueryResults; title: string }
   | {
-    type: 'queryError';
-    tabId: string;
-    error: { message: string; details?: string | undefined };
-    query?: string | undefined;
-    title?: string | undefined;
-  }
+      type: 'queryError';
+      tabId: string;
+      error: { message: string; details?: string | undefined };
+      query?: string | undefined;
+      title?: string | undefined;
+    }
   | { type: 'showLoading'; tabId: string; query?: string | undefined; title?: string | undefined }
   | { type: 'statusMessage'; message: string }
   | {
-    type: 'reuseOrCreateActiveTab';
-    tabId: string;
-    query: string;
-    title: string;
-    sourceFileUri?: string | undefined;
-  }
+      type: 'reuseOrCreateActiveTab';
+      tabId: string;
+      query: string;
+      title: string;
+      sourceFileUri?: string | undefined;
+    }
   | { type: 'closeActiveTab' }
   | { type: 'closeTab'; tabId: string }
   | { type: 'closeOtherTabs' }
@@ -183,14 +185,14 @@ export type ExtensionToWebviewMessage =
   | { type: 'updateConnections'; connections: ConnectionProfile[] }
   | { type: 'testConnectionResult'; success: boolean; error?: string }
   | {
-    type: 'testMcpResult';
-    success: boolean;
-    error?: string | undefined;
-    message?: string | undefined;
-  }
+      type: 'testMcpResult';
+      success: boolean;
+      error?: string | undefined;
+      message?: string | undefined;
+    }
   | { type: 'updateConfig'; config: unknown }
   | {
-    type: 'updateVersionInfo';
-    currentVersion: string;
-    latestVersion: string | null;
-  };
+      type: 'updateVersionInfo';
+      currentVersion: string;
+      latestVersion: string | null;
+    };

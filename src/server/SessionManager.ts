@@ -116,4 +116,14 @@ export class SessionManager extends EventEmitter {
       }
     }
   }
+
+  public removeTab(sessionId: string, tabId: string) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      if (session.tabs.delete(tabId)) {
+        session.lastActivityAt = new Date();
+        this.emit('tab-removed', { sessionId, tabId });
+      }
+    }
+  }
 }

@@ -77,6 +77,10 @@
       {
         "command": "sql.mcp.testConnection",
         "title": "SQL Preview: Test MCP Server Connection"
+      },
+      {
+        "command": "sql.debug.resetSession",
+        "title": "SQL Preview: Reset Session (Debug)"
       }
     ],
     "viewsContainers": {

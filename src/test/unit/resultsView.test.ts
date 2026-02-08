@@ -14,9 +14,14 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 describe('ResultsViewProvider Tests', () => {
   let resultsViewProvider: ResultsViewProvider;
   let mockWebviewView: any;
+  let mockDaemonClient: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockDaemonClient = {
+      closeTab: jest.fn().mockResolvedValue(undefined),
+    };
 
     // Mock axios response for version check
     mockedAxios.post.mockResolvedValue({
@@ -72,7 +77,8 @@ describe('ResultsViewProvider Tests', () => {
         saveConnection: jest.fn(),
         deleteConnection: jest.fn(),
       } as any,
-      { testConnection: jest.fn() } as any
+      { testConnection: jest.fn() } as any,
+      mockDaemonClient
     );
 
     resultsViewProvider.resolveWebviewView(mockWebviewView);
@@ -353,6 +359,8 @@ describe('ResultsViewProvider Tests', () => {
       type: 'closeTab',
       tabId: 'tab-1',
     });
+
+    expect(mockDaemonClient.closeTab).toHaveBeenCalledWith('tab-1');
   });
 
   it('should close other tabs', async () => {
@@ -364,6 +372,33 @@ describe('ResultsViewProvider Tests', () => {
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenLastCalledWith({
       type: 'closeOtherTabs',
     });
+
+    // Should create tabs... wait, closeOtherTabs closes others.
+    // We created tab-1. It is active. There are no other tabs.
+    // Let's create another tab.
+  });
+
+  it('should close other tabs and notify daemon', async () => {
+    resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'Tab 1');
+    resultsViewProvider.createTabWithId('tab-2', 'SELECT 2', 'Tab 2');
+
+    // Capture the message handler from the mock call
+    const onDidReceiveMessageMock = mockWebviewPanel.webview.onDidReceiveMessage as jest.Mock;
+    // The handler is passed as the first argument in the first call (during resolveWebviewView)
+    const messageHandler = onDidReceiveMessageMock.mock.calls[0][0];
+
+    // Make tab-1 active (createTab makes it active, so tab-2 is active now)
+    // We want tab-1 to be active?
+    await messageHandler({ command: 'tabSelected', tabId: 'tab-1' });
+
+    resultsViewProvider.closeOtherTabs();
+
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+      type: 'closeOtherTabs',
+    });
+
+    expect(mockDaemonClient.closeTab).toHaveBeenCalledWith('tab-2');
+    expect(mockDaemonClient.closeTab).not.toHaveBeenCalledWith('tab-1');
   });
 
   it('should close all tabs', async () => {
@@ -372,6 +407,22 @@ describe('ResultsViewProvider Tests', () => {
     expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
       type: 'closeAllTabs',
     });
+
+    // closeAllTabs logic
+  });
+
+  it('should close all tabs and notify daemon', async () => {
+    resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'Tab 1');
+    resultsViewProvider.createTabWithId('tab-2', 'SELECT 2', 'Tab 2');
+
+    resultsViewProvider.closeAllTabs();
+
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith({
+      type: 'closeAllTabs',
+    });
+
+    expect(mockDaemonClient.closeTab).toHaveBeenCalledWith('tab-1');
+    expect(mockDaemonClient.closeTab).toHaveBeenCalledWith('tab-2');
   });
 
   it('should create tab with source file URI', () => {
@@ -417,5 +468,73 @@ describe('ResultsViewProvider Tests', () => {
     expect(html).toContain('class="context-menu"');
     expect(html).toContain('id="ctx-copy-query"');
     expect(html).toContain('Copy Query');
+  });
+
+  it('should sync remote tabs and filter by session ID', async () => {
+    const currentSessionId = 'current-session';
+    const otherSessionId = 'other-session';
+
+    const sessions = [
+      {
+        id: currentSessionId,
+        tabs: [{ tabId: 'tab-1', query: 'SELECT 1', status: 'completed' }],
+      },
+      {
+        id: otherSessionId,
+        tabs: [{ tabId: 'tab-2', query: 'SELECT 2', status: 'completed' }],
+      },
+    ];
+
+    resultsViewProvider.syncRemoteTabs(sessions, currentSessionId);
+
+    expect(mockWebviewPanel.webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'createTab',
+        tabId: 'tab-1',
+        title: 'Remote: tab-1',
+      })
+    );
+
+    expect(mockWebviewPanel.webview.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'createTab',
+        tabId: 'tab-2',
+      })
+    );
+  });
+
+  it('should update existing tab status without sending createTab', async () => {
+    const currentSessionId = 'current-session';
+
+    // Create tab locally first
+    resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'Tab 1');
+    (mockWebviewPanel.webview.postMessage as jest.Mock).mockClear(); // Clear initial create message
+
+    const sessions = [
+      {
+        id: currentSessionId,
+        tabs: [{ tabId: 'tab-1', query: 'SELECT 1', status: 'success' }],
+      },
+    ];
+
+    resultsViewProvider.syncRemoteTabs(sessions, currentSessionId);
+
+    // Should NOT send createTab
+    expect(mockWebviewPanel.webview.postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'createTab',
+        tabId: 'tab-1',
+      })
+    );
+  });
+
+  it('should close tab on tabClosed message', async () => {
+    resultsViewProvider.createTabWithId('tab-1', 'SELECT 1', 'Tab 1');
+    const onDidReceiveMessageMock = mockWebviewPanel.webview.onDidReceiveMessage as jest.Mock;
+    const messageHandler = onDidReceiveMessageMock.mock.calls[0][0];
+
+    await messageHandler({ command: 'tabClosed', tabId: 'tab-1' });
+
+    expect(mockDaemonClient.closeTab).toHaveBeenCalledWith('tab-1');
   });
 });

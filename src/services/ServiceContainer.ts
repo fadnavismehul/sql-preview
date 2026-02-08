@@ -58,7 +58,8 @@ export class ServiceContainer {
       this.exportService,
       this.querySessionRegistry,
       this.connectionManager,
-      this.queryExecutor
+      this.queryExecutor,
+      this.daemonClient
     );
 
     // Wire up Daemon Notifications
@@ -93,7 +94,8 @@ export class ServiceContainer {
   private async syncRemoteSessions() {
     try {
       const sessions = await this.daemonClient.listSessions();
-      this.resultsViewProvider.syncRemoteTabs(sessions);
+      const currentSessionId = this.daemonClient.getSessionId();
+      this.resultsViewProvider.syncRemoteTabs(sessions, currentSessionId);
     } catch (e) {
       Logger.getInstance().error('Failed to sync remote sessions', e);
     }

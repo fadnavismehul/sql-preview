@@ -7,7 +7,6 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { DaemonMcpToolManager } from './DaemonMcpToolManager';
 import { SessionManager } from './SessionManager';
-import { logger } from './ConsoleLogger';
 
 export class DaemonMcpServer {
   private toolManager: DaemonMcpToolManager;

@@ -34,7 +34,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     private readonly _exportService: ExportService,
     _querySessionRegistry: QuerySessionRegistry,
     _connectionManager: ConnectionManager,
-    _queryExecutor: QueryExecutor
+    _queryExecutor: QueryExecutor,
+    private readonly _daemonClient: { closeTab: (tabId: string) => Promise<void> } // Inject DaemonClient interface
   ) {
     this._stateManager = new StateManager(context);
     this._htmlGenerator = new ResultsHtmlGenerator(_extensionUri);
@@ -258,6 +259,11 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     this.postMessage({ type: 'showLoading', tabId, query, title });
   }
 
+  public updateTab(tabId: string, updates: Partial<TabData>) {
+    this._tabManager.updateTab(tabId, updates);
+    this._saveState();
+  }
+
   public showResultsForTab(tabId: string, resultData: QueryResults) {
     this.log(`showResultsForTab: ${tabId}`);
 
@@ -455,20 +461,37 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     }
   }
 
-  public closeTab(tabId: string) {
+  public async closeTab(tabId: string) {
     if (this._tabManager.getTab(tabId)) {
       this._tabManager.removeTab(tabId);
       this.postMessage({ type: 'closeTab', tabId });
-      this._saveState();
+
+      // Notify Daemon to remove tab from session
+      try {
+        await this._daemonClient.closeTab(tabId);
+      } catch (err) {
+        this.log(`Error closing remote tab: ${err}`);
+      }
+
+      await this._saveState();
     }
   }
 
   public closeOtherTabs() {
     const activeId = this._tabManager.activeTabId;
     if (activeId) {
+      const tabsToClose = this._tabManager.getAllTabs().filter(t => t.id !== activeId);
+
       this._tabManager.removeOtherTabs(activeId);
       this.postMessage({ type: 'closeOtherTabs' });
       this._saveState();
+
+      // Notify Daemon
+      tabsToClose.forEach(tab => {
+        this._daemonClient.closeTab(tab.id).catch(err => {
+          this.log(`Error closing remote tab: ${err}`);
+        });
+      });
     }
   }
 
@@ -486,9 +509,18 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
   }
 
   public closeAllTabs() {
+    const tabsToClose = this._tabManager.getAllTabs();
+
     this._tabManager.removeAllTabs();
     this.postMessage({ type: 'closeAllTabs' });
     this._saveState();
+
+    // Notify Daemon
+    tabsToClose.forEach(tab => {
+      this._daemonClient.closeTab(tab.id).catch(err => {
+        this.log(`Error closing remote tab: ${err}`);
+      });
+    });
   }
 
   public async exportFullResults() {
@@ -506,24 +538,35 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
   // --- Private ---
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public syncRemoteTabs(sessions: any[]) {
+  public syncRemoteTabs(sessions: any[], currentSessionId: string) {
     // We want to merge remote tabs into our local view
     let changes = false;
 
     for (const session of sessions) {
+      if (session.id !== currentSessionId) {
+        continue;
+      }
+
       if (session.tabs) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         for (const remoteTab of session.tabs) {
-          // Check if we already have this tab
-          const existing = this._tabManager.getTab(remoteTab.tabId);
+          // Check if we already have this tab (by ID or by remoteId mapping)
+          const existing = this._tabManager
+            .getAllTabs()
+            .find(t => t.id === remoteTab.tabId || t.remoteId === remoteTab.tabId);
 
           if (!existing) {
             // New Remote Tab
-            this.createTabWithId(remoteTab.tabId, remoteTab.query, `Remote: ${remoteTab.tabId}`, undefined);
+            this.createTabWithId(
+              remoteTab.tabId,
+              remoteTab.query,
+              `Remote: ${remoteTab.tabId}`,
+              undefined
+            );
             const tab = this._tabManager.getTab(remoteTab.tabId);
             if (tab) {
               tab.isRemote = true;
-              tab.sessionId = session.sessionId;
+              tab.sessionId = session.id; // Use session.id from the loop variable
               tab.status = remoteTab.status;
               tab.title = `Remote: ${remoteTab.tabId}`; // Maybe use session name?
               // We don't have columns/rows here, we'd need to fetch them.
@@ -542,7 +585,10 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
 
     if (changes) {
       this._saveState();
-      this.restoreTabs(); // Full refresh for now to be safe
+      // Do not call restoreTabs() here; it sends duplicate 'createTab' messages.
+      // The internal state is updated, and QueryExecutor or subsequent user actions will handle UI updates.
+      // If we need to push status updates (e.g. loading -> success) for "ghost" tabs,
+      // we should send specific update messages, but 'restoreTabs' is too heavy/destructive.
     }
   }
 

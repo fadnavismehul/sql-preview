@@ -8,7 +8,7 @@ describe('SocketTransport', () => {
   let onErrorSpy: jest.Mock;
   let onCloseSpy: jest.Mock;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockSocket = new Socket();
     mockSocket.write = jest.fn((_chunk, cb) => {
       // Simulate successful write
@@ -28,6 +28,8 @@ describe('SocketTransport', () => {
     transport.onmessage = onMessageSpy;
     transport.onerror = onErrorSpy;
     transport.onclose = onCloseSpy;
+
+    await transport.start();
   });
 
   test('should parse valid JSON messages', () => {

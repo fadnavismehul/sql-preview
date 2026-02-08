@@ -7,7 +7,7 @@ export class DaemonMcpToolManager {
   constructor(
     private readonly sessionManager: SessionManager,
     private readonly queryExecutor: DaemonQueryExecutor
-  ) { }
+  ) {}
 
   public getTools() {
     return [
@@ -36,6 +36,11 @@ export class DaemonMcpToolManager {
             connectionProfile: {
               type: 'object',
               description: 'Optional connection profile override (includes credentials)',
+            },
+            tabId: {
+              type: 'string',
+              description:
+                'Optional Tab ID to use for the result. If provided, the daemon will use this ID instead of generating a new one.',
             },
           },
           required: ['sql', 'session'],
@@ -98,6 +103,20 @@ export class DaemonMcpToolManager {
           required: ['session', 'tabId'],
         },
       },
+      /*
+      {
+        name: 'close_tab',
+        description: 'Close a tab and remove it from the session.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            session: { type: 'string', description: 'The Session ID' },
+            tabId: { type: 'string', description: 'The Tab ID to close' },
+          },
+          required: ['session', 'tabId'],
+        },
+      },
+      */
     ];
   }
 
@@ -111,9 +130,33 @@ export class DaemonMcpToolManager {
         return this.handleListSessions();
       case 'cancel_query':
         return this.handleCancelQuery(args);
+      case 'close_tab':
+        return this.handleCloseTab(args);
       default:
         throw new Error('Unknown tool');
     }
+  }
+
+  private async handleCloseTab(args: unknown) {
+    const typedArgs = args as { session?: string; tabId?: string } | undefined;
+    const sessionId = typedArgs?.session;
+    const tabId = typedArgs?.tabId;
+
+    if (!sessionId || !tabId) {
+      throw new Error('Session ID and Tab ID required');
+    }
+
+    const session = this.sessionManager.getSession(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    this.sessionManager.removeTab(sessionId, tabId);
+    session.lastActivityAt = new Date();
+
+    return {
+      content: [{ type: 'text', text: `Tab ${tabId} closed` }],
+    };
   }
 
   private async handleCancelQuery(args: unknown) {
@@ -178,17 +221,19 @@ export class DaemonMcpToolManager {
     try {
       const typedArgs = args as
         | {
-          sql?: string;
-          session?: string;
-          displayName?: string;
-          newTab?: boolean;
-          connectionProfile?: unknown;
-        }
+            sql?: string;
+            session?: string;
+            displayName?: string;
+            newTab?: boolean;
+            connectionProfile?: unknown;
+            tabId?: string;
+          }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       const sessionId = typedArgs?.session;
       const displayName = typedArgs?.displayName || 'MCP Client';
       const connectionProfile = typedArgs?.connectionProfile;
+      const providedTabId = typedArgs?.tabId;
 
       if (!sql) {
         throw new Error('SQL query is required');
@@ -207,20 +252,73 @@ export class DaemonMcpToolManager {
         }
       }
 
-      // Create Tab
-      const tabId = `t${Math.random().toString(36).substring(2, 10)}`;
-      const tabTitle = `Result ${session.tabs.size + 1}`;
+      // 3. Determine Tab
+      const shouldCreateNewTab = typedArgs?.newTab !== false; // Default to true
+      let tabId: string;
+      let tabTitle: string;
+      let tab: TabData | undefined;
 
-      const tab: TabData = {
-        id: tabId,
-        title: tabTitle,
-        query: sql,
-        columns: [],
-        rows: [],
-        status: 'loading',
-      };
+      if (providedTabId) {
+        // Use provided Tab ID
+        tabId = providedTabId;
+        tab = session.tabs.get(tabId);
 
-      this.sessionManager.addTab(sessionId, tab);
+        if (tab) {
+          // Reset existing tab if it was already there (weird case but possible)
+          tab.status = 'loading';
+          tab.query = sql;
+          tab.rows = [];
+          tab.columns = [];
+          tab.error = undefined;
+          tabTitle = tab.title;
+        } else {
+          // Create new with this ID
+          tabTitle = `Result ${session.tabs.size + 1}`;
+        }
+      } else if (!shouldCreateNewTab && session.activeTabId) {
+        // Reuse existing active tab
+        tabId = session.activeTabId;
+        tab = session.tabs.get(tabId);
+        if (tab) {
+          // Reset tab state for new query
+          tab.status = 'loading';
+          tab.query = sql;
+          tab.rows = [];
+          tab.columns = [];
+          tab.error = undefined;
+          tabTitle = tab.title; // Keep existing title
+        } else {
+          // Fallback if active tab ID is stale
+          tabId = `t${Math.random().toString(36).substring(2, 10)}`;
+          tabTitle = `Result ${session.tabs.size + 1}`;
+        }
+      } else {
+        // Create New with generated ID
+        tabId = `t${Math.random().toString(36).substring(2, 10)}`;
+        tabTitle = `Result ${session.tabs.size + 1}`;
+      }
+
+      if (!tab) {
+        tab = {
+          id: tabId,
+          title: tabTitle,
+          query: sql,
+          columns: [],
+          rows: [],
+          status: 'loading',
+        };
+        this.sessionManager.addTab(sessionId, tab);
+      } else {
+        // Just update existing
+        this.sessionManager.updateTab(sessionId, tabId, {
+          status: 'loading',
+          query: sql,
+          rows: [],
+          columns: [],
+          error: undefined,
+        });
+      }
+
       session.activeTabId = tabId;
       session.lastActivityAt = new Date();
 
@@ -293,7 +391,7 @@ export class DaemonMcpToolManager {
           this.sessionManager.updateTab(sessionId, tabId, {
             columns: page.columns ? page.columns : tab.columns,
             rows: page.data && page.data.length > 0 ? [...tab.rows, ...page.data] : tab.rows,
-            status: 'loading'
+            status: 'loading',
           });
         }
         if (page.supportsPagination !== undefined) {
@@ -303,12 +401,19 @@ export class DaemonMcpToolManager {
         // Actually 'loading' is fine until done.
       }
 
-      this.sessionManager.updateTab(sessionId, tabId, { status: 'success', totalRowsInFirstBatch: tab.rows.length });
+      this.sessionManager.updateTab(sessionId, tabId, {
+        status: 'success',
+        totalRowsInFirstBatch: tab.rows.length,
+      });
       tab.totalRowsInFirstBatch = tab.rows.length;
     } catch (err) {
       this.sessionManager.updateTab(sessionId, tabId, {
         status: 'error',
-        error: signal?.aborted ? 'Query cancelled by user' : (err instanceof Error ? err.message : String(err))
+        error: signal?.aborted
+          ? 'Query cancelled by user'
+          : err instanceof Error
+            ? err.message
+            : String(err),
       });
     }
   }
@@ -316,12 +421,12 @@ export class DaemonMcpToolManager {
   private async handleGetTabInfo(args: unknown) {
     const typedArgs = args as
       | {
-        session?: string;
-        tabId?: string;
-        mode?: 'preview' | 'page';
-        offset?: number;
-        limit?: number;
-      }
+          session?: string;
+          tabId?: string;
+          mode?: 'preview' | 'page';
+          offset?: number;
+          limit?: number;
+        }
       | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {

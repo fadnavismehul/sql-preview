@@ -15,6 +15,7 @@ export interface MessageHandlerDelegate {
   refreshSettings(): Promise<void>;
   filterTabsByFile(fileUri: string | undefined): void;
   getActiveEditorUri(): string | undefined;
+  closeTab(tabId: string): Promise<void>;
 }
 
 export class ResultsMessageHandler {
@@ -26,7 +27,7 @@ export class ResultsMessageHandler {
     private readonly _connectionManager: ConnectionManager,
     private readonly _queryExecutor: QueryExecutor,
     private readonly _extensionUri: vscode.Uri
-  ) { }
+  ) {}
 
   public async handleMessage(data: any) {
     switch (data.command) {
@@ -65,34 +66,9 @@ export class ResultsMessageHandler {
 
       case 'tabClosed':
         this.log(`Tab closed: ${data.tabId}`);
-        this._tabManager.removeTab(data.tabId);
-        // We need to trigger save state in the parent, but TabManager updates are sync.
-        // The parent provider should listen to TabManager or we trigger save explicitly?
-        // Original code called _saveState() directly.
-        // Ideally we should have a callback or event.
-        // For now, let's assume the delegate or parent handles persistence via other means
-        // OR we add a saveState method to delegate.
-        // Let's assume the main provider saves state when its own methods are called or we need to expose save.
-        // The original logic saved state on EVERY message.
-        // We might need to bubble up an event 'onStateChange'.
-        // For simplicity, let's ask delegate to save.
-        // But the detailed implementation plan didn't specify 'saveState' on delegate.
-        // We will emit an event or call a method if we add it.
-        // Actually, let's look at the original code: it calls _saveState() often.
-        // Let's rely on the TabManager updates and maybe expose a 'persistState' on delegate?
-        // Let's stick to the plan: modularize.
-        // We can emit an event?
-        // Let's just assume we can call a method passed in or defined.
-        // Checking existing `ResultsViewProvider.ts`, `_saveState` is private.
-        // We'll trust the caller to handle persistence if we don't have it here,
-        // BUT the original code did it here.
-        // Let's add `saveState` to the delegate interface for now to be safe.
-        // Wait, the interface above only has `postMessage`, `restoreTabs`, etc.
-        // Let's add `saveState`.
-        if ((this._delegate as any).saveState) {
-          await (this._delegate as any).saveState();
-        }
+        await this._delegate.closeTab(data.tabId);
         return;
+
       case 'updateTabState': {
         const updates: Partial<TabData> = {};
         if (data.title) {

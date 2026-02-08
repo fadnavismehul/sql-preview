@@ -108,4 +108,32 @@ describe('SessionManager', () => {
     sessionManager.touchSession('session1');
     expect(session.lastActivityAt.getTime()).toBeGreaterThan(initialActivity.getTime());
   });
+
+  describe('removeTab', () => {
+    it('should remove tab and emit event', () => {
+      const session = sessionManager.registerSession('session1', 'user1', 'vscode');
+      const tab = { id: 'tab1', title: 'Start', status: 'success' } as any;
+      session.tabs.set('tab1', tab);
+
+      const emitSpy = jest.fn();
+      sessionManager.on('tab-removed', emitSpy);
+
+      sessionManager.removeTab('session1', 'tab1');
+
+      expect(session.tabs.has('tab1')).toBe(false);
+      expect(emitSpy).toHaveBeenCalledWith({ sessionId: 'session1', tabId: 'tab1' });
+    });
+
+    it('should ignore if session or tab not found', () => {
+      const emitSpy = jest.fn();
+      sessionManager.on('tab-removed', emitSpy);
+
+      sessionManager.removeTab('non-existent', 'tab1');
+      expect(emitSpy).not.toHaveBeenCalled();
+
+      sessionManager.registerSession('session1', 'user1', 'vscode');
+      sessionManager.removeTab('session1', 'tab-not-there');
+      expect(emitSpy).not.toHaveBeenCalled();
+    });
+  });
 });

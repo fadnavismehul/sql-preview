@@ -82,6 +82,17 @@ export function activate(context: vscode.ExtensionContext) {
       await serviceContainer.daemonClient.stop();
       await serviceContainer.daemonClient.start();
       vscode.window.showInformationMessage('SQL Preview Client Restarted.');
+    }),
+    vscode.commands.registerCommand('sql.debug.resetSession', async () => {
+      await context.workspaceState.update('sqlPreview.sessionId', undefined);
+      const choice = await vscode.window.showInformationMessage(
+        'Session ID cleared. Reload window to start a fresh session?',
+        'Reload',
+        'Later'
+      );
+      if (choice === 'Reload') {
+        vscode.commands.executeCommand('workbench.action.reloadWindow');
+      }
     })
   );
 
@@ -233,7 +244,7 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
 
   try {
     const contextUri = sourceUri ? vscode.Uri.parse(sourceUri) : undefined;
-    const generator = queryExecutor.execute(sql, contextUri, controller.signal);
+    const generator = queryExecutor.execute(sql, contextUri, controller.signal, tabId);
     let totalRows = 0;
     let columns: import('./common/types').ColumnDef[] = [];
     const allRows: unknown[][] = [];
@@ -243,6 +254,14 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     let wasTruncated = false;
 
     for await (const page of generator) {
+      if (page.remoteTabId) {
+        // Link local tab to remote tab to prevent duplicates in sync
+        Logger.getInstance().info(
+          `[Extension] Linking local tab ${tabId} to remote tab ${page.remoteTabId}`
+        );
+        resultsViewProvider.updateTab(tabId, { remoteId: page.remoteTabId });
+      }
+
       if (page.columns) {
         columns = page.columns;
       }
