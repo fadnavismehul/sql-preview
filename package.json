@@ -237,6 +237,12 @@
           ],
           "order": 11
         },
+        "sqlPreview.alwaysRunInNewTab": {
+          "type": "boolean",
+          "default": false,
+          "description": "Always run queries in a new tab instead of reusing the active tab.",
+          "order": 11.5
+        },
         "sqlPreview.mcpEnabled": {
           "type": "boolean",
           "default": false,

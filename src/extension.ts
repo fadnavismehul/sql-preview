@@ -216,6 +216,16 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
 
   sql = sql.trim().replace(/;$/, '');
 
+  // Check configuration for "Run in New Tab" preference
+  const config = vscode.workspace.getConfiguration('sqlPreview');
+  const alwaysNewTab = config.get<boolean>('alwaysRunInNewTab', false);
+
+  // If config is true, force new tab unless explicitly handled otherwise (though currently runQueryNewTab passes true anyway)
+  // We only override false -> true.
+  if (alwaysNewTab && !newTab) {
+    newTab = true;
+  }
+
   // Determine target Tab ID
   const activeEditor = vscode.window.activeTextEditor;
   let sourceUri: string | undefined;
