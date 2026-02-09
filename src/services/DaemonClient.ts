@@ -168,7 +168,15 @@ export class DaemonClient {
           await this.connect();
           return;
         } catch (e) {
-          // Socket exists but maybe not listening yet
+          // Socket exists but maybe not listening yet.
+          // Retry once after short delay before failing this iteration to handle race condition
+          await new Promise(r => setTimeout(r, 100));
+          try {
+            await this.connect();
+            return;
+          } catch (e2) {
+            // Ignore and continue to main loop wait
+          }
         }
       }
       await new Promise(r => setTimeout(r, 500));
@@ -390,7 +398,7 @@ export class DaemonClient {
           try {
             process.kill(pid, 'SIGTERM');
             // Give it a moment to exit
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 1000));
             // Force kill if still running
             try {
               process.kill(pid, 0);

@@ -194,6 +194,7 @@ describe('DaemonClient', () => {
     });
 
     it('should kill stale daemon process if PID file exists', async () => {
+      jest.useFakeTimers();
       const failSocket = {
         on: jest.fn((event, cb) => {
           if (event === 'error') {
@@ -234,16 +235,26 @@ describe('DaemonClient', () => {
 
       const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
 
-      await client.start();
+      const startPromise = client.start();
+
+      // Fast-forward the 1000ms delay in cleanupStaleDaemon
+      await jest.advanceTimersByTimeAsync(1000);
+
+      // Also need to handle the socket polling delay (500ms)
+      await jest.advanceTimersByTimeAsync(500);
+
+      await startPromise;
 
       expect(killSpy).toHaveBeenCalledWith(9999, 'SIGTERM');
       expect(fs.unlinkSync).toHaveBeenCalledWith(expect.stringContaining('server.pid'));
       expect(cp.spawn).toHaveBeenCalled();
 
       killSpy.mockRestore();
+      jest.useRealTimers();
     });
 
     it('should throw error with logs if daemon exits prematurely', async () => {
+      jest.useFakeTimers();
       // Setup: Connect fails, spawn happens
       (net.createConnection as jest.Mock).mockReturnValue({
         on: jest.fn((event, cb) => {
@@ -285,9 +296,21 @@ describe('DaemonClient', () => {
         return false;
       });
 
-      await expect(client.start()).rejects.toThrow(
+      const startPromise = client.start();
+      const expectPromise = expect(startPromise).rejects.toThrow(
         'Daemon exited prematurely with code 1.\nLogs:\nModule not found: express'
       );
+
+      // Loop iterations:
+      // Loop 1 (wait 500)
+      await jest.advanceTimersByTimeAsync(500);
+      // Loop 2 (wait 500)
+      await jest.advanceTimersByTimeAsync(500);
+      // Loop 3 (wait 500) -> crash detected
+      await jest.advanceTimersByTimeAsync(500);
+
+      await expectPromise;
+      jest.useRealTimers();
     });
 
     it('should stream daemon logs to Output Channel', async () => {

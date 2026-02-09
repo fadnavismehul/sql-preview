@@ -39,6 +39,20 @@ describe('DaemonMcpToolManager', () => {
     });
   });
 
+  describe('getTools', () => {
+    it('should not list close_tab tool (hidden)', () => {
+      const tools = manager.getTools();
+      const closeTab = tools.find(t => t.name === 'close_tab');
+      expect(closeTab).toBeUndefined();
+    });
+
+    it('should list run_query and get_tab_info', () => {
+      const tools = manager.getTools();
+      expect(tools.find(t => t.name === 'run_query')).toBeDefined();
+      expect(tools.find(t => t.name === 'get_tab_info')).toBeDefined();
+    });
+  });
+
   describe('run_query', () => {
     it('should execute query and return tab info', async () => {
       // Setup generator for execution
