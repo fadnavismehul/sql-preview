@@ -9,7 +9,7 @@ export class ConnectionManager {
   private static readonly STORAGE_KEY = 'sqlPreview.connections';
   private static readonly PASSWORD_KEY_PREFIX = 'sqlPreview.password.';
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(private readonly context: vscode.ExtensionContext) { }
 
   public async getConnections(): Promise<ConnectionProfile[]> {
     const connections = this.context.globalState.get<ConnectionProfile[]>(
@@ -24,7 +24,7 @@ export class ConnectionManager {
     const index = connections.findIndex(c => c.id === profile.id);
 
     // Don't persist password in globalState
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // Remove password from profile before saving to state
     const { password, ...safeProfile } = profile;
 
     if (index !== -1) {
@@ -170,8 +170,9 @@ export class ConnectionManager {
         await this.saveConnection(defaultProfile);
       } else {
         // Save without password field if undefined
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        // Save without password field if undefined
         const { password, ...safeProfile } = defaultProfile;
+        void password;
         await this.saveConnection(safeProfile);
       }
     }
@@ -212,8 +213,8 @@ export class ConnectionManager {
       // For now, simple overwrite of profiles. Daemon FileConnectionManager is simple.
       // We strip passwords before writing (security).
       const safeConnections = connections.map(c => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { password, ...rest } = c;
+        void password;
         return rest;
       });
 

@@ -11,11 +11,11 @@ export interface QueryPage {
   id?: string | undefined;
   remoteTabId?: string | undefined; // To link local tab to remote daemon tab
   stats?:
-    | {
-        state: string;
-        [key: string]: unknown;
-      }
-    | undefined;
+  | {
+    state: string;
+    [key: string]: unknown;
+  }
+  | undefined;
   supportsPagination?: boolean | undefined;
 }
 
@@ -131,11 +131,11 @@ export type WebviewToExtensionMessage =
   | { command: 'webviewLoaded' }
   | { command: 'tabClosed'; tabId: string }
   | {
-      command: 'updateTabState';
-      tabId: string;
-      title?: string | undefined;
-      query?: string | undefined;
-    }
+    command: 'updateTabState';
+    tabId: string;
+    title?: string | undefined;
+    query?: string | undefined;
+  }
   | { command: 'tabSelected'; tabId: string }
   | { command: 'cancelQuery'; tabId: string }
   | { command: 'refreshConnections' }
@@ -146,48 +146,49 @@ export type WebviewToExtensionMessage =
   | { command: 'saveSettings'; settings: unknown }
   | { command: 'setPassword' }
   | { command: 'clearPassword' }
-  | { command: 'testMcpServer' }
-  | { command: 'logMessage'; level: string; message: string }
-  | { command: 'openExtensionPage' };
+  | { command: 'lockMcpPort'; port: number }
+  | { command: 'openExtensionPage' }
+  | { command: 'testMcpServer'; port?: number }
+  | { command: 'logMessage'; level: string; message: string };
 
 export type ExtensionToWebviewMessage =
   | {
-      type: 'createTab';
-      tabId: string;
-      query: string;
-      title: string;
-      sourceFileUri?: string | undefined;
-      preserveFocus?: boolean;
-    }
+    type: 'createTab';
+    tabId: string;
+    query: string;
+    title: string;
+    sourceFileUri?: string | undefined;
+    preserveFocus?: boolean;
+  }
   | { type: 'resultData'; tabId: string; data: QueryResults; title: string }
   | {
-      type: 'queryError';
-      tabId: string;
-      error: { message: string; details?: string | undefined };
-      query?: string | undefined;
-      title?: string | undefined;
-    }
+    type: 'queryError';
+    tabId: string;
+    error: { message: string; details?: string | undefined };
+    query?: string | undefined;
+    title?: string | undefined;
+  }
   | {
-      type: 'queryCancelled';
-      tabId: string;
-      message?: string;
-    }
+    type: 'queryCancelled';
+    tabId: string;
+    message?: string;
+  }
   | {
-      type: 'showLoading';
-      tabId: string;
-      query?: string | undefined;
-      title?: string | undefined;
-      preserveFocus?: boolean;
-    }
+    type: 'showLoading';
+    tabId: string;
+    query?: string | undefined;
+    title?: string | undefined;
+    preserveFocus?: boolean;
+  }
   | { type: 'statusMessage'; message: string }
   | {
-      type: 'reuseOrCreateActiveTab';
-      tabId: string;
-      query: string;
-      title: string;
-      sourceFileUri?: string | undefined;
-      preserveFocus?: boolean;
-    }
+    type: 'reuseOrCreateActiveTab';
+    tabId: string;
+    query: string;
+    title: string;
+    sourceFileUri?: string | undefined;
+    preserveFocus?: boolean;
+  }
   | { type: 'closeActiveTab' }
   | { type: 'closeTab'; tabId: string }
   | { type: 'closeOtherTabs' }
@@ -198,14 +199,14 @@ export type ExtensionToWebviewMessage =
   | { type: 'updateConnections'; connections: ConnectionProfile[] }
   | { type: 'testConnectionResult'; success: boolean; error?: string }
   | {
-      type: 'testMcpResult';
-      success: boolean;
-      error?: string | undefined;
-      message?: string | undefined;
-    }
+    type: 'testMcpResult';
+    success: boolean;
+    error?: string | undefined;
+    message?: string | undefined;
+  }
   | { type: 'updateConfig'; config: unknown }
   | {
-      type: 'updateVersionInfo';
-      currentVersion: string;
-      latestVersion: string | null;
-    };
+    type: 'updateVersionInfo';
+    currentVersion: string;
+    latestVersion: string | null;
+  };

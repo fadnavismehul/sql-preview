@@ -8,7 +8,7 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
   readonly id = 'postgres';
   readonly supportsPagination = false; // Postgres returns all results at once (currently)
 
-  constructor(private readonly driverManager: DriverManager) {}
+  constructor(private readonly driverManager: DriverManager) { }
 
   validateConfig(config: ConnectorConfig): string | undefined {
     const pgConfig = config as unknown as PostgresConnectionProfile;
@@ -37,8 +37,7 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
     const driverPath = await this.driverManager.getDriver('pg');
 
     // Dynamically require pg
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pg = require(driverPath);
+    const pg = await import(driverPath);
     const { Client } = pg;
 
     const clientConfig: ClientConfig = {
@@ -49,8 +48,8 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
       database: pgConfig.database,
       ssl: pgConfig.ssl
         ? {
-            rejectUnauthorized: pgConfig.sslVerify ?? true,
-          }
+          rejectUnauthorized: pgConfig.sslVerify ?? true,
+        }
         : false,
       connectionTimeoutMillis: 10000, // 10s connection timeout
     };
@@ -107,8 +106,7 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
       }
       this.handleError(error, query);
     } finally {
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      await client.end().catch(() => {}); // Ignore close errors
+      await client.end().catch(() => { /* ignore close errors */ });
     }
   }
 

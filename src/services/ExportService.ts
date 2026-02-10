@@ -5,7 +5,7 @@ import { QueryExecutor } from '../core/execution/QueryExecutor';
 import { TabData } from '../common/types';
 
 export class ExportService {
-  constructor(private readonly queryExecutor: QueryExecutor) {}
+  constructor(private readonly queryExecutor: QueryExecutor) { }
 
   public async exportResults(tab: TabData) {
     // Warn user that export re-executes the query
@@ -95,7 +95,6 @@ export class ExportService {
 
             if (page.data) {
               const separator = format === 'csv' ? ',' : '\t';
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const currentColumns = columns;
 
               for (const row of page.data) {
