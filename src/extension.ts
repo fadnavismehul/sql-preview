@@ -219,6 +219,7 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
   // Check configuration for "Run in New Tab" preference
   const config = vscode.workspace.getConfiguration('sqlPreview');
   const alwaysNewTab = config.get<boolean>('alwaysRunInNewTab', false);
+  const preserveFocus = alwaysNewTab;
 
   // If config is true, force new tab unless explicitly handled otherwise (though currently runQueryNewTab passes true anyway)
   // We only override false -> true.
@@ -243,12 +244,12 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
   let tabId: string;
   if (newTab) {
     tabId = `t${Math.random().toString(36).substring(2, 10)}`;
-    resultsViewProvider.createTabWithId(tabId, sql, title, sourceUri);
+    resultsViewProvider.createTabWithId(tabId, sql, title, sourceUri, preserveFocus);
   } else {
     tabId = resultsViewProvider.getOrCreateActiveTabId(sql, title, sourceUri);
   }
 
-  resultsViewProvider.showLoadingForTab(tabId, sql, title);
+  resultsViewProvider.showLoadingForTab(tabId, sql, title, preserveFocus);
 
   const controller = serviceContainer.querySessionRegistry.createSession(tabId);
 
@@ -302,6 +303,12 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     resultsViewProvider.showResultsForTab(tabId, results);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
+
+    // Check for Cancelled error
+    if (message === 'Cancelled' || message.includes('AbortError')) {
+      resultsViewProvider.showCancelledForTab(tabId, 'Query Cancelled');
+      return;
+    }
 
     // Check for safe errors if needed and extract details, ignoring BaseError check to silence linter
     let details: string | undefined;

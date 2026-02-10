@@ -242,8 +242,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
 
   // --- Public methods ---
 
-  public showLoadingForTab(tabId: string, query: string, title: string) {
-    this.log(`showLoadingForTab: ${tabId}`);
+  public showLoadingForTab(tabId: string, query: string, title: string, preserveFocus = false) {
+    this.log(`showLoadingForTab: ${tabId}, preserveFocus: ${preserveFocus}`);
 
     const existing = this._tabManager.getTab(tabId);
     if (existing) {
@@ -256,7 +256,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     this._saveState();
 
     this._ensureVisible();
-    this.postMessage({ type: 'showLoading', tabId, query, title });
+    this.postMessage({ type: 'showLoading', tabId, query, title, preserveFocus });
   }
 
   public updateTab(tabId: string, updates: Partial<TabData>) {
@@ -336,8 +336,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     this.postMessage({ type: 'statusMessage', message });
   }
 
-  public createTabWithId(tabId: string, query: string, title: string, sourceFileUri?: string) {
-    this.log(`createTabWithId: ${tabId}`);
+  public createTabWithId(
+    tabId: string,
+    query: string,
+    title: string,
+    sourceFileUri?: string,
+    preserveFocus = false
+  ) {
+    this.log(`createTabWithId: ${tabId}, preserveFocus: ${preserveFocus}`);
 
     this._tabManager.addTab({
       id: tabId,
@@ -348,14 +354,21 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
       status: 'created',
       sourceFileUri,
     });
-    this._tabManager.setActiveTab(tabId);
+    if (!preserveFocus) {
+      this._tabManager.setActiveTab(tabId);
+    }
     this._saveState();
 
     this._ensureVisible();
-    this.postMessage({ type: 'createTab', tabId, query, title, sourceFileUri });
+    this.postMessage({ type: 'createTab', tabId, query, title, sourceFileUri, preserveFocus });
   }
 
-  public getOrCreateActiveTabId(query: string, title?: string, sourceFileUri?: string): string {
+  public getOrCreateActiveTabId(
+    query: string,
+    title?: string,
+    sourceFileUri?: string,
+    preserveFocus = false
+  ): string {
     const activeId = this._tabManager.activeTabId;
     if (activeId) {
       const existing = this._tabManager.getTab(activeId);
@@ -376,13 +389,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
           query,
           title: title || existing.title,
           sourceFileUri,
+          preserveFocus,
         });
         return activeId;
       }
     }
 
     const newTabId = `t${Math.random().toString(36).substring(2, 10)}`;
-    this.createTabWithId(newTabId, query, title || 'Result', sourceFileUri);
+    this.createTabWithId(newTabId, query, title || 'Result', sourceFileUri, preserveFocus);
     return newTabId;
   }
 
@@ -415,6 +429,26 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
   public createTab(query: string, title?: string) {
     const tabId = `t${Math.random().toString(36).substring(2, 10)}`;
     this.createTabWithId(tabId, query, title || 'Query Result');
+  }
+
+  public showCancelledForTab(tabId: string, message?: string) {
+    this.log(`showCancelledForTab: ${tabId}`);
+
+    const existing = this._tabManager.getTab(tabId);
+    if (existing) {
+      this._tabManager.updateTab(tabId, {
+        status: 'error', // Use error status for now, or add specific 'cancelled' status if desired
+        error: message || 'Query Cancelled',
+      });
+    }
+    this._saveState();
+
+    this._ensureVisible();
+    this.postMessage({
+      type: 'queryCancelled',
+      tabId,
+      message: message || 'Query Cancelled',
+    });
   }
 
   // --- Public methods for MCP Server ---

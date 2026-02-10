@@ -92,7 +92,25 @@ export class QueryExecutor {
         }
 
         // Use a large limit for VS Code extension - it manages truncation itself in extension.ts
-        const info = await this.daemonClient.getTabInfo(remoteTabId, currentOffset, 10000);
+        const info = await Promise.race([
+          this.daemonClient.getTabInfo(remoteTabId, currentOffset, 10000),
+          new Promise<never>((_, reject) => {
+            const timeout = setTimeout(
+              () => reject(new Error('Timeout waiting for daemon response')),
+              30000
+            );
+            if (abortSignal) {
+              abortSignal.addEventListener(
+                'abort',
+                () => {
+                  clearTimeout(timeout);
+                  reject(new Error('Cancelled'));
+                },
+                { once: true }
+              );
+            }
+          }),
+        ]);
         // info structure: { id, title, status, columns, rows, error, hasMore, ... }
 
         if (info.status === 'error') {

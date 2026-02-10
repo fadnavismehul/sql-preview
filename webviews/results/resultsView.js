@@ -185,7 +185,8 @@ window.addEventListener('message', event => {
 
     switch (message.type) {
         case 'createTab':
-            createTab(message.tabId, message.query, message.title, message.sourceFileUri);
+        case 'createTab':
+            createTab(message.tabId, message.query, message.title, message.sourceFileUri, message.preserveFocus);
             break;
         case 'resultData':
             updateTabWithResults(message.tabId, message.data, message.title);
@@ -194,10 +195,13 @@ window.addEventListener('message', event => {
             updateTabWithError(message.tabId, message.error, message.query, message.title);
             break;
         case 'showLoading':
-            showLoading(message.tabId, message.query, message.title);
+            showLoading(message.tabId, message.query, message.title, message.preserveFocus);
+            break;
+        case 'queryCancelled':
+            handleQueryCancelled(message.tabId, message.message);
             break;
         case 'reuseOrCreateActiveTab':
-            handleReuseOrCreate(message.tabId, message.query, message.title, message.sourceFileUri);
+            handleReuseOrCreate(message.tabId, message.query, message.title, message.sourceFileUri, message.preserveFocus);
             break;
         case 'closeActiveTab':
             if (activeTabId) closeTab(activeTabId);
@@ -370,7 +374,7 @@ document.addEventListener('mousedown', (event) => {
 
 // --- Tab Management ---
 
-function createTab(tabId, query, title, sourceFileUri) {
+function createTab(tabId, query, title, sourceFileUri, preserveFocus) {
     if (tabs.has(tabId)) {
         // If it exists, just activate it
         activateTab(tabId);
@@ -447,8 +451,10 @@ function createTab(tabId, query, title, sourceFileUri) {
         sourceFileUri: sourceFileUri
     });
 
-    // Automatically activate the new tab
-    activateTab(tabId);
+    // Automatically activate the new tab unless preserveFocus is true
+    if (!preserveFocus) {
+        activateTab(tabId);
+    }
 }
 
 function activateTab(tabId) {
@@ -1466,7 +1472,23 @@ function updateTabWithError(tabId, error, query, title) {
     tab.sidePanel = null;
 }
 
-function showLoading(tabId, query, title) {
+function handleQueryCancelled(tabId, message) {
+    const tab = tabs.get(tabId);
+    if (!tab) return;
+
+    // Hide Overlay
+    if (tab.overlay) {
+        tab.overlay.style.display = 'none';
+        tab.overlay.innerHTML = ''; // Clean up spinner
+    }
+
+    // Show Error/Cancelled State in Tab
+    // We can reuse updateTabWithError or create a specific UI state
+    // For now, let's treat it as an error but with specific styling if needed
+    updateTabWithError(tabId, { message: message || 'Query Cancelled' }, tab.query, tab.title);
+}
+
+function showLoading(tabId, query, title, preserveFocus) {
     const tab = tabs.get(tabId);
     if (!tab) {
         // If tab doesn't exist yet, create it
@@ -1480,16 +1502,19 @@ function showLoading(tabId, query, title) {
         return;
     }
 
-    // Force activation
-    activateTab(tabId);
+    // Force activation logic
+    if (!preserveFocus) {
+        activateTab(tabId);
+    }
 
     // Show Overlay with Loading Content
     if (tab.overlay) {
         tab.overlay.innerHTML = `
             <div class="loading-container">
                 <div class="spinner"></div>
-                <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
+                
                 <div class="loading-text">Running query...</div>
+                <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
                 <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
             </div>
         `;
@@ -1511,14 +1536,14 @@ function showLoading(tabId, query, title) {
 
 
 
-function handleReuseOrCreate(tabId, query, title, sourceFileUri) {
+function handleReuseOrCreate(tabId, query, title, sourceFileUri, preserveFocus) {
     const targetId = tabId || activeTabId;
 
     if (targetId && tabs.has(targetId)) {
-        showLoading(targetId, query, title);
+        showLoading(targetId, query, title, preserveFocus);
     } else if (targetId) {
-        createTab(targetId, query, title, sourceFileUri);
-        showLoading(targetId, query, title);
+        createTab(targetId, query, title, sourceFileUri, preserveFocus);
+        showLoading(targetId, query, title, preserveFocus);
     }
 }
 

@@ -270,6 +270,7 @@ describe('ResultsViewProvider Tests', () => {
       tabId,
       title: 'Test Tab',
       query: 'SELECT 1',
+      preserveFocus: false,
     });
   });
 
@@ -296,6 +297,7 @@ describe('ResultsViewProvider Tests', () => {
         query,
         title,
         sourceFileUri: undefined,
+        preserveFocus: false,
       })
     );
   });
@@ -313,6 +315,7 @@ describe('ResultsViewProvider Tests', () => {
       query,
       title,
       sourceFileUri: undefined,
+      preserveFocus: false,
     });
   });
 
@@ -330,6 +333,7 @@ describe('ResultsViewProvider Tests', () => {
         tabId: tabId,
         query,
         title,
+        preserveFocus: false,
       })
     );
 
@@ -344,6 +348,7 @@ describe('ResultsViewProvider Tests', () => {
         type: 'reuseOrCreateActiveTab',
         query: 'SELECT * FROM reused',
         title: 'Reused Tab',
+        preserveFocus: false,
       })
     );
   });
@@ -435,6 +440,7 @@ describe('ResultsViewProvider Tests', () => {
         type: 'createTab',
         tabId: 'tab-1',
         sourceFileUri: sourceUri,
+        preserveFocus: false,
       })
     );
   });
@@ -492,6 +498,7 @@ describe('ResultsViewProvider Tests', () => {
         type: 'createTab',
         tabId: 'tab-1',
         title: 'Remote: tab-1',
+        preserveFocus: false,
       })
     );
 

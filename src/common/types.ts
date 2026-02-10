@@ -157,6 +157,7 @@ export type ExtensionToWebviewMessage =
       query: string;
       title: string;
       sourceFileUri?: string | undefined;
+      preserveFocus?: boolean;
     }
   | { type: 'resultData'; tabId: string; data: QueryResults; title: string }
   | {
@@ -166,7 +167,18 @@ export type ExtensionToWebviewMessage =
       query?: string | undefined;
       title?: string | undefined;
     }
-  | { type: 'showLoading'; tabId: string; query?: string | undefined; title?: string | undefined }
+  | {
+      type: 'queryCancelled';
+      tabId: string;
+      message?: string;
+    }
+  | {
+      type: 'showLoading';
+      tabId: string;
+      query?: string | undefined;
+      title?: string | undefined;
+      preserveFocus?: boolean;
+    }
   | { type: 'statusMessage'; message: string }
   | {
       type: 'reuseOrCreateActiveTab';
@@ -174,6 +186,7 @@ export type ExtensionToWebviewMessage =
       query: string;
       title: string;
       sourceFileUri?: string | undefined;
+      preserveFocus?: boolean;
     }
   | { type: 'closeActiveTab' }
   | { type: 'closeTab'; tabId: string }

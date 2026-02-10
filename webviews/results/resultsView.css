@@ -268,6 +268,8 @@ body {
     animation: spin 0.8s linear infinite;
     flex-shrink: 0;
     box-sizing: border-box;
+    margin-bottom: 24px;
+    /* Increased space */
 }
 
 @keyframes spin {
@@ -297,9 +299,23 @@ body {
 }
 
 .loading-text {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
     font-size: 1.1em;
     font-weight: 500;
+}
+
+.cancel-button {
+    background-color: var(--vscode-button-secondaryBackground, #3a3d41);
+    color: var(--vscode-button-secondaryForeground, #ffffff);
+    border: 1px solid var(--vscode-button-border, transparent);
+    padding: 6px 14px;
+    border-radius: 2px;
+    cursor: pointer;
+    margin-bottom: 24px;
+}
+
+.cancel-button:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground, #45494e);
 }
 
 .query-preview {
