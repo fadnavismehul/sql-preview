@@ -38,7 +38,8 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         ResultsViewProvider.viewType,
-        serviceContainer.resultsViewProvider
+        serviceContainer.resultsViewProvider,
+        { webviewOptions: { retainContextWhenHidden: true } }
       )
     );
 

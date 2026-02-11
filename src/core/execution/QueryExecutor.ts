@@ -14,7 +14,7 @@ export class QueryExecutor {
     private readonly connectionManager: ConnectionManager,
     private readonly daemonClient: DaemonClient,
     private readonly driverManager: import('../../services/DriverManager').DriverManager
-  ) {}
+  ) { }
 
   /**
    * Orchestrates the query execution via Daemon.
@@ -59,9 +59,10 @@ export class QueryExecutor {
       }
     }
 
+    let remoteTabId: string | undefined;
     try {
       // 1. Submit Query with Profile Override and Explicit Tab ID
-      const remoteTabId = await this.daemonClient.runQuery(query, true, profile, tabId);
+      remoteTabId = await this.daemonClient.runQuery(query, true, profile, tabId);
 
       // Yield immediate state to link tabs before first poll
       yield {
@@ -155,6 +156,20 @@ export class QueryExecutor {
         // If hasMore is true but isComplete is false, we continue immediately to fetch more
       }
     } catch (e: unknown) {
+      if (
+        remoteTabId &&
+        ((e instanceof Error && e.message === 'Cancelled') ||
+          String(e).includes('Cancelled'))
+      ) {
+        this.logger.info(`Checking if remote cancellation is needed for ${remoteTabId}`);
+        // Ensure daemon knows we cancelled, in case race condition missed it
+        try {
+          await this.daemonClient.cancelQuery(remoteTabId);
+          this.logger.info(`Daemon cancel enforced for ${remoteTabId}`);
+        } catch (cancelErr) {
+          this.logger.error('Failed to enforce daemon cancel', cancelErr);
+        }
+      }
       this.logger.error(`Query execution failed`, e, correlationId);
       throw e;
     }
