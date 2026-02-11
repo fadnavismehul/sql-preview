@@ -148,6 +148,8 @@ body {
     flex: 1;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
+    /* Scope absolute children (loader) */
 }
 
 .tab-content.active {
@@ -268,7 +270,7 @@ body {
     animation: spin 0.8s linear infinite;
     flex-shrink: 0;
     box-sizing: border-box;
-    margin-bottom: 24px;
+    margin-bottom: 12px;
     /* Increased space */
 }
 
@@ -291,7 +293,7 @@ body {
     width: 100%;
     /* Ensure it takes full width */
     height: 100%;
-    padding: 10vh 20px 20px;
+    padding: 40px 20px 20px;
     /* Push down a bit from top */
     color: var(--vscode-descriptionForeground);
     text-align: center;
@@ -299,7 +301,7 @@ body {
 }
 
 .loading-text {
-    margin-bottom: 24px;
+    margin-bottom: 12px;
     font-size: 1.1em;
     font-weight: 500;
 }
@@ -311,7 +313,7 @@ body {
     padding: 6px 14px;
     border-radius: 2px;
     cursor: pointer;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
 }
 
 .cancel-button:hover {
@@ -1487,5 +1489,5 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    padding-top: 10vh;
+    /* padding-top: 10vh; Removed to reduce spacing */
 }

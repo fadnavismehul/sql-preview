@@ -433,7 +433,7 @@ function createTab(tabId, query, title, sourceFileUri, preserveFocus) {
     // Structural Wrapper: Main Interaction Area + Loading Overlay
     contentElement.innerHTML = `
         <div class="tab-main-content" id="main-${tabId}"></div>
-        <div class="custom-loading-overlay" id="overlay-${tabId}" style="display:none;"></div>
+        <div class="custom-loading-overlay" id="overlay-${tabId}" style="display:none;" role="dialog" aria-modal="true" aria-label="Loading"></div>
     `;
 
     tabContentContainer.appendChild(contentElement);
@@ -953,6 +953,7 @@ function updateTabWithResults(tabId, data, title) {
     // Hide Overlay
     if (tab.overlay) {
         tab.overlay.style.display = 'none';
+        tab.content.setAttribute('aria-busy', 'false');
     }
 
     // Prepare data
@@ -1455,6 +1456,7 @@ function updateTabWithError(tabId, error, query, title) {
     // Hide overlay
     if (tab.overlay) {
         tab.overlay.style.display = 'none';
+        tab.content.setAttribute('aria-busy', 'false');
     }
 
     // Reset formatted content
@@ -1513,12 +1515,14 @@ function showLoading(tabId, query, title, preserveFocus) {
             <div class="loading-container">
                 <div class="spinner"></div>
                 
-                <div class="loading-text">Running query...</div>
+                <div class="loading-text" role="status" aria-live="polite">Running query...</div>
                 <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
                 <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
             </div>
         `;
         tab.overlay.style.display = 'flex';
+        tab.content.setAttribute('aria-busy', 'true');
+
 
         // Attach listener programmatically
         const cancelBtn = tab.overlay.querySelector(`#cancel-${tabId}`);

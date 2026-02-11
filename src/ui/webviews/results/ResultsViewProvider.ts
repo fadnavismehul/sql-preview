@@ -344,6 +344,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     preserveFocus = false
   ) {
     this.log(`createTabWithId: ${tabId}, preserveFocus: ${preserveFocus}`);
+    this.log(`createTabWithId Stack: ${new Error().stack}`);
 
     this._tabManager.addTab({
       id: tabId,
@@ -578,8 +579,10 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
 
     for (const session of sessions) {
       if (session.id !== currentSessionId) {
+        this.log(`[syncRemoteTabs] Skipping session ${session.id} (Current: ${currentSessionId})`);
         continue;
       }
+      this.log(`[syncRemoteTabs] Processing session ${session.id} with ${session.tabs?.length || 0} tabs`);
 
       if (session.tabs) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

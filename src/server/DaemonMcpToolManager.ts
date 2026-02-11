@@ -7,7 +7,7 @@ export class DaemonMcpToolManager {
   constructor(
     private readonly sessionManager: SessionManager,
     private readonly queryExecutor: DaemonQueryExecutor
-  ) {}
+  ) { }
 
   public getTools() {
     return [
@@ -121,6 +121,7 @@ export class DaemonMcpToolManager {
   }
 
   public async handleToolCall(name: string, args: unknown) {
+    logger.info(`[Daemon] Handling Tool Call: ${name} with args: ${JSON.stringify(args)}`);
     switch (name) {
       case 'run_query':
         return this.handleRunQuery(args);
@@ -221,13 +222,13 @@ export class DaemonMcpToolManager {
     try {
       const typedArgs = args as
         | {
-            sql?: string;
-            session?: string;
-            displayName?: string;
-            newTab?: boolean;
-            connectionProfile?: unknown;
-            tabId?: string;
-          }
+          sql?: string;
+          session?: string;
+          displayName?: string;
+          newTab?: boolean;
+          connectionProfile?: unknown;
+          tabId?: string;
+        }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       const sessionId = typedArgs?.session;
@@ -421,12 +422,12 @@ export class DaemonMcpToolManager {
   private async handleGetTabInfo(args: unknown) {
     const typedArgs = args as
       | {
-          session?: string;
-          tabId?: string;
-          mode?: 'preview' | 'page';
-          offset?: number;
-          limit?: number;
-        }
+        session?: string;
+        tabId?: string;
+        mode?: 'preview' | 'page';
+        offset?: number;
+        limit?: number;
+      }
       | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {
