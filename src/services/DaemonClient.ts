@@ -189,21 +189,37 @@ export class DaemonClient {
     // Path to Daemon.js
     // If running in dev with ts-node, we might need adjustments,
     // but assuming compiled 'out' structure for production/standard run.
-    const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'Daemon.js');
+    const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'daemon.js');
 
     const devPort = process.env['SQL_PREVIEW_MCP_PORT'];
     const configPort = vscode.workspace.getConfiguration('sqlPreview').get<number>('mcpPort');
     const portToUse = devPort || (configPort ? String(configPort) : undefined);
+
+    // Robust PATH for Mac/Linux if node is not in VS Code's inherited env
+    const robustPath = [
+      process.env['PATH'],
+      '/usr/local/bin',
+      '/opt/homebrew/bin',
+      '/usr/bin',
+      '/bin',
+      process.env['HOME'] ? path.join(process.env['HOME'], '.nvm/versions/node/current/bin') : ''
+    ].filter(Boolean).join(path.delimiter);
 
     this.process = cp.spawn('node', [serverPath], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        PATH: robustPath,
         SQL_PREVIEW_DAEMON: '1',
         SQL_PREVIEW_HOME: this.configDir,
         ...(portToUse ? { MCP_PORT: portToUse } : {}),
       },
+    });
+
+    this.process.on('error', (err) => {
+      Logger.getInstance().error('Failed to spawn daemon process', err);
+      this.startupLogBuffer += `\nSpawn Error: ${err.message}`;
     });
 
     this.process.unref(); // Let it run independently

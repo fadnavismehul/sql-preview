@@ -255,7 +255,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     }
     this._saveState();
 
-    this._ensureVisible();
+    this._ensureVisible(preserveFocus);
     this.postMessage({ type: 'showLoading', tabId, query, title, preserveFocus });
   }
 
@@ -344,7 +344,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     preserveFocus = false
   ) {
     this.log(`createTabWithId: ${tabId}, preserveFocus: ${preserveFocus}`);
-    this.log(`createTabWithId Stack: ${new Error().stack}`);
 
     this._tabManager.addTab({
       id: tabId,
@@ -360,8 +359,11 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     }
     this._saveState();
 
-    this._ensureVisible();
-    this.postMessage({ type: 'createTab', tabId, query, title, sourceFileUri, preserveFocus });
+    this._ensureVisible(preserveFocus);
+    // Get index of this tab (it was just added)
+    const allTabs = this._tabManager.getAllTabs();
+    const index = allTabs.findIndex(t => t.id === tabId);
+    this.postMessage({ type: 'createTab', tabId, query, title, sourceFileUri, preserveFocus, index });
   }
 
   public getOrCreateActiveTabId(
@@ -383,7 +385,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
 
         this._saveState();
 
-        this._ensureVisible();
+        this._ensureVisible(preserveFocus);
         this.postMessage({
           type: 'reuseOrCreateActiveTab',
           tabId: activeId,
@@ -579,10 +581,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
 
     for (const session of sessions) {
       if (session.id !== currentSessionId) {
-        this.log(`[syncRemoteTabs] Skipping session ${session.id} (Current: ${currentSessionId})`);
         continue;
       }
-      this.log(`[syncRemoteTabs] Processing session ${session.id} with ${session.tabs?.length || 0} tabs`);
 
       if (session.tabs) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -629,9 +629,13 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     }
   }
 
-  private _ensureVisible() {
+  private async _ensureVisible(preserveFocus = true) {
+    if (!this._view) {
+      await vscode.commands.executeCommand('sqlResultsView.focus');
+    }
+
     if (this._view) {
-      this._view.show?.(true);
+      this._view.show?.(preserveFocus);
     }
   }
 
@@ -649,13 +653,16 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
   }
 
   private _restoreTabsToWebview() {
-    this._tabManager.getAllTabs().forEach(tab => {
+    this._tabManager.getAllTabs().forEach((tab, index) => {
       this.postMessage({
         type: 'createTab',
         tabId: tab.id,
         query: tab.query,
         title: tab.title,
         sourceFileUri: tab.sourceFileUri,
+        // preserveFocus is generally irrelevant during restore, but we can default false or keep creating behavior
+        preserveFocus: true,
+        index // Pass index ensures correct order
       });
 
       if (tab.status === 'success') {
@@ -669,7 +676,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
             },
             title: tab.title,
           });
-        } else if (tab.rows.length > 0) {
+        } else {
+          // Always send result data, even if empty, to ensure UI state is synchronized
           const queryResults: QueryResults = {
             columns: tab.columns,
             rows: tab.rows,
@@ -677,7 +685,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
             wasTruncated: tab.wasTruncated || false,
             totalRowsInFirstBatch: tab.totalRowsInFirstBatch || tab.rows.length,
             queryId: tab.queryId,
-
             infoUri: tab.infoUri,
             nextUri: tab.nextUri,
             supportsPagination: tab.supportsPagination,
@@ -697,7 +704,18 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
           title: tab.title,
         });
       } else if (tab.status === 'loading') {
-        this.postMessage({ type: 'showLoading', tabId: tab.id, title: tab.title });
+        // Any tab found in 'loading' state during restore is dead (interrupted process).
+        // Must report error to stop spinner.
+        this.postMessage({
+          type: 'queryError',
+          tabId: tab.id,
+          error: {
+            message: 'Query Interrupted',
+            details: 'The query was interrupted by a reload. Please run it again.'
+          },
+          query: tab.query,
+          title: tab.title,
+        });
       }
     });
   }

@@ -121,7 +121,6 @@ export class DaemonMcpToolManager {
   }
 
   public async handleToolCall(name: string, args: unknown) {
-    logger.info(`[Daemon] Handling Tool Call: ${name} with args: ${JSON.stringify(args)}`);
     switch (name) {
       case 'run_query':
         return this.handleRunQuery(args);

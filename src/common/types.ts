@@ -159,6 +159,7 @@ export type ExtensionToWebviewMessage =
     title: string;
     sourceFileUri?: string | undefined;
     preserveFocus?: boolean;
+    index?: number;
   }
   | { type: 'resultData'; tabId: string; data: QueryResults; title: string }
   | {

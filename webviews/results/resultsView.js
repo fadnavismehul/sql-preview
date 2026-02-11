@@ -186,7 +186,7 @@ window.addEventListener('message', event => {
     switch (message.type) {
         case 'createTab':
         case 'createTab':
-            createTab(message.tabId, message.query, message.title, message.sourceFileUri, message.preserveFocus);
+            createTab(message.tabId, message.query, message.title, message.sourceFileUri, message.preserveFocus, message.index);
             break;
         case 'resultData':
             updateTabWithResults(message.tabId, message.data, message.title);
@@ -374,7 +374,7 @@ document.addEventListener('mousedown', (event) => {
 
 // --- Tab Management ---
 
-function createTab(tabId, query, title, sourceFileUri, preserveFocus) {
+function createTab(tabId, query, title, sourceFileUri, preserveFocus, index) {
     if (tabs.has(tabId)) {
         // If it exists, just activate it
         activateTab(tabId);
@@ -421,7 +421,12 @@ function createTab(tabId, query, title, sourceFileUri, preserveFocus) {
 
     tabElement.onclick = () => activateTab(tabId);
 
-    tabList.appendChild(tabElement);
+    // Append new tabs to the end (standard behavior), unless index is provided
+    if (typeof index === 'number' && index >= 0 && index < tabList.children.length) {
+        tabList.insertBefore(tabElement, tabList.children[index]);
+    } else {
+        tabList.appendChild(tabElement);
+    }
 
     // Create Content Element
     const contentElement = document.createElement('div');
@@ -451,10 +456,8 @@ function createTab(tabId, query, title, sourceFileUri, preserveFocus) {
         sourceFileUri: sourceFileUri
     });
 
-    // Automatically activate the new tab unless preserveFocus is true
-    if (!preserveFocus) {
-        activateTab(tabId);
-    }
+    // Automatically activate the new tab
+    activateTab(tabId);
 }
 
 function activateTab(tabId) {
@@ -1505,9 +1508,7 @@ function showLoading(tabId, query, title, preserveFocus) {
     }
 
     // Force activation logic
-    if (!preserveFocus) {
-        activateTab(tabId);
-    }
+    activateTab(tabId);
 
     // Show Overlay with Loading Content
     if (tab.overlay) {
