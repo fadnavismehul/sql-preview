@@ -429,7 +429,7 @@ export class Daemon {
       const transport = new SocketTransport(socket);
 
       // Add Transport Logging
-      transport.onerror = (err) => {
+      transport.onerror = err => {
         logger.error('[Daemon] SocketTransport Error:', err);
       };
 

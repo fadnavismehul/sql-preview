@@ -9,7 +9,7 @@ export class ConnectionManager {
   private static readonly STORAGE_KEY = 'sqlPreview.connections';
   private static readonly PASSWORD_KEY_PREFIX = 'sqlPreview.password.';
 
-  constructor(private readonly context: vscode.ExtensionContext) { }
+  constructor(private readonly context: vscode.ExtensionContext) {}
 
   public async getConnections(): Promise<ConnectionProfile[]> {
     const connections = this.context.globalState.get<ConnectionProfile[]>(

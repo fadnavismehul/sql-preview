@@ -202,8 +202,10 @@ export class DaemonClient {
       '/opt/homebrew/bin',
       '/usr/bin',
       '/bin',
-      process.env['HOME'] ? path.join(process.env['HOME'], '.nvm/versions/node/current/bin') : ''
-    ].filter(Boolean).join(path.delimiter);
+      process.env['HOME'] ? path.join(process.env['HOME'], '.nvm/versions/node/current/bin') : '',
+    ]
+      .filter(Boolean)
+      .join(path.delimiter);
 
     this.process = cp.spawn('node', [serverPath], {
       detached: true,
@@ -217,7 +219,7 @@ export class DaemonClient {
       },
     });
 
-    this.process.on('error', (err) => {
+    this.process.on('error', err => {
       Logger.getInstance().error('Failed to spawn daemon process', err);
       this.startupLogBuffer += `\nSpawn Error: ${err.message}`;
     });

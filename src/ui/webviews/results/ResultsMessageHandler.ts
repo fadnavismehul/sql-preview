@@ -2,7 +2,11 @@ import * as vscode from 'vscode';
 import { TextDecoder } from 'util';
 import * as http from 'http';
 import axios from 'axios';
-import { TabData, ExtensionToWebviewMessage, WebviewToExtensionMessage } from '../../../common/types';
+import {
+  TabData,
+  ExtensionToWebviewMessage,
+  WebviewToExtensionMessage,
+} from '../../../common/types';
 import { TabManager } from '../../../services/TabManager';
 import { ExportService } from '../../../services/ExportService';
 import { QuerySessionRegistry } from '../../../services/QuerySessionRegistry';
@@ -29,7 +33,7 @@ export class ResultsMessageHandler {
     private readonly _connectionManager: ConnectionManager,
     private readonly _queryExecutor: QueryExecutor,
     private readonly _extensionUri: vscode.Uri
-  ) { }
+  ) {}
 
   public async handleMessage(data: WebviewToExtensionMessage) {
     switch (data.command) {
@@ -148,11 +152,11 @@ export class ResultsMessageHandler {
               const fullProfile = await this._connectionManager.getConnection(profileId);
               if (fullProfile && fullProfile.password) {
                 const password = fullProfile.password;
-                authHeader = 'Basic ' + Buffer.from(`${config.user}:${password}`).toString('base64');
+                authHeader =
+                  'Basic ' + Buffer.from(`${config.user}:${password}`).toString('base64');
               }
             }
           }
-
         }
 
         const result = await this._queryExecutor.testConnection(
@@ -335,7 +339,7 @@ export class ResultsMessageHandler {
           } else {
             profileId = existing[0] ? existing[0].id : '';
             if (!profileId) {
-              throw new Error("No profile found");
+              throw new Error('No profile found');
             }
           }
 

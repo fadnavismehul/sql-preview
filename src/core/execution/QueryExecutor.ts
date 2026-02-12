@@ -14,7 +14,7 @@ export class QueryExecutor {
     private readonly connectionManager: ConnectionManager,
     private readonly daemonClient: DaemonClient,
     private readonly driverManager: import('../../services/DriverManager').DriverManager
-  ) { }
+  ) {}
 
   /**
    * Orchestrates the query execution via Daemon.
@@ -158,8 +158,7 @@ export class QueryExecutor {
     } catch (e: unknown) {
       if (
         remoteTabId &&
-        ((e instanceof Error && e.message === 'Cancelled') ||
-          String(e).includes('Cancelled'))
+        ((e instanceof Error && e.message === 'Cancelled') || String(e).includes('Cancelled'))
       ) {
         this.logger.info(`Checking if remote cancellation is needed for ${remoteTabId}`);
         // Ensure daemon knows we cancelled, in case race condition missed it

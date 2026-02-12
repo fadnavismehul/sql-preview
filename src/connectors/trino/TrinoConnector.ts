@@ -284,8 +284,9 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
         if (!found) {
           return {
             success: false,
-            error: `Schema '${config.schema}' does not exist${config.catalog ? ` in catalog '${config.catalog}'` : ''
-              }.`,
+            error: `Schema '${config.schema}' does not exist${
+              config.catalog ? ` in catalog '${config.catalog}'` : ''
+            }.`,
           };
         }
       }

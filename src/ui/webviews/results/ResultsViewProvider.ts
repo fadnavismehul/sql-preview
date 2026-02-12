@@ -363,7 +363,15 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     // Get index of this tab (it was just added)
     const allTabs = this._tabManager.getAllTabs();
     const index = allTabs.findIndex(t => t.id === tabId);
-    this.postMessage({ type: 'createTab', tabId, query, title, sourceFileUri, preserveFocus, index });
+    this.postMessage({
+      type: 'createTab',
+      tabId,
+      query,
+      title,
+      sourceFileUri,
+      preserveFocus,
+      index,
+    });
   }
 
   public getOrCreateActiveTabId(
@@ -662,7 +670,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
         sourceFileUri: tab.sourceFileUri,
         // preserveFocus is generally irrelevant during restore, but we can default false or keep creating behavior
         preserveFocus: true,
-        index // Pass index ensures correct order
+        index, // Pass index ensures correct order
       });
 
       if (tab.status === 'success') {
@@ -711,7 +719,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
           tabId: tab.id,
           error: {
             message: 'Query Interrupted',
-            details: 'The query was interrupted by a reload. Please run it again.'
+            details: 'The query was interrupted by a reload. Please run it again.',
           },
           query: tab.query,
           title: tab.title,

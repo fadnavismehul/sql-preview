@@ -16,7 +16,11 @@ export class StateManager {
 
     // Register a disposal listener if deemed necessary, otherwise leave empty
     // Register a disposal listener if deemed necessary, otherwise leave empty
-    context.subscriptions.push({ dispose: () => { /* no-op */ } });
+    context.subscriptions.push({
+      dispose: () => {
+        /* no-op */
+      },
+    });
   }
 
   /**
