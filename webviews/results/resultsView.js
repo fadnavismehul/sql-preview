@@ -580,7 +580,7 @@ class CustomSetFilter {
 
         this.gui.innerHTML = `
             <div class="custom-set-filter-search">
-                <input type="text" placeholder="Search..." id="${idPrefix}-search">
+                <input type="text" placeholder="Search..." aria-label="Filter values" id="${idPrefix}-search">
             </div>
             <div class="custom-set-filter-select-all" style="padding: 4px 8px; border-bottom: 1px solid var(--vscode-dropdown-border);">
                 <label style="display: flex; align-items: center; cursor: pointer;">
@@ -1191,9 +1191,11 @@ function createToolbar(tabId, gridOptions, data) {
     if (data.rows.length > 0) {
         const copy5Btn = document.createElement('button');
         copy5Btn.className = 'copy-button';
-        copy5Btn.textContent = 'Copy First 5 Rows';
+        const label = 'Copy First 5 Rows';
+        copy5Btn.textContent = label;
         copy5Btn.onclick = () => {
             copyToClipboard(data.columns, data.rows.slice(0, 5), true);
+            showFeedback(copy5Btn, 'Copied!', label);
         };
         rightGroup.appendChild(copy5Btn);
     }
@@ -1203,9 +1205,11 @@ function createToolbar(tabId, gridOptions, data) {
         const count = data.rows.length;
         const copyAllBtn = document.createElement('button');
         copyAllBtn.className = 'copy-button';
-        copyAllBtn.textContent = `Copy ${count}`;
+        const label = `Copy ${count}`;
+        copyAllBtn.textContent = label;
         copyAllBtn.onclick = () => {
             copyToClipboard(data.columns, data.rows, true);
+            showFeedback(copyAllBtn, 'Copied!', label);
         };
         rightGroup.appendChild(copyAllBtn);
     }
@@ -1284,10 +1288,10 @@ class SidePanel {
             <div class="side-panel-header">
                 <span class="side-panel-title">Details</span>
                 <div class="side-panel-actions">
-                    <button class="side-panel-button" title="Copy Content" id="sp-copy">
+                    <button class="side-panel-button" title="Copy Content" aria-label="Copy Content" id="sp-copy">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M4 4H12V13H4V4ZM3 4C3 3.44772 3.44772 3 4 3H12C12.5523 3 13 3.44772 13 4V13C13 13.5523 12.5523 14 12 14H4C3.44772 14 3 13.5523 3 13V4Z"/><path d="M4 1H12V2H4V1Z"/></svg>
                     </button>
-                    <button class="side-panel-button" title="Close" id="sp-close">✕</button>
+                    <button class="side-panel-button" title="Close" aria-label="Close Side Panel" id="sp-close">✕</button>
                 </div>
             </div>
             <div class="side-panel-content" id="sp-content"></div>
@@ -1310,10 +1314,15 @@ class SidePanel {
         this.element.querySelector('#sp-close').onclick = () => this.hide();
 
         // Copy
-        this.element.querySelector('#sp-copy').onclick = () => {
+        const copyBtn = this.element.querySelector('#sp-copy');
+        copyBtn.onclick = () => {
             const text = this.contentEl.innerText;
             navigator.clipboard.writeText(text).then(() => {
                 vscode.postMessage({ command: 'alert', text: '✅ Content copied to clipboard' });
+                // Visual feedback
+                const checkIcon = `<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.431 3.323l-8.47 10-.79-.036-3.35-4.77.818-.574 2.978 4.24 8.051-9.506.764.646z"/></svg>`;
+                const copyIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M4 4H12V13H4V4ZM3 4C3 3.44772 3.44772 3 4 3H12C12.5523 3 13 3.44772 13 4V13C13 13.5523 12.5523 14 12 14H4C3.44772 14 3 13.5523 3 13V4Z"/><path d="M4 1H12V2H4V1Z"/></svg>`;
+                showFeedback(copyBtn, checkIcon, copyIcon);
             });
         };
 
@@ -1635,6 +1644,30 @@ function filterTabsByFile(fileUri, fileName) {
 }
 
 // Utils
+function showFeedback(element, successContent, originalContent, duration = 2000) {
+    if (element.dataset.feedbackActive) return;
+    element.dataset.feedbackActive = 'true';
+
+    const isHtml = successContent.trim().startsWith('<');
+    if (isHtml) {
+        element.innerHTML = successContent;
+    } else {
+        element.textContent = successContent;
+    }
+
+    element.classList.add('feedback-success');
+
+    setTimeout(() => {
+        if (isHtml) {
+            element.innerHTML = originalContent;
+        } else {
+            element.textContent = originalContent;
+        }
+        element.classList.remove('feedback-success');
+        delete element.dataset.feedbackActive;
+    }, duration);
+}
+
 function escapeHtml(unsafe) {
     if (!unsafe) return '';
     return unsafe
