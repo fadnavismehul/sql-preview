@@ -7,7 +7,8 @@ import { TrinoConnector } from '../connectors/trino/TrinoConnector';
 import { SQLiteConnector } from '../connectors/sqlite/SQLiteConnector';
 import { PostgreSQLConnector } from '../connectors/postgres/PostgreSQLConnector';
 import { QuerySessionRegistry } from './QuerySessionRegistry';
-import { Logger, LogLevel } from '../core/logging/Logger';
+import { Logger } from '../core/logging/Logger';
+import { LogLevel } from '../common/types';
 import * as vscode from 'vscode';
 
 import { ConnectionManager } from './ConnectionManager';
@@ -71,9 +72,19 @@ export class ServiceContainer {
   public static initialize(context: vscode.ExtensionContext): ServiceContainer {
     if (!ServiceContainer.instance) {
       // Initialize logging early
+      const config = vscode.workspace.getConfiguration('sqlPreview');
+      let logLevelStr = config.get<string>('logLevel', 'INFO');
+
+      // Allow env var to override (for debug mode)
+      if (process.env['SQL_PREVIEW_LOG_LEVEL']) {
+        logLevelStr = process.env['SQL_PREVIEW_LOG_LEVEL'];
+      }
+
+      const logLevel = (LogLevel as any)[logLevelStr] || LogLevel.INFO;
+
       Logger.initialize({
         outputChannelName: 'SQL Preview',
-        logLevel: LogLevel.INFO,
+        logLevel: logLevel,
       });
       ServiceContainer.instance = new ServiceContainer(context);
       // Ensure daemon is started?

@@ -275,6 +275,18 @@
           "default": "normal",
           "description": "Grid row height density.",
           "order": 15
+        },
+        "sqlPreview.logLevel": {
+          "type": "string",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARN",
+            "ERROR"
+          ],
+          "default": "INFO",
+          "description": "Controls the verbosity of logging.",
+          "order": 16
         }
       }
     }

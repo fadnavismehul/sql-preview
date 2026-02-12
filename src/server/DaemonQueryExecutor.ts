@@ -5,7 +5,7 @@ import { FileConnectionManager } from './FileConnectionManager';
 import { ConsoleLogger } from './ConsoleLogger';
 
 export class DaemonQueryExecutor {
-  private logger = new ConsoleLogger();
+  private logger = ConsoleLogger.getInstance();
 
   constructor(
     private readonly connectorRegistry: ConnectorRegistry,

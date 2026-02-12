@@ -32,6 +32,13 @@ export interface QueryResults {
   supportsPagination?: boolean | undefined;
 }
 
+export enum LogLevel {
+  DEBUG = 'DEBUG',
+  INFO = 'INFO',
+  WARN = 'WARN',
+  ERROR = 'ERROR',
+}
+
 export interface TabData {
   id: string;
   title: string;

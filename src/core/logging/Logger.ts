@@ -1,11 +1,5 @@
 import * as vscode from 'vscode';
-
-export enum LogLevel {
-  DEBUG = 'DEBUG',
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
-}
+import { LogLevel } from '../../common/types';
 
 export interface LoggerOptions {
   outputChannelName: string;

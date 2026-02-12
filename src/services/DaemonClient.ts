@@ -215,6 +215,9 @@ export class DaemonClient {
         PATH: robustPath,
         SQL_PREVIEW_DAEMON: '1',
         SQL_PREVIEW_HOME: this.configDir,
+        SQL_PREVIEW_LOG_LEVEL:
+          process.env['SQL_PREVIEW_LOG_LEVEL'] ||
+          vscode.workspace.getConfiguration('sqlPreview').get<string>('logLevel', 'INFO'),
         ...(portToUse ? { MCP_PORT: portToUse } : {}),
       },
     });
