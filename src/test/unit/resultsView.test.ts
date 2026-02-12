@@ -69,7 +69,7 @@ describe('ResultsViewProvider Tests', () => {
 
     // Mock fs.readFile to return valid package.json
     (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(
-      Buffer.from(JSON.stringify({ version: '0.5.8' }))
+      Buffer.from(JSON.stringify({ version: packageJson.version }))
     );
 
     const tabManager = new TabManager();
