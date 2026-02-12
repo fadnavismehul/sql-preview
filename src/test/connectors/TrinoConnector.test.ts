@@ -1,7 +1,16 @@
-import axios from 'axios';
+import axios, { isCancel, isAxiosError } from 'axios';
 import { TrinoConnector, TrinoConfig } from '../../connectors/trino/TrinoConnector';
 
-jest.mock('axios');
+jest.mock('axios', () => ({
+  __esModule: true,
+  default: {
+    post: jest.fn(),
+    get: jest.fn(),
+    create: jest.fn(),
+  },
+  isCancel: jest.fn(),
+  isAxiosError: jest.fn(),
+}));
 const mockedAxios = axios as unknown as jest.Mocked<typeof axios>;
 
 describe('TrinoConnector', () => {
@@ -38,8 +47,8 @@ describe('TrinoConnector', () => {
     (networkError as any).config = { url: 'http://worker-node:8080/v1/statement/executing/1' };
 
     // Mock isAxiosError implementation
-    (mockedAxios as any).isAxiosError = (payload: any) => payload === networkError;
-    (mockedAxios as any).isCancel = jest.fn().mockReturnValue(false);
+    (isAxiosError as unknown as jest.Mock).mockReturnValue(true);
+    (isCancel as unknown as jest.Mock).mockReturnValue(false);
 
     mockedAxios.get.mockRejectedValueOnce(networkError);
 

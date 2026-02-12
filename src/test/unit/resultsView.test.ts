@@ -56,11 +56,21 @@ describe('ResultsViewProvider Tests', () => {
         update: jest.fn(),
       },
       subscriptions: [],
+      workspace: {
+        fs: {
+          readFile: jest.fn(),
+        },
+      },
     } as any;
     const mockQueryExecutor = {
       executeQuery: jest.fn(),
       cancelQuery: jest.fn(),
     } as any;
+
+    // Mock fs.readFile to return valid package.json
+    (vscode.workspace.fs.readFile as jest.Mock).mockResolvedValue(
+      Buffer.from(JSON.stringify({ version: '0.5.8' }))
+    );
 
     const tabManager = new TabManager();
     const exportService = new ExportService(mockQueryExecutor);
@@ -316,6 +326,7 @@ describe('ResultsViewProvider Tests', () => {
       title,
       sourceFileUri: undefined,
       preserveFocus: false,
+      index: 0,
     });
   });
 

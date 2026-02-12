@@ -103,6 +103,10 @@ export function splitSqlQueries(text: string): string[] {
  * Finds the query at a specific offset in the text.
  */
 export function getQueryAtOffset(text: string, offset: number): string | null {
+  if (offset > text.length || offset < 0) {
+    return null;
+  }
+
   let lastStatement: string | null = null;
   let lastEnd = 0;
 
