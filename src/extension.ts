@@ -278,9 +278,10 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
         columns = page.columns;
       }
       if (page.data) {
-        const CHUNK_SIZE = 10000;
-        for (let i = 0; i < page.data.length; i += CHUNK_SIZE) {
-          allRows.push(...page.data.slice(i, i + CHUNK_SIZE));
+        // Optimized: direct push loop avoids slice allocation and spread operator overhead
+        for (let i = 0; i < page.data.length; i++) {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          allRows.push(page.data[i]!);
         }
         totalRows += page.data.length;
       }
