@@ -248,6 +248,12 @@ body {
     background-color: var(--vscode-button-hoverBackground);
 }
 
+/* Feedback State */
+.feedback-success {
+    color: var(--vscode-charts-green, #4CAF50) !important;
+    border-color: var(--vscode-charts-green, #4CAF50) !important;
+}
+
 /* Both export buttons now have the same primary button styling */
 
 /* Loading Indicator Styles */
