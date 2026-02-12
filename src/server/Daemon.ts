@@ -1,6 +1,6 @@
 import express from 'express';
-import cors from 'cors';
 import * as http from 'http';
+import * as crypto from 'crypto';
 import * as net from 'net';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -104,8 +104,6 @@ export class Daemon {
   }
 
   private setupRoutes() {
-    this.app.use(cors());
-
     // Request Logging
     this.app.use((_req, res, next) => {
       this.refreshActivity();
@@ -140,7 +138,7 @@ export class Daemon {
 
         if (!sessionId) {
           // Generate a new Session ID if none provided
-          sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          sessionId = `session-${crypto.randomUUID()}`;
         }
 
         // 2. Get or Create Session
@@ -394,12 +392,11 @@ export class Daemon {
     await new Promise<void>((resolve, reject) => {
       // Use '0.0.0.0' to ensure we listen on all interfaces (IPv4/IPv6 dual stack support depends on Node version/OS,
       // but 0.0.0.0 covers 127.0.0.1 and usually allows ::1 if mapped).
-      // Use '0.0.0.0' to ensure we listen on all interfaces (IPv4/IPv6 dual stack support depends on Node version/OS,
-      // but 0.0.0.0 covers 127.0.0.1 and usually allows ::1 if mapped).
-      this.httpServer = this.app.listen(this.HTTP_PORT, '0.0.0.0', () => {
+      // Use '127.0.0.1' to restrict access to localhost only.
+      this.httpServer = this.app.listen(this.HTTP_PORT, '127.0.0.1', () => {
         const addr = this.httpServer?.address();
         const bind = typeof addr === 'string' ? `pipe ${addr}` : `port ${addr?.port}`;
-        logger.info(`Daemon HTTP listening on http://0.0.0.0:${this.HTTP_PORT} (${bind})`);
+        logger.info(`Daemon HTTP listening on http://127.0.0.1:${this.HTTP_PORT} (${bind})`);
         resolve();
       });
       this.httpServer.on('error', reject);

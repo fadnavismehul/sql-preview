@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import * as net from 'net';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -86,7 +87,7 @@ export class DaemonClient {
     let storedId = this.context.workspaceState.get<string>(STORAGE_KEY);
 
     if (!storedId) {
-      storedId = Math.random().toString(36).substring(2, 10);
+      storedId = crypto.randomUUID();
       this.context.workspaceState.update(STORAGE_KEY, storedId);
     }
     this.sessionId = storedId;
