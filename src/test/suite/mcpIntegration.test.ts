@@ -200,7 +200,7 @@ describe('MCP Integration Test Suite', () => {
 
     // Register mock connector
     // Access private property via cast
-    (daemon as any).connectorRegistry.register('mock', mockConnector);
+    (daemon as any).connectorRegistry.register(mockConnector);
 
     // Mock a connection profile that uses this connector
     const mockProfile = {
@@ -212,10 +212,15 @@ describe('MCP Integration Test Suite', () => {
 
     // Inject mock connection manager
     const originalConnectionManager = (daemon as any).connectionManager;
-    (daemon as any).connectionManager = {
+    const mockConnectionManager = {
       getConnections: async () => [mockProfile],
       getConnection: async () => mockProfile,
     };
+    (daemon as any).connectionManager = mockConnectionManager;
+    // Also patch the executor which holds a reference
+    (daemon as any).queryExecutor.connectionManager = mockConnectionManager;
+    // AND patch the connectorRegistry because it is also held by reference!
+    (daemon as any).queryExecutor.connectorRegistry = (daemon as any).connectorRegistry;
 
     // Execute run_query
     const res = await request(
@@ -254,6 +259,9 @@ describe('MCP Integration Test Suite', () => {
 
     assert.strictEqual(res.statusCode, 200);
     const json = parseResponse(res.data);
+    if (!json.result) {
+      assert.fail(`Missing result in MCP response: ${JSON.stringify(json, null, 2)}`);
+    }
     assert.strictEqual(json.result.content[0].type, 'text');
     assert.ok(json.result.content[0].text.includes('Query submitted'), 'Query should be submitted');
 
@@ -280,16 +288,12 @@ describe('MCP Integration Test Suite', () => {
         id: 3,
       },
       {
-        Accept: 'application/json', // GET_TAB_INFO can accept just JSON if SDK allows, but let's be safe
+        Accept: 'application/json, text/event-stream',
         'Mcp-Session-Id': 'sessionA',
       }
     );
 
-    const infoJson = JSON.parse(infoRes.data); // Should be JSON if I don't ask for SSE? No SDK enforces.
-    // Wait, let's fix the Accept header for the second request too
-    // But above I didn't change the second request.
-    // If SDK enforces it, the second request also failed? No, test failed on first parsing.
-
+    const infoJson = parseResponse(infoRes.data);
     const infoText = infoJson.result.content[0].text;
     const info = JSON.parse(infoText);
 
