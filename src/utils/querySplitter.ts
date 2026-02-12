@@ -14,6 +14,10 @@ export function* iterateSqlStatements(text: string): Generator<{
   let inLineComment = false;
   let inBlockComment = false;
 
+  // Pre-compiled regex for finding first non-whitespace char
+  // global flag is needed to use lastIndex
+  const nonWhitespaceRegex = /\S/g;
+
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const nextChar = text[i + 1];
@@ -54,16 +58,23 @@ export function* iterateSqlStatements(text: string): Generator<{
         inDoubleQuote = true;
       } else if (char === ';') {
         // End of statement
-        const rawChunk = text.substring(currentStart, i);
-        const statement = rawChunk.trim();
-        if (statement.length > 0) {
-          const relativeStart = rawChunk.search(/\S/);
+        nonWhitespaceRegex.lastIndex = currentStart;
+        const match = nonWhitespaceRegex.exec(text);
+
+        if (match && match.index < i) {
+          const executionStart = match.index;
+          let executionEnd = i;
+          while (executionEnd > executionStart && isWhitespace(text.charCodeAt(executionEnd - 1))) {
+            executionEnd--;
+          }
+
+          const statement = text.substring(executionStart, executionEnd);
           yield {
             statement,
             start: currentStart,
             end: i,
-            executionStart: currentStart + relativeStart,
-            executionEnd: currentStart + relativeStart + statement.length,
+            executionStart,
+            executionEnd,
           };
         }
         currentStart = i + 1;
@@ -73,19 +84,34 @@ export function* iterateSqlStatements(text: string): Generator<{
 
   // Yield last statement
   if (currentStart < text.length) {
-    const rawChunk = text.substring(currentStart);
-    const statement = rawChunk.trim();
-    if (statement.length > 0) {
-      const relativeStart = rawChunk.search(/\S/);
+    nonWhitespaceRegex.lastIndex = currentStart;
+    const match = nonWhitespaceRegex.exec(text);
+
+    if (match) {
+      const executionStart = match.index;
+      let executionEnd = text.length;
+      while (executionEnd > executionStart && isWhitespace(text.charCodeAt(executionEnd - 1))) {
+        executionEnd--;
+      }
+
+      const statement = text.substring(executionStart, executionEnd);
       yield {
         statement,
         start: currentStart,
         end: text.length,
-        executionStart: currentStart + relativeStart,
-        executionEnd: currentStart + relativeStart + statement.length,
+        executionStart,
+        executionEnd,
       };
     }
   }
+}
+
+/**
+ * Checks if a character code represents a whitespace character.
+ * optimization: checks only common whitespace characters (Space, Tab, LF, CR, NBSP)
+ */
+function isWhitespace(code: number): boolean {
+  return code === 32 || code === 9 || code === 10 || code === 13 || code === 160;
 }
 
 /**

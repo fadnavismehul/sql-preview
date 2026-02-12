@@ -24,32 +24,15 @@ export class PrestoCodeLensProvider implements vscode.CodeLensProvider {
     const text = document.getText();
 
     // Use robust splitter that handles comments and strings correctly and provides ranges
-    for (const { statement: trimmedQuery, executionStart, executionEnd } of iterateSqlStatements(
-      text
-    )) {
+    for (const { statement: trimmedQuery, executionStart } of iterateSqlStatements(text)) {
       if (trimmedQuery.length === 0) {
         continue;
       }
 
       // Optimized: Use executionStart directly from parser, avoiding substring allocation and search
+      // executionStart points to the first non-whitespace character, so startPos is already correct.
       const startOffset = executionStart;
-      const endOffset = executionEnd;
-
-      const startPos = document.positionAt(startOffset);
-      const endPos = document.positionAt(endOffset);
-      // const range = new vscode.Range(startPos, endPos); // Currently unused
-
-      // Ensure the range is valid and doesn't start/end mid-line unnecessarily
-      // Find the first non-whitespace character line for the start
-      let actualStartLine = startPos.line;
-      while (
-        actualStartLine < endPos.line &&
-        document.lineAt(actualStartLine).isEmptyOrWhitespace
-      ) {
-        actualStartLine++;
-      }
-      const firstCharIndex = document.lineAt(actualStartLine).firstNonWhitespaceCharacterIndex;
-      const adjustedStartPos = new vscode.Position(actualStartLine, firstCharIndex);
+      const adjustedStartPos = document.positionAt(startOffset);
 
       // Use the line where the query starts for the CodeLens position
       const lensRange = new vscode.Range(adjustedStartPos, adjustedStartPos);
