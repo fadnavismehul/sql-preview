@@ -76,7 +76,6 @@ export class Daemon {
     // Singleton Server/Transport initialization REMOVED in favor of per-connection logic in setupRoutes
 
     this.setupRoutes();
-    this.setupRoutes();
     this.setupLifecycle();
     this.setupEventBroadcasting();
   }
@@ -429,6 +428,15 @@ export class Daemon {
 
       const transport = new SocketTransport(socket);
 
+      // Add Transport Logging
+      transport.onerror = (err) => {
+        logger.error('[Daemon] SocketTransport Error:', err);
+      };
+
+      transport.onclose = () => {
+        logger.info('[Daemon] SocketTransport Closed');
+      };
+
       // Create dedicated MCP server for this socket connection
       const server = new Server(
         { name: 'sql-preview-daemon-ipc', version: '1.0.0' },
@@ -439,18 +447,18 @@ export class Daemon {
       // Register Handlers
       new DaemonMcpServer(server, this.sessionManager, this.toolManager);
 
-      // We don't necessarily need to track socket servers in activeServers map unless we want to close them explicitly,
-      // but they will close when socket closes.
-
       socket.on('close', () => {
         this.connectedSocketCount--;
         this.connectedMcpServers.delete(server);
         logger.info('Client disconnected from Socket');
-        // socket transport usually handles its own cleanup, but we could explicitly server.close()
       });
       socket.on('data', () => this.refreshActivity());
 
-      await server.connect(transport);
+      try {
+        await server.connect(transport);
+      } catch (error) {
+        logger.error('[Daemon] Failed to connect MCP server to transport', error);
+      }
     });
 
     return new Promise<void>((resolve, reject) => {

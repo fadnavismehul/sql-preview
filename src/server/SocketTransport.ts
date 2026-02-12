@@ -76,7 +76,9 @@ export class SocketTransport implements Transport {
 
   async send(message: JSONRPCMessage): Promise<void> {
     return new Promise((resolve, reject) => {
-      const json = JSON.stringify(message);
+      const json = JSON.stringify(message, (_key, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      );
       this._socket.write(json + '\n', err => {
         if (err) {
           reject(err);
