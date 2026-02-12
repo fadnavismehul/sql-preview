@@ -31,13 +31,15 @@ export function activate(context: vscode.ExtensionContext) {
     // We do this in the background so it doesn't block startup
     serviceContainer.connectionManager
       .migrateLegacySettings()
-      .catch(err => Logger.getInstance().error(`Migration error`, err));
+      .then(() => serviceContainer.connectionManager.sync())
+      .catch(err => Logger.getInstance().error(`Migration/Sync error`, err));
 
     // Register Webview Provider
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(
         ResultsViewProvider.viewType,
-        serviceContainer.resultsViewProvider
+        serviceContainer.resultsViewProvider,
+        { webviewOptions: { retainContextWhenHidden: true } }
       )
     );
 
@@ -81,6 +83,17 @@ export function activate(context: vscode.ExtensionContext) {
       await serviceContainer.daemonClient.stop();
       await serviceContainer.daemonClient.start();
       vscode.window.showInformationMessage('SQL Preview Client Restarted.');
+    }),
+    vscode.commands.registerCommand('sql.debug.resetSession', async () => {
+      await context.workspaceState.update('sqlPreview.sessionId', undefined);
+      const choice = await vscode.window.showInformationMessage(
+        'Session ID cleared. Reload window to start a fresh session?',
+        'Reload',
+        'Later'
+      );
+      if (choice === 'Reload') {
+        vscode.commands.executeCommand('workbench.action.reloadWindow');
+      }
     })
   );
 
@@ -204,6 +217,17 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
 
   sql = sql.trim().replace(/;$/, '');
 
+  // Check configuration for "Run in New Tab" preference
+  const config = vscode.workspace.getConfiguration('sqlPreview');
+  const alwaysNewTab = config.get<boolean>('alwaysRunInNewTab', false);
+  const preserveFocus = alwaysNewTab;
+
+  // If config is true, force new tab unless explicitly handled otherwise (though currently runQueryNewTab passes true anyway)
+  // We only override false -> true.
+  if (alwaysNewTab && !newTab) {
+    newTab = true;
+  }
+
   // Determine target Tab ID
   const activeEditor = vscode.window.activeTextEditor;
   let sourceUri: string | undefined;
@@ -221,18 +245,18 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
   let tabId: string;
   if (newTab) {
     tabId = `t${Math.random().toString(36).substring(2, 10)}`;
-    resultsViewProvider.createTabWithId(tabId, sql, title, sourceUri);
+    resultsViewProvider.createTabWithId(tabId, sql, title, sourceUri, preserveFocus);
   } else {
     tabId = resultsViewProvider.getOrCreateActiveTabId(sql, title, sourceUri);
   }
 
-  resultsViewProvider.showLoadingForTab(tabId, sql, title);
+  resultsViewProvider.showLoadingForTab(tabId, sql, title, preserveFocus);
 
   const controller = serviceContainer.querySessionRegistry.createSession(tabId);
 
   try {
     const contextUri = sourceUri ? vscode.Uri.parse(sourceUri) : undefined;
-    const generator = queryExecutor.execute(sql, contextUri, controller.signal);
+    const generator = queryExecutor.execute(sql, contextUri, controller.signal, tabId);
     let totalRows = 0;
     let columns: import('./common/types').ColumnDef[] = [];
     const allRows: unknown[][] = [];
@@ -242,6 +266,14 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     let wasTruncated = false;
 
     for await (const page of generator) {
+      if (page.remoteTabId) {
+        // Link local tab to remote tab to prevent duplicates in sync
+        Logger.getInstance().info(
+          `[Extension] Linking local tab ${tabId} to remote tab ${page.remoteTabId}`
+        );
+        resultsViewProvider.updateTab(tabId, { remoteId: page.remoteTabId });
+      }
+
       if (page.columns) {
         columns = page.columns;
       }
@@ -272,6 +304,12 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
     resultsViewProvider.showResultsForTab(tabId, results);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
+
+    // Check for Cancelled error
+    if (message === 'Cancelled' || message.includes('AbortError')) {
+      resultsViewProvider.showCancelledForTab(tabId, 'Query Cancelled');
+      return;
+    }
 
     // Check for safe errors if needed and extract details, ignoring BaseError check to silence linter
     let details: string | undefined;

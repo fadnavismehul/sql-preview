@@ -10,6 +10,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 // logic: we can implement one easily. It just needs to read/write JSON-RPC.
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { Logger } from '../core/logging/Logger';
 
 class SocketClientTransport implements Transport {
@@ -75,22 +76,51 @@ export class DaemonClient {
   private readyPromise: Promise<void> | undefined;
   private startupLogBuffer = '';
   private isConnected = false;
+  public onRefresh?: () => void;
+
+  private configDir: string;
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    // Short session ID to save tokens for LLM agents
-    this.sessionId = Math.random().toString(36).substring(2, 10);
+    // Persistent Session ID
+    const STORAGE_KEY = 'sqlPreview.sessionId';
+    let storedId = this.context.workspaceState.get<string>(STORAGE_KEY);
 
-    // Determine Socket Path (Same as Daemon)
-    // TODO: Shared constant
+    if (!storedId) {
+      storedId = Math.random().toString(36).substring(2, 10);
+      this.context.workspaceState.update(STORAGE_KEY, storedId);
+    }
+    this.sessionId = storedId;
+
+    // Determine Socket Path
     const homeDir = os.homedir();
-    const configDir = path.join(homeDir, '.sql-preview');
-    this.socketPath = path.join(configDir, 'srv.sock');
+    const devPort = process.env['SQL_PREVIEW_MCP_PORT'];
+    this.configDir = devPort
+      ? path.join(homeDir, '.sql-preview-debug')
+      : path.join(homeDir, '.sql-preview');
+    this.socketPath = path.join(this.configDir, 'srv.sock');
 
     this.client = new Client({ name: 'vscode-extension', version: '1.0.0' }, { capabilities: {} });
   }
 
   public getSessionId() {
     return this.sessionId;
+  }
+
+  public async closeTab(tabId: string) {
+    if (!this.isConnected) {
+      return;
+    }
+    try {
+      await this.client.callTool({
+        name: 'close_tab',
+        arguments: {
+          session: this.sessionId,
+          tabId: tabId,
+        },
+      });
+    } catch (e) {
+      Logger.getInstance().error(`Failed to close remote tab ${tabId}`, e);
+    }
   }
 
   public async start() {
@@ -127,8 +157,9 @@ export class DaemonClient {
     const start = Date.now();
     while (Date.now() - start < timeout) {
       if (this.process && this.process.exitCode !== null) {
+        const logs = this.startupLogBuffer || 'No logs captured';
         throw new Error(
-          `Daemon exited prematurely with code ${this.process.exitCode}. Logs: ${this.startupLogBuffer || 'No logs captured'}`
+          `Daemon exited prematurely with code ${this.process.exitCode}.\nLogs:\n${logs}`
         );
       }
 
@@ -137,7 +168,15 @@ export class DaemonClient {
           await this.connect();
           return;
         } catch (e) {
-          // Socket exists but maybe not listening yet
+          // Socket exists but maybe not listening yet.
+          // Retry once after short delay before failing this iteration to handle race condition
+          await new Promise(r => setTimeout(r, 100));
+          try {
+            await this.connect();
+            return;
+          } catch (e2) {
+            // Ignore and continue to main loop wait
+          }
         }
       }
       await new Promise(r => setTimeout(r, 500));
@@ -150,12 +189,39 @@ export class DaemonClient {
     // Path to Daemon.js
     // If running in dev with ts-node, we might need adjustments,
     // but assuming compiled 'out' structure for production/standard run.
-    const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'Daemon.js');
+    const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'daemon.js');
+
+    const devPort = process.env['SQL_PREVIEW_MCP_PORT'];
+    const configPort = vscode.workspace.getConfiguration('sqlPreview').get<number>('mcpPort');
+    const portToUse = devPort || (configPort ? String(configPort) : undefined);
+
+    // Robust PATH for Mac/Linux if node is not in VS Code's inherited env
+    const robustPath = [
+      process.env['PATH'],
+      '/usr/local/bin',
+      '/opt/homebrew/bin',
+      '/usr/bin',
+      '/bin',
+      process.env['HOME'] ? path.join(process.env['HOME'], '.nvm/versions/node/current/bin') : '',
+    ]
+      .filter(Boolean)
+      .join(path.delimiter);
 
     this.process = cp.spawn('node', [serverPath], {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, SQL_PREVIEW_DAEMON: '1' },
+      env: {
+        ...process.env,
+        PATH: robustPath,
+        SQL_PREVIEW_DAEMON: '1',
+        SQL_PREVIEW_HOME: this.configDir,
+        ...(portToUse ? { MCP_PORT: portToUse } : {}),
+      },
+    });
+
+    this.process.on('error', err => {
+      Logger.getInstance().error('Failed to spawn daemon process', err);
+      this.startupLogBuffer += `\nSpawn Error: ${err.message}`;
     });
 
     this.process.unref(); // Let it run independently
@@ -198,7 +264,28 @@ export class DaemonClient {
         this.transport = new SocketClientTransport(socket);
         this.client
           .connect(this.transport)
-          .then(() => {
+          .then(async () => {
+            // Listen for Resource Updates
+            // Simple Debounce for Refresh
+            let refreshTimeout: NodeJS.Timeout | undefined;
+
+            this.client.setNotificationHandler(
+              z.object({ method: z.literal('notifications/resources/list_changed') }),
+              async () => {
+                const logger = Logger.getInstance();
+                logger.info('[DaemonClient] Received notifications/resources/list_changed');
+
+                if (refreshTimeout) {
+                  clearTimeout(refreshTimeout);
+                }
+
+                refreshTimeout = setTimeout(() => {
+                  logger.info('[DaemonClient] Debounce triggered: Refreshing sessions...');
+                  this.onRefresh?.();
+                  refreshTimeout = undefined;
+                }, 500);
+              }
+            );
             resolve();
           })
           .catch(reject);
@@ -215,7 +302,12 @@ export class DaemonClient {
     });
   }
 
-  public async runQuery(sql: string, newTab = true, connectionProfile?: unknown): Promise<string> {
+  public async runQuery(
+    sql: string,
+    newTab = true,
+    connectionProfile?: unknown,
+    tabId?: string
+  ): Promise<string> {
     if (!this.isConnected) {
       await this.start();
     } else if (this.readyPromise) {
@@ -229,6 +321,7 @@ export class DaemonClient {
         session: this.sessionId,
         newTab,
         connectionProfile,
+        tabId,
       },
     });
 
@@ -260,6 +353,7 @@ export class DaemonClient {
       arguments: {
         session: this.sessionId,
         tabId,
+        mode: 'page',
         offset,
         ...(limit !== undefined && { limit }),
       },
@@ -272,6 +366,21 @@ export class DaemonClient {
 
     const text = content[0].text;
     return JSON.parse(text);
+  }
+
+  public async listSessions() {
+    if (!this.isConnected) {
+      await this.start();
+    }
+    const result = await this.client.callTool({
+      name: 'list_sessions',
+      arguments: {},
+    });
+    const content = result.content as { type: string; text: string }[];
+    if (content && content[0]?.text) {
+      return JSON.parse(content[0].text);
+    }
+    return [];
   }
 
   public async cancelQuery(tabId: string) {
@@ -297,8 +406,7 @@ export class DaemonClient {
   }
 
   private async cleanupStaleDaemon() {
-    const configDir = path.join(os.homedir(), '.sql-preview');
-    const pidPath = path.join(configDir, 'server.pid');
+    const pidPath = path.join(this.configDir, 'server.pid');
 
     if (fs.existsSync(pidPath)) {
       try {
@@ -308,7 +416,7 @@ export class DaemonClient {
           try {
             process.kill(pid, 'SIGTERM');
             // Give it a moment to exit
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 1000));
             // Force kill if still running
             try {
               process.kill(pid, 0);

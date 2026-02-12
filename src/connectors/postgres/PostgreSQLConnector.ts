@@ -37,8 +37,7 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
     const driverPath = await this.driverManager.getDriver('pg');
 
     // Dynamically require pg
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pg = require(driverPath);
+    const pg = await import(driverPath);
     const { Client } = pg;
 
     const clientConfig: ClientConfig = {
@@ -107,8 +106,9 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
       }
       this.handleError(error, query);
     } finally {
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      await client.end().catch(() => {}); // Ignore close errors
+      await client.end().catch(() => {
+        /* ignore close errors */
+      });
     }
   }
 

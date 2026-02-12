@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosRequestConfig, isCancel, isAxiosError } from 'axios';
 import * as https from 'https';
 import { IConnector, ConnectorConfig } from '../base/IConnector'; // New path
 import { QueryPage } from '../../common/types';
@@ -101,12 +101,11 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
     }
 
     // Configure axios safely
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const axiosConfig: any = {
+    const axiosConfig: AxiosRequestConfig = {
       headers,
       httpsAgent,
       transformResponse: [(data: unknown) => safeJsonParse(data as string)],
-      signal: abortSignal,
+      ...(abortSignal ? { signal: abortSignal } : {}),
     };
 
     // Initial POST
@@ -136,8 +135,7 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
         stats: result.stats || undefined,
       };
     } catch (error: unknown) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((axios as any).isCancel(error)) {
+      if (isCancel(error)) {
         return; // Stopped by user
       }
       this.handleError(error, query);
@@ -174,8 +172,7 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
           };
         }
       } catch (error: unknown) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if ((axios as any).isCancel(error)) {
+        if (isCancel(error)) {
           return;
         }
         this.handleError(error, query);
@@ -192,11 +189,9 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
     let status: number | undefined;
     let code: string | undefined;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((axios as any).isAxiosError(error)) {
+    if (isAxiosError(error)) {
       // Try to get message from Trino error response first
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const axiosError = error as any;
+      const axiosError = error;
       const trinoError = axiosError.response?.data?.error;
       msg = trinoError?.message || axiosError.message;
 

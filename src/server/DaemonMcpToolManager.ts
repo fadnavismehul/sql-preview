@@ -37,6 +37,11 @@ export class DaemonMcpToolManager {
               type: 'object',
               description: 'Optional connection profile override (includes credentials)',
             },
+            tabId: {
+              type: 'string',
+              description:
+                'Optional Tab ID to use for the result. If provided, the daemon will use this ID instead of generating a new one.',
+            },
           },
           required: ['sql', 'session'],
         },
@@ -44,7 +49,7 @@ export class DaemonMcpToolManager {
       {
         name: 'get_tab_info',
         description:
-          'Get information about a result tab in a session, including query status and result rows. Use this after run_query to check if execution completed and retrieve data.',
+          'Get information about a result tab in a session. Defaults to a "preview" mode with metadata and a small sample. Use mode="page" to retrieve full pages of rows.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -57,14 +62,20 @@ export class DaemonMcpToolManager {
               description:
                 'The Tab ID to retrieve (optional, defaults to the most recently active tab in the session)',
             },
+            mode: {
+              type: 'string',
+              enum: ['preview', 'page'],
+              description:
+                'Retrieval mode. "preview" (default) returns stats + 10 rows. "page" returns specific rows defined by offset/limit.',
+            },
             offset: {
               type: 'number',
-              description: 'Optional row offset to fetch from (for pagination, default: 0)',
+              description: 'Row offset for "page" mode (default: 0)',
             },
             limit: {
               type: 'number',
               description:
-                'Maximum number of rows to return (default: 100). Use with offset for pagination.',
+                'Number of rows to return. Default: 100 for "page" mode, 10 for "preview" mode.',
             },
           },
           required: ['session'],
@@ -92,6 +103,20 @@ export class DaemonMcpToolManager {
           required: ['session', 'tabId'],
         },
       },
+      /*
+      {
+        name: 'close_tab',
+        description: 'Close a tab and remove it from the session.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            session: { type: 'string', description: 'The Session ID' },
+            tabId: { type: 'string', description: 'The Tab ID to close' },
+          },
+          required: ['session', 'tabId'],
+        },
+      },
+      */
     ];
   }
 
@@ -105,9 +130,33 @@ export class DaemonMcpToolManager {
         return this.handleListSessions();
       case 'cancel_query':
         return this.handleCancelQuery(args);
+      case 'close_tab':
+        return this.handleCloseTab(args);
       default:
         throw new Error('Unknown tool');
     }
+  }
+
+  private async handleCloseTab(args: unknown) {
+    const typedArgs = args as { session?: string; tabId?: string } | undefined;
+    const sessionId = typedArgs?.session;
+    const tabId = typedArgs?.tabId;
+
+    if (!sessionId || !tabId) {
+      throw new Error('Session ID and Tab ID required');
+    }
+
+    const session = this.sessionManager.getSession(sessionId);
+    if (!session) {
+      throw new Error('Session not found');
+    }
+
+    this.sessionManager.removeTab(sessionId, tabId);
+    session.lastActivityAt = new Date();
+
+    return {
+      content: [{ type: 'text', text: `Tab ${tabId} closed` }],
+    };
   }
 
   private async handleCancelQuery(args: unknown) {
@@ -153,6 +202,12 @@ export class DaemonMcpToolManager {
               id: s.id,
               displayName: s.displayName,
               clientType: s.clientType,
+              tabs: Array.from(s.tabs.values()).map(t => ({
+                tabId: t.id,
+                title: t.title,
+                status: t.status,
+                query: t.query,
+              })),
             })),
             null,
             2
@@ -171,12 +226,14 @@ export class DaemonMcpToolManager {
             displayName?: string;
             newTab?: boolean;
             connectionProfile?: unknown;
+            tabId?: string;
           }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       const sessionId = typedArgs?.session;
       const displayName = typedArgs?.displayName || 'MCP Client';
       const connectionProfile = typedArgs?.connectionProfile;
+      const providedTabId = typedArgs?.tabId;
 
       if (!sql) {
         throw new Error('SQL query is required');
@@ -195,20 +252,73 @@ export class DaemonMcpToolManager {
         }
       }
 
-      // Create Tab
-      const tabId = `t${Math.random().toString(36).substring(2, 10)}`;
-      const tabTitle = `Result ${session.tabs.size + 1}`;
+      // 3. Determine Tab
+      const shouldCreateNewTab = typedArgs?.newTab !== false; // Default to true
+      let tabId: string;
+      let tabTitle: string;
+      let tab: TabData | undefined;
 
-      const tab: TabData = {
-        id: tabId,
-        title: tabTitle,
-        query: sql,
-        columns: [],
-        rows: [],
-        status: 'loading',
-      };
+      if (providedTabId) {
+        // Use provided Tab ID
+        tabId = providedTabId;
+        tab = session.tabs.get(tabId);
 
-      session.tabs.set(tabId, tab);
+        if (tab) {
+          // Reset existing tab if it was already there (weird case but possible)
+          tab.status = 'loading';
+          tab.query = sql;
+          tab.rows = [];
+          tab.columns = [];
+          tab.error = undefined;
+          tabTitle = tab.title;
+        } else {
+          // Create new with this ID
+          tabTitle = `Result ${session.tabs.size + 1}`;
+        }
+      } else if (!shouldCreateNewTab && session.activeTabId) {
+        // Reuse existing active tab
+        tabId = session.activeTabId;
+        tab = session.tabs.get(tabId);
+        if (tab) {
+          // Reset tab state for new query
+          tab.status = 'loading';
+          tab.query = sql;
+          tab.rows = [];
+          tab.columns = [];
+          tab.error = undefined;
+          tabTitle = tab.title; // Keep existing title
+        } else {
+          // Fallback if active tab ID is stale
+          tabId = `t${Math.random().toString(36).substring(2, 10)}`;
+          tabTitle = `Result ${session.tabs.size + 1}`;
+        }
+      } else {
+        // Create New with generated ID
+        tabId = `t${Math.random().toString(36).substring(2, 10)}`;
+        tabTitle = `Result ${session.tabs.size + 1}`;
+      }
+
+      if (!tab) {
+        tab = {
+          id: tabId,
+          title: tabTitle,
+          query: sql,
+          columns: [],
+          rows: [],
+          status: 'loading',
+        };
+        this.sessionManager.addTab(sessionId, tab);
+      } else {
+        // Just update existing
+        this.sessionManager.updateTab(sessionId, tabId, {
+          status: 'loading',
+          query: sql,
+          rows: [],
+          columns: [],
+          error: undefined,
+        });
+      }
+
       session.activeTabId = tabId;
       session.lastActivityAt = new Date();
 
@@ -278,7 +388,11 @@ export class DaemonMcpToolManager {
           tab.columns = columns;
         }
         if (page.data && page.data.length > 0) {
-          tab.rows.push(...page.data);
+          this.sessionManager.updateTab(sessionId, tabId, {
+            columns: page.columns ? page.columns : tab.columns,
+            rows: page.data && page.data.length > 0 ? [...tab.rows, ...page.data] : tab.rows,
+            status: 'loading',
+          });
         }
         if (page.supportsPagination !== undefined) {
           tab.supportsPagination = page.supportsPagination;
@@ -287,22 +401,32 @@ export class DaemonMcpToolManager {
         // Actually 'loading' is fine until done.
       }
 
-      tab.status = 'success';
+      this.sessionManager.updateTab(sessionId, tabId, {
+        status: 'success',
+        totalRowsInFirstBatch: tab.rows.length,
+      });
       tab.totalRowsInFirstBatch = tab.rows.length;
     } catch (err) {
-      tab.status = 'error';
-      // Check if aborted
-      if (signal?.aborted) {
-        tab.error = 'Query cancelled by user';
-      } else {
-        tab.error = err instanceof Error ? err.message : String(err);
-      }
+      this.sessionManager.updateTab(sessionId, tabId, {
+        status: 'error',
+        error: signal?.aborted
+          ? 'Query cancelled by user'
+          : err instanceof Error
+            ? err.message
+            : String(err),
+      });
     }
   }
 
   private async handleGetTabInfo(args: unknown) {
     const typedArgs = args as
-      | { session?: string; tabId?: string; offset?: number; limit?: number }
+      | {
+          session?: string;
+          tabId?: string;
+          mode?: 'preview' | 'page';
+          offset?: number;
+          limit?: number;
+        }
       | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {
@@ -324,34 +448,70 @@ export class DaemonMcpToolManager {
       return { content: [{ type: 'text', text: 'Tab not found.' }] };
     }
 
-    const offset = typedArgs?.offset || 0;
-    const limit = typedArgs?.limit ?? 100; // Default to 100 rows per request
+    const mode = typedArgs?.mode || 'preview';
     const totalRows = tab.rows?.length ?? 0;
-    const rows = tab.rows ? tab.rows.slice(offset, offset + limit) : [];
-    const hasMore = offset + rows.length < totalRows;
+    const resourceUri = `sql-preview://sessions/${sessionId}/tabs/${tabId}`;
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(
-            {
-              id: tab.id,
-              title: tab.title,
-              status: tab.status,
-              rowCount: totalRows,
-              columns: tab.columns,
-              rows: rows,
-              offset: offset,
-              limit: limit,
-              hasMore: hasMore,
-              error: tab.error,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
+    if (mode === 'preview') {
+      // Smart Summary Mode
+      const previewLimit = typedArgs?.limit || 10;
+      const previewRows = tab.rows ? tab.rows.slice(0, previewLimit) : [];
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                status: tab.status,
+                meta: {
+                  totalRows: totalRows,
+                  columns: tab.columns,
+                },
+                preview: previewRows,
+                message: `Showing ${previewRows.length} of ${totalRows} rows. Use mode='page' for pagination or read_resource for full data.`,
+                resourceUri: resourceUri,
+                error: tab.error,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } else {
+      // Page Mode (Legacy / Explicit Fetch)
+      const offset = typedArgs?.offset || 0;
+      const limit = typedArgs?.limit ?? 100;
+      const rows = tab.rows ? tab.rows.slice(offset, offset + limit) : [];
+      const hasMore = offset + rows.length < totalRows;
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              {
+                id: tab.id,
+                title: tab.title,
+                status: tab.status,
+                meta: {
+                  totalRows: totalRows,
+                  columns: tab.columns,
+                },
+                rows: rows,
+                offset: offset,
+                limit: limit,
+                hasMore: hasMore,
+                resourceUri: resourceUri,
+                error: tab.error,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
   }
 }

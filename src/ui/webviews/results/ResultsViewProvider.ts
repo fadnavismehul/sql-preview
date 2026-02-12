@@ -34,7 +34,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     private readonly _exportService: ExportService,
     _querySessionRegistry: QuerySessionRegistry,
     _connectionManager: ConnectionManager,
-    _queryExecutor: QueryExecutor
+    _queryExecutor: QueryExecutor,
+    private readonly _daemonClient: { closeTab: (tabId: string) => Promise<void> } // Inject DaemonClient interface
   ) {
     this._stateManager = new StateManager(context);
     this._htmlGenerator = new ResultsHtmlGenerator(_extensionUri);
@@ -121,10 +122,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
         this.postMessage({ type: 'updateRowHeight', density });
       }
 
-      if (
-        e.affectsConfiguration('sqlPreview.mcpEnabled') ||
-        e.affectsConfiguration('sqlPreview.mcpPort')
-      ) {
+      if (e.affectsConfiguration('sqlPreview.mcpEnabled')) {
         this.refreshSettings();
       }
     });
@@ -194,14 +192,16 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
         ssl: config.get('ssl'),
         sslVerify: config.get('sslVerify'),
         mcpEnabled: config.get('mcpEnabled'),
-        mcpPort: config.get('mcpPort'),
+
         defaultConnector: config.get('defaultConnector'),
         databasePath: config.get('databasePath'),
 
         hasPassword,
         mcpStatus: {
           running: !!config.get('mcpEnabled'),
-          port: 8414,
+          port: process.env['SQL_PREVIEW_MCP_PORT']
+            ? parseInt(process.env['SQL_PREVIEW_MCP_PORT'], 10)
+            : 8414,
           error: false,
         },
       },
@@ -242,8 +242,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
 
   // --- Public methods ---
 
-  public showLoadingForTab(tabId: string, query: string, title: string) {
-    this.log(`showLoadingForTab: ${tabId}`);
+  public showLoadingForTab(tabId: string, query: string, title: string, preserveFocus = false) {
+    this.log(`showLoadingForTab: ${tabId}, preserveFocus: ${preserveFocus}`);
 
     const existing = this._tabManager.getTab(tabId);
     if (existing) {
@@ -255,8 +255,13 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     }
     this._saveState();
 
-    this._ensureVisible();
-    this.postMessage({ type: 'showLoading', tabId, query, title });
+    this._ensureVisible(preserveFocus);
+    this.postMessage({ type: 'showLoading', tabId, query, title, preserveFocus });
+  }
+
+  public updateTab(tabId: string, updates: Partial<TabData>) {
+    this._tabManager.updateTab(tabId, updates);
+    this._saveState();
   }
 
   public showResultsForTab(tabId: string, resultData: QueryResults) {
@@ -331,8 +336,14 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     this.postMessage({ type: 'statusMessage', message });
   }
 
-  public createTabWithId(tabId: string, query: string, title: string, sourceFileUri?: string) {
-    this.log(`createTabWithId: ${tabId}`);
+  public createTabWithId(
+    tabId: string,
+    query: string,
+    title: string,
+    sourceFileUri?: string,
+    preserveFocus = false
+  ) {
+    this.log(`createTabWithId: ${tabId}, preserveFocus: ${preserveFocus}`);
 
     this._tabManager.addTab({
       id: tabId,
@@ -343,14 +354,32 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
       status: 'created',
       sourceFileUri,
     });
-    this._tabManager.setActiveTab(tabId);
+    if (!preserveFocus) {
+      this._tabManager.setActiveTab(tabId);
+    }
     this._saveState();
 
-    this._ensureVisible();
-    this.postMessage({ type: 'createTab', tabId, query, title, sourceFileUri });
+    this._ensureVisible(preserveFocus);
+    // Get index of this tab (it was just added)
+    const allTabs = this._tabManager.getAllTabs();
+    const index = allTabs.findIndex(t => t.id === tabId);
+    this.postMessage({
+      type: 'createTab',
+      tabId,
+      query,
+      title,
+      sourceFileUri,
+      preserveFocus,
+      index,
+    });
   }
 
-  public getOrCreateActiveTabId(query: string, title?: string, sourceFileUri?: string): string {
+  public getOrCreateActiveTabId(
+    query: string,
+    title?: string,
+    sourceFileUri?: string,
+    preserveFocus = false
+  ): string {
     const activeId = this._tabManager.activeTabId;
     if (activeId) {
       const existing = this._tabManager.getTab(activeId);
@@ -364,20 +393,21 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
 
         this._saveState();
 
-        this._ensureVisible();
+        this._ensureVisible(preserveFocus);
         this.postMessage({
           type: 'reuseOrCreateActiveTab',
           tabId: activeId,
           query,
           title: title || existing.title,
           sourceFileUri,
+          preserveFocus,
         });
         return activeId;
       }
     }
 
     const newTabId = `t${Math.random().toString(36).substring(2, 10)}`;
-    this.createTabWithId(newTabId, query, title || 'Result', sourceFileUri);
+    this.createTabWithId(newTabId, query, title || 'Result', sourceFileUri, preserveFocus);
     return newTabId;
   }
 
@@ -410,6 +440,26 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
   public createTab(query: string, title?: string) {
     const tabId = `t${Math.random().toString(36).substring(2, 10)}`;
     this.createTabWithId(tabId, query, title || 'Query Result');
+  }
+
+  public showCancelledForTab(tabId: string, message?: string) {
+    this.log(`showCancelledForTab: ${tabId}`);
+
+    const existing = this._tabManager.getTab(tabId);
+    if (existing) {
+      this._tabManager.updateTab(tabId, {
+        status: 'error', // Use error status for now, or add specific 'cancelled' status if desired
+        error: message || 'Query Cancelled',
+      });
+    }
+    this._saveState();
+
+    this._ensureVisible();
+    this.postMessage({
+      type: 'queryCancelled',
+      tabId,
+      message: message || 'Query Cancelled',
+    });
   }
 
   // --- Public methods for MCP Server ---
@@ -456,20 +506,37 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     }
   }
 
-  public closeTab(tabId: string) {
+  public async closeTab(tabId: string) {
     if (this._tabManager.getTab(tabId)) {
       this._tabManager.removeTab(tabId);
       this.postMessage({ type: 'closeTab', tabId });
-      this._saveState();
+
+      // Notify Daemon to remove tab from session
+      try {
+        await this._daemonClient.closeTab(tabId);
+      } catch (err) {
+        this.log(`Error closing remote tab: ${err}`);
+      }
+
+      await this._saveState();
     }
   }
 
   public closeOtherTabs() {
     const activeId = this._tabManager.activeTabId;
     if (activeId) {
+      const tabsToClose = this._tabManager.getAllTabs().filter(t => t.id !== activeId);
+
       this._tabManager.removeOtherTabs(activeId);
       this.postMessage({ type: 'closeOtherTabs' });
       this._saveState();
+
+      // Notify Daemon
+      tabsToClose.forEach(tab => {
+        this._daemonClient.closeTab(tab.id).catch(err => {
+          this.log(`Error closing remote tab: ${err}`);
+        });
+      });
     }
   }
 
@@ -487,9 +554,18 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
   }
 
   public closeAllTabs() {
+    const tabsToClose = this._tabManager.getAllTabs();
+
     this._tabManager.removeAllTabs();
     this.postMessage({ type: 'closeAllTabs' });
     this._saveState();
+
+    // Notify Daemon
+    tabsToClose.forEach(tab => {
+      this._daemonClient.closeTab(tab.id).catch(err => {
+        this.log(`Error closing remote tab: ${err}`);
+      });
+    });
   }
 
   public async exportFullResults() {
@@ -506,9 +582,68 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
 
   // --- Private ---
 
-  private _ensureVisible() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  public syncRemoteTabs(sessions: any[], currentSessionId: string) {
+    // We want to merge remote tabs into our local view
+    let changes = false;
+
+    for (const session of sessions) {
+      if (session.id !== currentSessionId) {
+        continue;
+      }
+
+      if (session.tabs) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const remoteTab of session.tabs) {
+          // Check if we already have this tab (by ID or by remoteId mapping)
+          const existing = this._tabManager
+            .getAllTabs()
+            .find(t => t.id === remoteTab.tabId || t.remoteId === remoteTab.tabId);
+
+          if (!existing) {
+            // New Remote Tab
+            this.createTabWithId(
+              remoteTab.tabId,
+              remoteTab.query,
+              `Remote: ${remoteTab.tabId}`,
+              undefined
+            );
+            const tab = this._tabManager.getTab(remoteTab.tabId);
+            if (tab) {
+              tab.isRemote = true;
+              tab.sessionId = session.id; // Use session.id from the loop variable
+              tab.status = remoteTab.status;
+              tab.title = `Remote: ${remoteTab.tabId}`; // Maybe use session name?
+              // We don't have columns/rows here, we'd need to fetch them.
+            }
+            changes = true;
+          } else {
+            // Update status
+            if (existing.status !== remoteTab.status) {
+              existing.status = remoteTab.status;
+              changes = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (changes) {
+      this._saveState();
+      // Do not call restoreTabs() here; it sends duplicate 'createTab' messages.
+      // The internal state is updated, and QueryExecutor or subsequent user actions will handle UI updates.
+      // If we need to push status updates (e.g. loading -> success) for "ghost" tabs,
+      // we should send specific update messages, but 'restoreTabs' is too heavy/destructive.
+    }
+  }
+
+  private async _ensureVisible(preserveFocus = true) {
+    if (!this._view) {
+      await vscode.commands.executeCommand('sqlResultsView.focus');
+    }
+
     if (this._view) {
-      this._view.show?.(true);
+      this._view.show?.(preserveFocus);
     }
   }
 
@@ -526,13 +661,16 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
   }
 
   private _restoreTabsToWebview() {
-    this._tabManager.getAllTabs().forEach(tab => {
+    this._tabManager.getAllTabs().forEach((tab, index) => {
       this.postMessage({
         type: 'createTab',
         tabId: tab.id,
         query: tab.query,
         title: tab.title,
         sourceFileUri: tab.sourceFileUri,
+        // preserveFocus is generally irrelevant during restore, but we can default false or keep creating behavior
+        preserveFocus: true,
+        index, // Pass index ensures correct order
       });
 
       if (tab.status === 'success') {
@@ -546,7 +684,8 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
             },
             title: tab.title,
           });
-        } else if (tab.rows.length > 0) {
+        } else {
+          // Always send result data, even if empty, to ensure UI state is synchronized
           const queryResults: QueryResults = {
             columns: tab.columns,
             rows: tab.rows,
@@ -554,7 +693,6 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
             wasTruncated: tab.wasTruncated || false,
             totalRowsInFirstBatch: tab.totalRowsInFirstBatch || tab.rows.length,
             queryId: tab.queryId,
-
             infoUri: tab.infoUri,
             nextUri: tab.nextUri,
             supportsPagination: tab.supportsPagination,
@@ -574,7 +712,18 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
           title: tab.title,
         });
       } else if (tab.status === 'loading') {
-        this.postMessage({ type: 'showLoading', tabId: tab.id, title: tab.title });
+        // Any tab found in 'loading' state during restore is dead (interrupted process).
+        // Must report error to stop spinner.
+        this.postMessage({
+          type: 'queryError',
+          tabId: tab.id,
+          error: {
+            message: 'Query Interrupted',
+            details: 'The query was interrupted by a reload. Please run it again.',
+          },
+          query: tab.query,
+          title: tab.title,
+        });
       }
     });
   }

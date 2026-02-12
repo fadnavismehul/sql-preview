@@ -30,11 +30,13 @@ export class SQLiteConnector implements IConnector<SQLiteConfig> {
     let sqlite3: any;
     try {
       if (config.driverPath) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        sqlite3 = require(config.driverPath);
+        sqlite3 = await import(config.driverPath);
       } else {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        sqlite3 = require('sqlite3');
+        sqlite3 = await import('sqlite3');
+      }
+
+      if (sqlite3.default) {
+        sqlite3 = sqlite3.default;
       }
     } catch (e) {
       throw new Error(

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { TabData } from '../common/types';
+import { Logger } from '../core/logging/Logger';
 
 interface SavedState {
   tabs: Map<string, TabData>;
@@ -14,8 +15,12 @@ export class StateManager {
     // If we wanted session-only state, we would clear here.
 
     // Register a disposal listener if deemed necessary, otherwise leave empty
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    context.subscriptions.push({ dispose: () => {} });
+    // Register a disposal listener if deemed necessary, otherwise leave empty
+    context.subscriptions.push({
+      dispose: () => {
+        /* no-op */
+      },
+    });
   }
 
   /**
@@ -42,8 +47,7 @@ export class StateManager {
     try {
       await this.context.workspaceState.update(StateManager.STATE_KEY, state);
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to save state:', error);
+      Logger.getInstance().error('Failed to save state:', error);
     }
   }
 
@@ -66,8 +70,7 @@ export class StateManager {
         resultCounter: rawState.resultCounter,
       };
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to load state:', error);
+      Logger.getInstance().error('Failed to load state:', error);
       return undefined;
     }
   }

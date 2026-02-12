@@ -27,6 +27,16 @@ describe('Command Tests', () => {
     // Stub command registration
     commandRegistrationStub = sinon.stub(vscode.commands, 'registerCommand');
     // executeCommandStub = sinon.stub(vscode.commands, 'executeCommand'); // Not currently used
+
+    sinon.stub(vscode.window, 'registerWebviewViewProvider');
+    sinon.stub(vscode.languages, 'registerCodeLensProvider');
+    sinon.stub(vscode.window, 'createStatusBarItem').returns({
+      show: sinon.stub(),
+      hide: sinon.stub(),
+      dispose: sinon.stub(),
+      text: '',
+      command: '',
+    } as any);
   });
 
   afterEach(() => {

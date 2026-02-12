@@ -61,8 +61,7 @@ export class DriverManager {
         title: `Installing ${packageName} driver...`,
         cancellable: false,
       },
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      async _progress => {
+      async () => {
         return new Promise<void>((resolve, reject) => {
           Logger.getInstance().info(`Installing driver: ${packageName} in ${this.storagePath}`);
 

@@ -28,4 +28,8 @@ webviews/css/tabulator_vscode.min.css
 # Tabulator JS (if downloaded locally)
 webviews/js/tabulator.min.js 
 
+
 coverage
+test_output*.txt
+test_failures*.log
+unit_test_output.log

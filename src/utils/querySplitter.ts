@@ -103,12 +103,31 @@ export function splitSqlQueries(text: string): string[] {
  * Finds the query at a specific offset in the text.
  */
 export function getQueryAtOffset(text: string, offset: number): string | null {
+  if (offset > text.length || offset < 0) {
+    return null;
+  }
+
+  let lastStatement: string | null = null;
+  let lastEnd = 0;
+
   for (const { statement, start, end } of iterateSqlStatements(text)) {
     // Check if offset is within the range [start, end] (inclusive of delimiter or end of file)
     // We use a loose check to allow cursor at the immediate end of the query
     if (offset >= start && offset <= end + 1) {
       return statement;
     }
+    lastStatement = statement;
+    lastEnd = end;
   }
+
+  // Handle trailing whitespace/semicolons after the last statement
+  if (lastStatement !== null && offset > lastEnd) {
+    const trailing = text.substring(lastEnd, offset);
+    // If the trailing text contains only whitespace or semicolons, attach to previous statement
+    if (!/[^;\s]/.test(trailing)) {
+      return lastStatement;
+    }
+  }
+
   return null;
 }

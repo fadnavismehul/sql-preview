@@ -89,7 +89,19 @@ export class TabManager {
   }
 
   public setTabs(tabs: Map<string, TabData>): void {
-    this._tabs = tabs;
+    // Merge strategy: Restored tabs come FIRST, then existing (newly created) tabs.
+    // This handles the race condition where a user runs a query while state is still loading.
+    const newTabs = new Map(this._tabs); // Backup currently active tabs (T4)
+
+    this._tabs = new Map(tabs); // Set restored tabs (T1, T2, T3)
+
+    // Re-add new tabs at the end
+    newTabs.forEach((tab, id) => {
+      if (!this._tabs.has(id)) {
+        this._tabs.set(id, tab);
+      }
+    });
+
     this._onDidTabsChange.fire();
   }
 }

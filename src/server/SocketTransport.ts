@@ -15,14 +15,16 @@ export class SocketTransport implements Transport {
 
   constructor(socket: Socket) {
     this._socket = socket;
+  }
 
+  async start(): Promise<void> {
     // Handle incoming data
     // We assume newline-delimited JSON for simplicity in this V1
     let buffer = '';
 
     const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB limit
 
-    socket.on('data', chunk => {
+    this._socket.on('data', chunk => {
       buffer += chunk.toString();
 
       if (buffer.length > MAX_BUFFER_SIZE) {
@@ -31,7 +33,7 @@ export class SocketTransport implements Transport {
             new Error(`Message buffer exceeded ${MAX_BUFFER_SIZE} bytes. Closing connection.`)
           );
         }
-        socket.destroy();
+        this._socket.destroy();
         return;
       }
 
@@ -56,27 +58,27 @@ export class SocketTransport implements Transport {
       }
     });
 
-    socket.on('close', () => {
+    this._socket.on('close', () => {
       if (this.onclose) {
         this.onclose();
       }
     });
 
-    socket.on('error', err => {
+    this._socket.on('error', err => {
       if (this.onerror) {
         this.onerror(err);
       }
     });
-  }
 
-  async start(): Promise<void> {
     // Socket is already connected when passed in
     return Promise.resolve();
   }
 
   async send(message: JSONRPCMessage): Promise<void> {
     return new Promise((resolve, reject) => {
-      const json = JSON.stringify(message);
+      const json = JSON.stringify(message, (_key, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      );
       this._socket.write(json + '\n', err => {
         if (err) {
           reject(err);

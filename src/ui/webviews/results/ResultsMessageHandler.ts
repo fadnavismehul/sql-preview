@@ -1,7 +1,12 @@
 import * as vscode from 'vscode';
+import { TextDecoder } from 'util';
 import * as http from 'http';
 import axios from 'axios';
-import { TabData, ExtensionToWebviewMessage } from '../../../common/types';
+import {
+  TabData,
+  ExtensionToWebviewMessage,
+  WebviewToExtensionMessage,
+} from '../../../common/types';
 import { TabManager } from '../../../services/TabManager';
 import { ExportService } from '../../../services/ExportService';
 import { QuerySessionRegistry } from '../../../services/QuerySessionRegistry';
@@ -15,6 +20,8 @@ export interface MessageHandlerDelegate {
   refreshSettings(): Promise<void>;
   filterTabsByFile(fileUri: string | undefined): void;
   getActiveEditorUri(): string | undefined;
+  closeTab(tabId: string): Promise<void>;
+  saveState?(): Promise<void>;
 }
 
 export class ResultsMessageHandler {
@@ -28,7 +35,7 @@ export class ResultsMessageHandler {
     private readonly _extensionUri: vscode.Uri
   ) {}
 
-  public async handleMessage(data: any) {
+  public async handleMessage(data: WebviewToExtensionMessage) {
     switch (data.command) {
       case 'alert':
         vscode.window.showInformationMessage(data.text);
@@ -65,34 +72,9 @@ export class ResultsMessageHandler {
 
       case 'tabClosed':
         this.log(`Tab closed: ${data.tabId}`);
-        this._tabManager.removeTab(data.tabId);
-        // We need to trigger save state in the parent, but TabManager updates are sync.
-        // The parent provider should listen to TabManager or we trigger save explicitly?
-        // Original code called _saveState() directly.
-        // Ideally we should have a callback or event.
-        // For now, let's assume the delegate or parent handles persistence via other means
-        // OR we add a saveState method to delegate.
-        // Let's assume the main provider saves state when its own methods are called or we need to expose save.
-        // The original logic saved state on EVERY message.
-        // We might need to bubble up an event 'onStateChange'.
-        // For simplicity, let's ask delegate to save.
-        // But the detailed implementation plan didn't specify 'saveState' on delegate.
-        // We will emit an event or call a method if we add it.
-        // Actually, let's look at the original code: it calls _saveState() often.
-        // Let's rely on the TabManager updates and maybe expose a 'persistState' on delegate?
-        // Let's stick to the plan: modularize.
-        // We can emit an event?
-        // Let's just assume we can call a method passed in or defined.
-        // Checking existing `ResultsViewProvider.ts`, `_saveState` is private.
-        // We'll trust the caller to handle persistence if we don't have it here,
-        // BUT the original code did it here.
-        // Let's add `saveState` to the delegate interface for now to be safe.
-        // Wait, the interface above only has `postMessage`, `restoreTabs`, etc.
-        // Let's add `saveState`.
-        if ((this._delegate as any).saveState) {
-          await (this._delegate as any).saveState();
-        }
+        await this._delegate.closeTab(data.tabId);
         return;
+
       case 'updateTabState': {
         const updates: Partial<TabData> = {};
         if (data.title) {
@@ -102,15 +84,15 @@ export class ResultsMessageHandler {
           updates.query = data.query;
         }
         this._tabManager.updateTab(data.tabId, updates);
-        if ((this._delegate as any).saveState) {
-          await (this._delegate as any).saveState();
+        if (this._delegate.saveState) {
+          await this._delegate.saveState();
         }
         return;
       }
       case 'tabSelected':
         this._tabManager.setActiveTab(data.tabId);
-        if ((this._delegate as any).saveState) {
-          await (this._delegate as any).saveState();
+        if (this._delegate.saveState) {
+          await this._delegate.saveState();
         }
         return;
       case 'exportResults': {
@@ -132,7 +114,7 @@ export class ResultsMessageHandler {
       }
       case 'testConnection': {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const config = data.config;
+        const config = data.config as any; // config is typed as unknown in message definition for flexibility
 
         const workspaceConfig = vscode.workspace.getConfiguration('sqlPreview');
         const connectorType =
@@ -165,11 +147,14 @@ export class ResultsMessageHandler {
           // Logic matches saveSettings: use first existing or generate default ID (though generating new one won't have password)
           // If no connections exist, we can't find a password. User must have saved or set password.
           if (connections.length > 0) {
-            const profileId = connections[0]!.id; // Assumption: Single default profile for now
-            const fullProfile = await this._connectionManager.getConnection(profileId);
-            if (fullProfile && fullProfile.password) {
-              const password = fullProfile.password;
-              authHeader = 'Basic ' + Buffer.from(`${config.user}:${password}`).toString('base64');
+            const profileId = connections[0]?.id; // Assumption: Single default profile for now
+            if (profileId) {
+              const fullProfile = await this._connectionManager.getConnection(profileId);
+              if (fullProfile && fullProfile.password) {
+                const password = fullProfile.password;
+                authHeader =
+                  'Basic ' + Buffer.from(`${config.user}:${password}`).toString('base64');
+              }
             }
           }
         }
@@ -192,8 +177,15 @@ export class ResultsMessageHandler {
       }
       case 'testMcpServer': {
         // Check Daemon Health
+        const config = vscode.workspace.getConfiguration('sqlPreview');
+        const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
+        const configPort = config.get<number>('mcpPort', 8414);
+
+        // Prefer port sent from UI, then Env Var, then Config
+        const port = data.port || (envPort ? parseInt(envPort, 10) : configPort);
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const req = http.get('http://localhost:8414/status', (res: any) => {
+        const req = http.get(`http://localhost:${port}/status`, (res: any) => {
           if (res.statusCode === 200) {
             this._delegate.postMessage({
               type: 'testMcpResult',
@@ -209,6 +201,7 @@ export class ResultsMessageHandler {
           }
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         req.on('error', (e: any) => {
           this._delegate.postMessage({
             type: 'testMcpResult',
@@ -275,7 +268,7 @@ export class ResultsMessageHandler {
         // Sync with ConnectionManager (Default Profile)
         const existing = await this._connectionManager.getConnections();
         const profileId =
-          existing.length > 0 && existing[0] ? existing[0]!.id : 'default-' + Date.now();
+          existing.length > 0 && existing[0] ? existing[0].id : 'default-' + Date.now();
 
         let profile: import('../../../common/types').ConnectionProfile;
         if (s.defaultConnector === 'sqlite') {
@@ -284,13 +277,13 @@ export class ResultsMessageHandler {
             name: 'Default Connection',
             type: 'sqlite',
             databasePath: s.databasePath || '',
-          } as any;
+          } as import('../../../common/types').SQLiteConnectionProfile;
         } else {
           profile = {
             id: profileId,
             name: 'Default Connection',
             type: 'trino',
-            host: s.host || 'localhost',
+            host: s.host || '127.0.0.1',
             port: s.port || 8080,
             user: s.user || 'user',
             catalog: s.catalog,
@@ -332,17 +325,22 @@ export class ResultsMessageHandler {
             // Quick fix: create a default one with default settings
             profileId = 'default-' + Date.now();
             // We need some minimal config.
-            const defaultProfile: any = {
+            const defaultProfile: import('../../../common/types').TrinoConnectionProfile = {
               id: profileId,
               name: 'Default Connection',
               type: 'trino',
-              host: 'localhost',
+              host: '127.0.0.1',
               port: 8080,
               user: 'user',
+              ssl: false,
+              sslVerify: true,
             };
             await this._connectionManager.saveConnection(defaultProfile);
           } else {
-            profileId = existing[0]!.id;
+            profileId = existing[0] ? existing[0].id : '';
+            if (!profileId) {
+              throw new Error('No profile found');
+            }
           }
 
           await this._connectionManager.updatePassword(profileId, password);
@@ -353,8 +351,8 @@ export class ResultsMessageHandler {
       }
       case 'clearPassword': {
         const existing = await this._connectionManager.getConnections();
-        if (existing.length > 0) {
-          await this._connectionManager.clearPasswordForConnection(existing[0]!.id);
+        if (existing.length > 0 && existing[0]) {
+          await this._connectionManager.clearPasswordForConnection(existing[0].id);
           vscode.window.showInformationMessage('Password cleared.');
           this._delegate.refreshSettings();
         }
@@ -374,8 +372,9 @@ export class ResultsMessageHandler {
   private async _checkLatestVersion() {
     try {
       // Get current version from package.json
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const packageJson = require(this._extensionUri.fsPath + '/package.json');
+      const packageJsonUri = vscode.Uri.joinPath(this._extensionUri, 'package.json');
+      const packageJsonContent = await vscode.workspace.fs.readFile(packageJsonUri);
+      const packageJson = JSON.parse(new TextDecoder().decode(packageJsonContent));
       const currentVersion = packageJson.version;
 
       this._delegate.postMessage({
@@ -407,7 +406,7 @@ export class ResultsMessageHandler {
       );
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const results = (response.data as any).results[0]?.extensions;
+      const results = (response.data as any).results?.[0]?.extensions;
       if (results && results.length > 0) {
         const latestVersion = results[0].versions[0].version;
         this._delegate.postMessage({

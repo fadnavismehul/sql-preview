@@ -9,6 +9,7 @@ export interface QueryPage {
   nextUri?: string | undefined;
   infoUri?: string | undefined;
   id?: string | undefined;
+  remoteTabId?: string | undefined; // To link local tab to remote daemon tab
   stats?:
     | {
         state: string;
@@ -47,6 +48,11 @@ export interface TabData {
   nextUri?: string | undefined;
   sourceFileUri?: string | undefined;
   wasDataCleared?: boolean | undefined;
+
+  // Remote/MCP specific
+  isRemote?: boolean;
+  sessionId?: string;
+  remoteId?: string | undefined;
   supportsPagination?: boolean | undefined;
 }
 
@@ -140,9 +146,10 @@ export type WebviewToExtensionMessage =
   | { command: 'saveSettings'; settings: unknown }
   | { command: 'setPassword' }
   | { command: 'clearPassword' }
-  | { command: 'testMcpServer' }
-  | { command: 'logMessage'; level: string; message: string }
-  | { command: 'openExtensionPage' };
+  | { command: 'lockMcpPort'; port: number }
+  | { command: 'openExtensionPage' }
+  | { command: 'testMcpServer'; port?: number }
+  | { command: 'logMessage'; level: string; message: string };
 
 export type ExtensionToWebviewMessage =
   | {
@@ -151,6 +158,8 @@ export type ExtensionToWebviewMessage =
       query: string;
       title: string;
       sourceFileUri?: string | undefined;
+      preserveFocus?: boolean;
+      index?: number;
     }
   | { type: 'resultData'; tabId: string; data: QueryResults; title: string }
   | {
@@ -160,7 +169,18 @@ export type ExtensionToWebviewMessage =
       query?: string | undefined;
       title?: string | undefined;
     }
-  | { type: 'showLoading'; tabId: string; query?: string | undefined; title?: string | undefined }
+  | {
+      type: 'queryCancelled';
+      tabId: string;
+      message?: string;
+    }
+  | {
+      type: 'showLoading';
+      tabId: string;
+      query?: string | undefined;
+      title?: string | undefined;
+      preserveFocus?: boolean;
+    }
   | { type: 'statusMessage'; message: string }
   | {
       type: 'reuseOrCreateActiveTab';
@@ -168,6 +188,7 @@ export type ExtensionToWebviewMessage =
       query: string;
       title: string;
       sourceFileUri?: string | undefined;
+      preserveFocus?: boolean;
     }
   | { type: 'closeActiveTab' }
   | { type: 'closeTab'; tabId: string }

@@ -185,7 +185,8 @@ window.addEventListener('message', event => {
 
     switch (message.type) {
         case 'createTab':
-            createTab(message.tabId, message.query, message.title, message.sourceFileUri);
+        case 'createTab':
+            createTab(message.tabId, message.query, message.title, message.sourceFileUri, message.preserveFocus, message.index);
             break;
         case 'resultData':
             updateTabWithResults(message.tabId, message.data, message.title);
@@ -194,10 +195,13 @@ window.addEventListener('message', event => {
             updateTabWithError(message.tabId, message.error, message.query, message.title);
             break;
         case 'showLoading':
-            showLoading(message.tabId, message.query, message.title);
+            showLoading(message.tabId, message.query, message.title, message.preserveFocus);
+            break;
+        case 'queryCancelled':
+            handleQueryCancelled(message.tabId, message.message);
             break;
         case 'reuseOrCreateActiveTab':
-            handleReuseOrCreate(message.tabId, message.query, message.title, message.sourceFileUri);
+            handleReuseOrCreate(message.tabId, message.query, message.title, message.sourceFileUri, message.preserveFocus);
             break;
         case 'closeActiveTab':
             if (activeTabId) closeTab(activeTabId);
@@ -370,7 +374,7 @@ document.addEventListener('mousedown', (event) => {
 
 // --- Tab Management ---
 
-function createTab(tabId, query, title, sourceFileUri) {
+function createTab(tabId, query, title, sourceFileUri, preserveFocus, index) {
     if (tabs.has(tabId)) {
         // If it exists, just activate it
         activateTab(tabId);
@@ -417,7 +421,12 @@ function createTab(tabId, query, title, sourceFileUri) {
 
     tabElement.onclick = () => activateTab(tabId);
 
-    tabList.appendChild(tabElement);
+    // Append new tabs to the end (standard behavior), unless index is provided
+    if (typeof index === 'number' && index >= 0 && index < tabList.children.length) {
+        tabList.insertBefore(tabElement, tabList.children[index]);
+    } else {
+        tabList.appendChild(tabElement);
+    }
 
     // Create Content Element
     const contentElement = document.createElement('div');
@@ -429,7 +438,7 @@ function createTab(tabId, query, title, sourceFileUri) {
     // Structural Wrapper: Main Interaction Area + Loading Overlay
     contentElement.innerHTML = `
         <div class="tab-main-content" id="main-${tabId}"></div>
-        <div class="custom-loading-overlay" id="overlay-${tabId}" style="display:none;"></div>
+        <div class="custom-loading-overlay" id="overlay-${tabId}" style="display:none;" role="dialog" aria-modal="true" aria-label="Loading"></div>
     `;
 
     tabContentContainer.appendChild(contentElement);
@@ -947,6 +956,7 @@ function updateTabWithResults(tabId, data, title) {
     // Hide Overlay
     if (tab.overlay) {
         tab.overlay.style.display = 'none';
+        tab.content.setAttribute('aria-busy', 'false');
     }
 
     // Prepare data
@@ -1449,6 +1459,7 @@ function updateTabWithError(tabId, error, query, title) {
     // Hide overlay
     if (tab.overlay) {
         tab.overlay.style.display = 'none';
+        tab.content.setAttribute('aria-busy', 'false');
     }
 
     // Reset formatted content
@@ -1466,7 +1477,23 @@ function updateTabWithError(tabId, error, query, title) {
     tab.sidePanel = null;
 }
 
-function showLoading(tabId, query, title) {
+function handleQueryCancelled(tabId, message) {
+    const tab = tabs.get(tabId);
+    if (!tab) return;
+
+    // Hide Overlay
+    if (tab.overlay) {
+        tab.overlay.style.display = 'none';
+        tab.overlay.innerHTML = ''; // Clean up spinner
+    }
+
+    // Show Error/Cancelled State in Tab
+    // We can reuse updateTabWithError or create a specific UI state
+    // For now, let's treat it as an error but with specific styling if needed
+    updateTabWithError(tabId, { message: message || 'Query Cancelled' }, tab.query, tab.title);
+}
+
+function showLoading(tabId, query, title, preserveFocus) {
     const tab = tabs.get(tabId);
     if (!tab) {
         // If tab doesn't exist yet, create it
@@ -1480,7 +1507,7 @@ function showLoading(tabId, query, title) {
         return;
     }
 
-    // Force activation
+    // Force activation logic
     activateTab(tabId);
 
     // Show Overlay with Loading Content
@@ -1488,12 +1515,15 @@ function showLoading(tabId, query, title) {
         tab.overlay.innerHTML = `
             <div class="loading-container">
                 <div class="spinner"></div>
+                
+                <div class="loading-text" role="status" aria-live="polite">Running query...</div>
                 <button class="cancel-button" id="cancel-${tabId}">Cancel Query</button>
-                <div class="loading-text">Running query...</div>
                 <div class="query-preview"><pre>${escapeHtml(query || '')}</pre></div>
             </div>
         `;
         tab.overlay.style.display = 'flex';
+        tab.content.setAttribute('aria-busy', 'true');
+
 
         // Attach listener programmatically
         const cancelBtn = tab.overlay.querySelector(`#cancel-${tabId}`);
@@ -1511,14 +1541,14 @@ function showLoading(tabId, query, title) {
 
 
 
-function handleReuseOrCreate(tabId, query, title, sourceFileUri) {
+function handleReuseOrCreate(tabId, query, title, sourceFileUri, preserveFocus) {
     const targetId = tabId || activeTabId;
 
     if (targetId && tabs.has(targetId)) {
-        showLoading(targetId, query, title);
+        showLoading(targetId, query, title, preserveFocus);
     } else if (targetId) {
-        createTab(targetId, query, title, sourceFileUri);
-        showLoading(targetId, query, title);
+        createTab(targetId, query, title, sourceFileUri, preserveFocus);
+        showLoading(targetId, query, title, preserveFocus);
     }
 }
 

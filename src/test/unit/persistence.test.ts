@@ -66,7 +66,8 @@ describe('ResultsViewProvider Persistence', () => {
         saveConnection: jest.fn(),
         deleteConnection: jest.fn(),
       } as any,
-      { testConnection: jest.fn() } as any
+      { testConnection: jest.fn() } as any,
+      { closeTab: jest.fn().mockReturnValue(Promise.resolve()) } as any // Mock DaemonClient
     );
   });
 
@@ -128,7 +129,8 @@ describe('ResultsViewProvider Persistence', () => {
         saveConnection: jest.fn(),
         deleteConnection: jest.fn(),
       } as any,
-      { testConnection: jest.fn() } as any
+      { testConnection: jest.fn() } as any,
+      { closeTab: jest.fn().mockReturnValue(Promise.resolve()) } as any // Mock DaemonClient
     );
 
     // Wait for async loadState

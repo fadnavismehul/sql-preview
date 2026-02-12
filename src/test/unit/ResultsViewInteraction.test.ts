@@ -75,7 +75,8 @@ describe('ResultsViewInteraction Tests', () => {
         deleteConnection: jest.fn(),
         testConnection: jest.fn(),
       } as any,
-      mockQueryExecutor
+      mockQueryExecutor,
+      { closeTab: jest.fn().mockResolvedValue(undefined) } as any // Mock DaemonClient
     );
 
     resultsViewProvider.resolveWebviewView(mockWebviewView);

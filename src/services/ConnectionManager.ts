@@ -1,5 +1,9 @@
 import * as vscode from 'vscode';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 import { ConnectionProfile } from '../common/types';
+import { Logger } from '../core/logging/Logger';
 
 export class ConnectionManager {
   private static readonly STORAGE_KEY = 'sqlPreview.connections';
@@ -20,6 +24,7 @@ export class ConnectionManager {
     const index = connections.findIndex(c => c.id === profile.id);
 
     // Don't persist password in globalState
+    // Remove password from profile before saving to state
     const { password, ...safeProfile } = profile;
 
     if (index !== -1) {
@@ -38,12 +43,16 @@ export class ConnectionManager {
         await this.deletePassword(profile.id);
       }
     }
+
+    // Sync to Daemon
+    this.syncToDaemon(connections);
   }
 
   public async deleteConnection(id: string): Promise<void> {
     let connections = await this.getConnections();
     connections = connections.filter(c => c.id !== id);
     await this.context.globalState.update(ConnectionManager.STORAGE_KEY, connections);
+    this.syncToDaemon(connections);
     await this.deletePassword(id);
   }
 
@@ -161,13 +170,64 @@ export class ConnectionManager {
         await this.saveConnection(defaultProfile);
       } else {
         // Save without password field if undefined
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        // Save without password field if undefined
         const { password, ...safeProfile } = defaultProfile;
+        void password;
         await this.saveConnection(safeProfile);
       }
     }
 
     // Optional: clear legacy password?
     // Better to leave it for safety in case they downgrade.
+  }
+
+  // --- Daemon Sync ---
+
+  private getDaemonConfigPath(): string {
+    const homeDir = os.homedir();
+
+    // Check for Dev Port override logic mirroring DaemonClient
+    const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
+    const configDir = envPort
+      ? path.join(homeDir, '.sql-preview-debug')
+      : path.join(homeDir, '.sql-preview');
+
+    return path.join(configDir, 'config.json');
+  }
+
+  public async sync(): Promise<void> {
+    const connections = await this.getConnections();
+    this.syncToDaemon(connections);
+  }
+
+  private syncToDaemon(connections: ConnectionProfile[]) {
+    try {
+      const configPath = this.getDaemonConfigPath();
+
+      const dir = path.dirname(configPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      // Read existing to preserve any manual secrets if possible?
+      // For now, simple overwrite of profiles. Daemon FileConnectionManager is simple.
+      // We strip passwords before writing (security).
+      const safeConnections = connections.map(c => {
+        const { password, ...rest } = c;
+        void password;
+        return rest;
+      });
+
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({ connections: safeConnections }, null, 2),
+        'utf8'
+      );
+    } catch (e) {
+      // Ignore sync errors (e.g. permission)
+      Logger.getInstance().error(
+        `Failed to sync connections to daemon: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
   }
 }

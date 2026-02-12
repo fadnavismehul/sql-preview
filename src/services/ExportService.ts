@@ -95,7 +95,6 @@ export class ExportService {
 
             if (page.data) {
               const separator = format === 'csv' ? ',' : '\t';
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const currentColumns = columns;
 
               for (const row of page.data) {

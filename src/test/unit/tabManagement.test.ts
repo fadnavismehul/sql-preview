@@ -69,7 +69,8 @@ describe('Tab Management Tests', () => {
         saveConnection: sinon.stub(),
         deleteConnection: sinon.stub(),
       } as any,
-      { testConnection: jest.fn() } as any
+      { testConnection: jest.fn() } as any,
+      { closeTab: jest.fn().mockResolvedValue(undefined) } as any // Mock DaemonClient
     );
     resultsViewProvider.resolveWebviewView(mockWebviewView);
   });
@@ -223,7 +224,8 @@ describe('Tab Management Tests', () => {
           saveConnection: sinon.stub(),
           deleteConnection: sinon.stub(),
         } as any,
-        { testConnection: jest.fn() } as any
+        { testConnection: jest.fn() } as any,
+        { closeTab: jest.fn().mockResolvedValue(undefined) } as any // Mock DaemonClient
       );
 
       // Should not throw
@@ -251,7 +253,8 @@ describe('Tab Management Tests', () => {
           saveConnection: sinon.stub(),
           deleteConnection: sinon.stub(),
         } as any,
-        { testConnection: jest.fn() } as any
+        { testConnection: jest.fn() } as any,
+        { closeTab: jest.fn().mockResolvedValue(undefined) } as any // Mock DaemonClient
       );
 
       const tabId = providerWithoutWebview.getOrCreateActiveTabId('SELECT 1', 'Test');

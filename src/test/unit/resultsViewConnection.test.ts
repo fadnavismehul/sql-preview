@@ -45,7 +45,8 @@ describe('ResultsViewProvider Connection Tests', () => {
       new ExportService(mockQueryExecutor),
       new QuerySessionRegistry(),
       { getConnections: jest.fn().mockResolvedValue([]) } as any, // mockConnectionManager
-      mockQueryExecutor
+      mockQueryExecutor,
+      { closeTab: jest.fn().mockResolvedValue(undefined) } as any // Mock DaemonClient
     );
 
     resultsViewProvider.resolveWebviewView(mockWebviewView);

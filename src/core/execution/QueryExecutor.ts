@@ -22,10 +22,11 @@ export class QueryExecutor {
   async *execute(
     query: string,
     contextUri?: vscode.Uri,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    tabId?: string
   ): AsyncGenerator<QueryPage, void, unknown> {
     const correlationId = Math.random().toString(36).substring(7);
-    this.logger.info(`Starting query execution via Daemon`, { query }, correlationId);
+    this.logger.info(`Starting query execution via Daemon`, { query, tabId }, correlationId);
 
     // Resolve Connection Profile (Client Side) to pass to Daemon
     const connections = await this.connectionManager.getConnections();
@@ -58,9 +59,22 @@ export class QueryExecutor {
       }
     }
 
+    let remoteTabId: string | undefined;
     try {
-      // 1. Submit Query with Profile Override
-      const remoteTabId = await this.daemonClient.runQuery(query, true, profile);
+      // 1. Submit Query with Profile Override and Explicit Tab ID
+      remoteTabId = await this.daemonClient.runQuery(query, true, profile, tabId);
+
+      // Yield immediate state to link tabs before first poll
+      yield {
+        columns: [],
+        data: [],
+        supportsPagination: false,
+        remoteTabId,
+        stats: {
+          state: 'RUNNING',
+          rowCount: 0,
+        },
+      };
 
       // 2. Poll for Results
       let isDone = false;
@@ -79,7 +93,25 @@ export class QueryExecutor {
         }
 
         // Use a large limit for VS Code extension - it manages truncation itself in extension.ts
-        const info = await this.daemonClient.getTabInfo(remoteTabId, currentOffset, 10000);
+        const info = await Promise.race([
+          this.daemonClient.getTabInfo(remoteTabId, currentOffset, 10000),
+          new Promise<never>((_, reject) => {
+            const timeout = setTimeout(
+              () => reject(new Error('Timeout waiting for daemon response')),
+              30000
+            );
+            if (abortSignal) {
+              abortSignal.addEventListener(
+                'abort',
+                () => {
+                  clearTimeout(timeout);
+                  reject(new Error('Cancelled'));
+                },
+                { once: true }
+              );
+            }
+          }),
+        ]);
         // info structure: { id, title, status, columns, rows, error, hasMore, ... }
 
         if (info.status === 'error') {
@@ -96,15 +128,17 @@ export class QueryExecutor {
         // 2. Query just completed (final yield, even if empty - e.g., DELETE returning 0 rows)
         // 3. First poll with columns (to show grid structure before data arrives)
         const hasNewRows = newRows.length > 0;
-        const isFirstPollWithColumns = info.columns && currentOffset === 0 && !hasNewRows;
+        const validColumns = info.meta?.columns || info.columns;
+        const isFirstPollWithColumns = validColumns && currentOffset === 0 && !hasNewRows;
         const isFinalEmptyResult = isComplete && currentOffset === 0 && !hasNewRows;
 
         if (hasNewRows || isFirstPollWithColumns || isFinalEmptyResult) {
           currentOffset += newRows.length;
           yield {
-            columns: info.columns,
+            columns: validColumns,
             data: newRows,
             supportsPagination: info.supportsPagination,
+            remoteTabId,
             stats: {
               state: isComplete && !hasMore ? 'FINISHED' : 'RUNNING',
               rowCount: info.rowCount ?? currentOffset,
@@ -122,6 +156,19 @@ export class QueryExecutor {
         // If hasMore is true but isComplete is false, we continue immediately to fetch more
       }
     } catch (e: unknown) {
+      if (
+        remoteTabId &&
+        ((e instanceof Error && e.message === 'Cancelled') || String(e).includes('Cancelled'))
+      ) {
+        this.logger.info(`Checking if remote cancellation is needed for ${remoteTabId}`);
+        // Ensure daemon knows we cancelled, in case race condition missed it
+        try {
+          await this.daemonClient.cancelQuery(remoteTabId);
+          this.logger.info(`Daemon cancel enforced for ${remoteTabId}`);
+        } catch (cancelErr) {
+          this.logger.error('Failed to enforce daemon cancel', cancelErr);
+        }
+      }
       this.logger.error(`Query execution failed`, e, correlationId);
       throw e;
     }

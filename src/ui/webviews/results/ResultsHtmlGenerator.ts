@@ -53,6 +53,9 @@ export class ResultsHtmlGenerator {
     const customFontSize = vscode.workspace
       .getConfiguration('sqlPreview')
       .get<number>('fontSize', 0);
+    const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
+    const configPort = vscode.workspace.getConfiguration('sqlPreview').get<number>('mcpPort', 8414);
+    const mcpPort = envPort ? parseInt(envPort, 10) : configPort;
 
     return `<!DOCTYPE html>
 		<html lang="en">
@@ -236,7 +239,7 @@ export class ResultsHtmlGenerator {
                                     <div class="form-row align-center" style="margin-top:10px;">
                                         <label class="toggle-label"><input type="checkbox" id="cfg-mcpEnabled"> Enable MCP Server</label>
                                         <div class="form-group horizontal" style="margin-left:auto;">
-                                            <span style="color:var(--vscode-descriptionForeground);">Port: <strong>8414</strong></span>
+                                            <span style="color:var(--vscode-descriptionForeground);">Port: <strong>${mcpPort}</strong></span>
                                         </div>
                                     </div>
 
@@ -247,7 +250,7 @@ export class ResultsHtmlGenerator {
                                                 <pre id="mcp-snippet" style="text-align: left; white-space: pre;">{
     "sql-preview": {
       "type": "streamable-http",
-      "url": "http://localhost:8414/mcp"
+      "url": "http://127.0.0.1:${mcpPort}/mcp"
     }
 }</pre>
                                                 <button id="copy-mcp-config" class="icon-button" title="Copy Config" aria-label="Copy MCP Config">📋</button>

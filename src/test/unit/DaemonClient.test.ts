@@ -48,6 +48,10 @@ describe('DaemonClient', () => {
     mockContext = {
       extensionPath: '/mock/extension',
       globalStorageUri: { fsPath: '/mock/storage' },
+      workspaceState: {
+        get: jest.fn(),
+        update: jest.fn(),
+      },
     } as any;
 
     // Mock Client SDK
@@ -55,6 +59,7 @@ describe('DaemonClient', () => {
       connect: jest.fn().mockResolvedValue(undefined),
       callTool: jest.fn(),
       close: jest.fn().mockResolvedValue(undefined),
+      setNotificationHandler: jest.fn(),
     };
     (Client as unknown as jest.Mock).mockImplementation(() => mockClientInstance);
 
@@ -189,6 +194,7 @@ describe('DaemonClient', () => {
     });
 
     it('should kill stale daemon process if PID file exists', async () => {
+      jest.useFakeTimers();
       const failSocket = {
         on: jest.fn((event, cb) => {
           if (event === 'error') {
@@ -229,16 +235,26 @@ describe('DaemonClient', () => {
 
       const killSpy = jest.spyOn(process, 'kill').mockImplementation(() => true);
 
-      await client.start();
+      const startPromise = client.start();
+
+      // Fast-forward the 1000ms delay in cleanupStaleDaemon
+      await jest.advanceTimersByTimeAsync(1000);
+
+      // Also need to handle the socket polling delay (500ms)
+      await jest.advanceTimersByTimeAsync(500);
+
+      await startPromise;
 
       expect(killSpy).toHaveBeenCalledWith(9999, 'SIGTERM');
       expect(fs.unlinkSync).toHaveBeenCalledWith(expect.stringContaining('server.pid'));
       expect(cp.spawn).toHaveBeenCalled();
 
       killSpy.mockRestore();
+      jest.useRealTimers();
     });
 
     it('should throw error with logs if daemon exits prematurely', async () => {
+      jest.useFakeTimers();
       // Setup: Connect fails, spawn happens
       (net.createConnection as jest.Mock).mockReturnValue({
         on: jest.fn((event, cb) => {
@@ -280,9 +296,21 @@ describe('DaemonClient', () => {
         return false;
       });
 
-      await expect(client.start()).rejects.toThrow(
-        'Daemon exited prematurely with code 1. Logs: Module not found: express'
+      const startPromise = client.start();
+      const expectPromise = expect(startPromise).rejects.toThrow(
+        'Daemon exited prematurely with code 1.\nLogs:\nModule not found: express'
       );
+
+      // Loop iterations:
+      // Loop 1 (wait 500)
+      await jest.advanceTimersByTimeAsync(500);
+      // Loop 2 (wait 500)
+      await jest.advanceTimersByTimeAsync(500);
+      // Loop 3 (wait 500) -> crash detected
+      await jest.advanceTimersByTimeAsync(500);
+
+      await expectPromise;
+      jest.useRealTimers();
     });
 
     it('should stream daemon logs to Output Channel', async () => {
@@ -352,6 +380,84 @@ describe('DaemonClient', () => {
       expect(mockOutputChannel.append).toHaveBeenCalledWith(
         expect.stringContaining('Init warning')
       );
+      expect(mockOutputChannel.append).toHaveBeenCalledWith(
+        expect.stringContaining('Init warning')
+      );
+    });
+
+    it('should debounce onRefresh calls', async () => {
+      (net.createConnection as jest.Mock).mockReturnValue({
+        on: jest.fn((event, cb) => {
+          if (event === 'connect') {
+            cb();
+          }
+        }),
+      });
+
+      // Spy on onRefresh
+      const refreshSpy = jest.fn();
+      client.onRefresh = refreshSpy;
+
+      await client.start();
+
+      jest.useFakeTimers();
+
+      // Get the notification handler registered with Zod
+      const handlerCalls = (mockClientInstance.setNotificationHandler as jest.Mock).mock.calls;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const notificationHandler = handlerCalls.find(
+        (c: any[]) => c[0].shape.method.value === 'notifications/resources/list_changed'
+      )[1];
+
+      // Simulate rapid fire notifications
+      await notificationHandler();
+      await notificationHandler();
+      await notificationHandler();
+
+      // Should not be called yet
+      expect(refreshSpy).not.toHaveBeenCalled();
+
+      // Fast forward
+      jest.advanceTimersByTime(500);
+
+      expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe('closeTab', () => {
+    it('should call close_tab tool on daemon', async () => {
+      // Mock start to set isConnected
+      (client as any).isConnected = true;
+      (client as any).sessionId = 'test-session';
+
+      await client.closeTab('tab-1');
+
+      expect(mockClientInstance.callTool).toHaveBeenCalledWith({
+        name: 'close_tab',
+        arguments: {
+          session: 'test-session',
+          tabId: 'tab-1',
+        },
+      });
+    });
+
+    it('should not call tool if not connected', async () => {
+      // client.start() not called
+      (client as any).isConnected = false;
+      await client.closeTab('tab-1');
+      expect(mockClientInstance.callTool).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors gracefully', async () => {
+      (client as any).isConnected = true;
+      (client as any).sessionId = 'test-session';
+
+      mockClientInstance.callTool.mockRejectedValue(new Error('Failed'));
+
+      // Should not throw
+      await client.closeTab('tab-1');
     });
   });
 

@@ -14,7 +14,10 @@
             "outFiles": [
                 "${workspaceFolder}/out/**/*.js"
             ],
-            "preLaunchTask": "npm: build-dev" // Or use "npm: compile" if you prefer tsc
+            "preLaunchTask": "npm: build-dev", // Or use "npm: compile" if you prefer tsc
+            "env": {
+                "SQL_PREVIEW_MCP_PORT": "8415"
+            }
         },
         {
             "name": "Extension Tests",
@@ -30,4 +33,4 @@
             "preLaunchTask": "npm: build-dev" // Or use "npm: compile"
         }
     ]
-} 
+}

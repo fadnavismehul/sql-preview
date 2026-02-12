@@ -77,6 +77,10 @@
       {
         "command": "sql.mcp.testConnection",
         "title": "SQL Preview: Test MCP Server Connection"
+      },
+      {
+        "command": "sql.debug.resetSession",
+        "title": "SQL Preview: Reset Session (Debug)"
       }
     ],
     "viewsContainers": {
@@ -233,19 +237,17 @@
           ],
           "order": 11
         },
+        "sqlPreview.alwaysRunInNewTab": {
+          "type": "boolean",
+          "default": false,
+          "description": "Always run queries in a new tab instead of reusing the active tab.",
+          "order": 11.5
+        },
         "sqlPreview.mcpEnabled": {
           "type": "boolean",
           "default": false,
           "description": "(Beta) Enable the MCP Server to allow LLM agents to interact with SQL Preview.",
           "order": 20
-        },
-        "sqlPreview.mcpPort": {
-          "type": "number",
-          "default": 3000,
-          "description": "(Beta) Target port for the MCP (Model Context Protocol) server. If busy, the next available port (up to +10) will be used.",
-          "minimum": 1024,
-          "maximum": 65535,
-          "order": 21
         },
         "sqlPreview.mcpSafeMode": {
           "type": "boolean",
@@ -310,7 +312,6 @@
     "probe:extension": "node scripts/probe-extension-path.mjs"
   },
   "devDependencies": {
-    "@types/axios": "^0.9.36",
     "@types/body-parser": "^1.19.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
