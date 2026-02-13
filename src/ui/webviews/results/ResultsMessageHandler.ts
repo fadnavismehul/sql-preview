@@ -13,6 +13,7 @@ import { QuerySessionRegistry } from '../../../services/QuerySessionRegistry';
 import { ConnectionManager } from '../../../services/ConnectionManager';
 import { QueryExecutor } from '../../../core/execution/QueryExecutor';
 import { Logger } from '../../../core/logging/Logger';
+import { validatePort } from '../../../utils/validation';
 
 export interface MessageHandlerDelegate {
   postMessage(message: ExtensionToWebviewMessage): void;
@@ -44,9 +45,10 @@ export class ResultsMessageHandler {
         vscode.commands.executeCommand('sql.runQueryNewTab');
         return;
       case 'lockMcpPort': {
+        const port = validatePort(data.port);
         const target = vscode.ConfigurationTarget.Workspace;
-        await vscode.workspace.getConfiguration('sqlPreview').update('mcpPort', data.port, target);
-        vscode.window.showInformationMessage(`MCP Port locked to ${data.port} for this workspace.`);
+        await vscode.workspace.getConfiguration('sqlPreview').update('mcpPort', port, target);
+        vscode.window.showInformationMessage(`MCP Port locked to ${port} for this workspace.`);
         return;
       }
       case 'webviewLoaded': {
@@ -133,7 +135,7 @@ export class ResultsMessageHandler {
           // Trino
           testConfig = {
             host: config.host,
-            port: parseInt(config.port, 10),
+            port: validatePort(config.port),
             user: config.user,
             catalog: config.catalog,
             schema: config.schema,
@@ -182,7 +184,11 @@ export class ResultsMessageHandler {
         const configPort = config.get<number>('mcpPort', 8414);
 
         // Prefer port sent from UI, then Env Var, then Config
-        const port = data.port || (envPort ? parseInt(envPort, 10) : configPort);
+        let rawPort = data.port;
+        if (!rawPort) {
+          rawPort = envPort ? parseInt(envPort, 10) : configPort;
+        }
+        const port = validatePort(rawPort);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const req = http.get(`http://localhost:${port}/status`, (res: any) => {
@@ -252,7 +258,7 @@ export class ResultsMessageHandler {
           writeConfig('tabNaming', s.tabNaming),
 
           writeConfig('host', s.host),
-          writeConfig('port', s.port),
+          writeConfig('port', s.port ? validatePort(s.port) : undefined),
           writeConfig('user', s.user),
           writeConfig('catalog', s.catalog),
           writeConfig('schema', s.schema),
@@ -260,7 +266,7 @@ export class ResultsMessageHandler {
           writeConfig('sslVerify', s.sslVerify),
 
           writeConfig('mcpEnabled', s.mcpEnabled),
-          writeConfig('mcpPort', s.mcpPort),
+          writeConfig('mcpPort', s.mcpPort ? validatePort(s.mcpPort) : undefined),
           writeConfig('defaultConnector', s.defaultConnector),
           writeConfig('databasePath', s.databasePath),
         ]);
@@ -284,7 +290,7 @@ export class ResultsMessageHandler {
             name: 'Default Connection',
             type: 'trino',
             host: s.host || '127.0.0.1',
-            port: s.port || 8080,
+            port: s.port ? validatePort(s.port) : 8080,
             user: s.user || 'user',
             catalog: s.catalog,
             schema: s.schema,
