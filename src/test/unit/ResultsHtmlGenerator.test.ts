@@ -27,10 +27,14 @@ describe('ResultsHtmlGenerator', () => {
     const html = generator.getHtmlForWebview(mockWebview);
 
     // Check Set button
-    expect(html).toContain('<button id="set-password-btn" class="primary-button" aria-label="Set Database Password">Set</button>');
+    expect(html).toContain(
+      '<button id="set-password-btn" class="primary-button" aria-label="Set Database Password">Set</button>'
+    );
 
     // Check Clear button - Ensure it does NOT have 'small' class
-    expect(html).toContain('<button id="clear-password-btn" class="danger-button" aria-label="Clear Database Password">Clear</button>');
+    expect(html).toContain(
+      '<button id="clear-password-btn" class="danger-button" aria-label="Clear Database Password">Clear</button>'
+    );
     expect(html).not.toContain(
       '<button id="clear-password-btn" class="danger-button small">Clear</button>'
     );
@@ -39,10 +43,18 @@ describe('ResultsHtmlGenerator', () => {
   it('should include accessible status indicators', () => {
     const html = generator.getHtmlForWebview(mockWebview);
 
-    expect(html).toContain('id="active-file-indicator" class="active-file-indicator" style="display:none;" role="status" aria-live="polite"');
-    expect(html).toContain('id="password-status" class="status-badge" role="status" aria-live="polite"');
-    expect(html).toContain('id="test-connection-status" class="status-badge" style="margin-left: 10px;" role="status" aria-live="polite"');
-    expect(html).toContain('id="test-mcp-status" class="status-badge" role="status" aria-live="polite"');
+    expect(html).toContain(
+      'id="active-file-indicator" class="active-file-indicator" style="display:none;" role="status" aria-live="polite"'
+    );
+    expect(html).toContain(
+      'id="password-status" class="status-badge" role="status" aria-live="polite"'
+    );
+    expect(html).toContain(
+      'id="test-connection-status" class="status-badge" style="margin-left: 10px;" role="status" aria-live="polite"'
+    );
+    expect(html).toContain(
+      'id="test-mcp-status" class="status-badge" role="status" aria-live="polite"'
+    );
   });
 
   it('should include accessible Update button', () => {

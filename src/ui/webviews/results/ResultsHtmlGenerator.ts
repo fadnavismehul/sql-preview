@@ -57,6 +57,10 @@ export class ResultsHtmlGenerator {
     const configPort = vscode.workspace.getConfiguration('sqlPreview').get<number>('mcpPort', 8414);
     const mcpPort = envPort ? parseInt(envPort, 10) : configPort;
 
+    // Detect OS for keyboard shortcuts
+    const isMac = process.platform === 'darwin';
+    const modifierKey = isMac ? 'Cmd' : 'Ctrl';
+
     return `<!DOCTYPE html>
 		<html lang="en">
 		<head>
@@ -88,6 +92,9 @@ export class ResultsHtmlGenerator {
                 <div id="tab-content-container" class="tab-content-container">
                     <div id="no-tabs-message" class="no-tabs-message">
                         <p>Execute a SQL query to create your first results tab</p>
+                        <p class="shortcut-hint">
+                            <span class="key">${modifierKey}</span> + <span class="key">Enter</span>
+                        </p>
                     </div>
                 </div>
             </div>
