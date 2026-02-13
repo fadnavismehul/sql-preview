@@ -17,46 +17,50 @@ export function* iterateSqlStatements(text: string): Generator<{
   // Pre-compiled regex for finding first non-whitespace char
   // global flag is needed to use lastIndex
   const nonWhitespaceRegex = /\S/g;
+  const len = text.length;
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const nextChar = text[i + 1];
+  for (let i = 0; i < len; i++) {
+    const code = text.charCodeAt(i);
 
     if (inLineComment) {
-      if (char === '\n') {
+      if (code === 10) { // \n
         inLineComment = false;
       }
     } else if (inBlockComment) {
-      if (char === '*' && nextChar === '/') {
+      if (code === 42 && text.charCodeAt(i + 1) === 47) { // * and /
         inBlockComment = false;
         i++;
       }
     } else if (inSingleQuote) {
-      if (char === "'" && text[i - 1] !== '\\') {
-        if (nextChar === "'") {
+      if (code === 39 && text.charCodeAt(i - 1) !== 92) { // ' and not escaped
+        if (text.charCodeAt(i + 1) === 39) { // '
           i++; // Skip escaped quote
         } else {
           inSingleQuote = false;
         }
       }
     } else if (inDoubleQuote) {
-      if (char === '"' && text[i - 1] !== '\\') {
-        if (nextChar === '"') {
+      if (code === 34 && text.charCodeAt(i - 1) !== 92) { // " and not escaped
+        if (text.charCodeAt(i + 1) === 34) { // "
           i++; // Skip escaped quote
         } else {
           inDoubleQuote = false;
         }
       }
     } else {
-      if (char === '-' && nextChar === '-') {
-        inLineComment = true;
-      } else if (char === '/' && nextChar === '*') {
-        inBlockComment = true;
-      } else if (char === "'") {
+      if (code === 45) { // -
+        if (text.charCodeAt(i + 1) === 45) { // -
+          inLineComment = true;
+        }
+      } else if (code === 47) { // /
+        if (text.charCodeAt(i + 1) === 42) { // *
+          inBlockComment = true;
+        }
+      } else if (code === 39) { // '
         inSingleQuote = true;
-      } else if (char === '"') {
+      } else if (code === 34) { // "
         inDoubleQuote = true;
-      } else if (char === ';') {
+      } else if (code === 59) { // ;
         // End of statement
         nonWhitespaceRegex.lastIndex = currentStart;
         const match = nonWhitespaceRegex.exec(text);
@@ -83,13 +87,13 @@ export function* iterateSqlStatements(text: string): Generator<{
   }
 
   // Yield last statement
-  if (currentStart < text.length) {
+  if (currentStart < len) {
     nonWhitespaceRegex.lastIndex = currentStart;
     const match = nonWhitespaceRegex.exec(text);
 
     if (match) {
       const executionStart = match.index;
-      let executionEnd = text.length;
+      let executionEnd = len;
       while (executionEnd > executionStart && isWhitespace(text.charCodeAt(executionEnd - 1))) {
         executionEnd--;
       }
@@ -98,7 +102,7 @@ export function* iterateSqlStatements(text: string): Generator<{
       yield {
         statement,
         start: currentStart,
-        end: text.length,
+        end: len,
         executionStart,
         executionEnd,
       };
