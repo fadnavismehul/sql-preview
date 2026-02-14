@@ -361,11 +361,9 @@ export class DaemonMcpToolManager {
       const controller = new AbortController();
       session.abortControllers.set(tabId, controller);
 
-      this.executeAndStore(sessionId, tabId, sql, connectionId, controller.signal).finally(
-        () => {
-          session.abortControllers.delete(tabId);
-        }
-      );
+      this.executeAndStore(sessionId, tabId, sql, connectionId, controller.signal).finally(() => {
+        session.abortControllers.delete(tabId);
+      });
 
       return {
         content: [
@@ -402,13 +400,7 @@ export class DaemonMcpToolManager {
     }
 
     try {
-      const generator = this.queryExecutor.execute(
-        sql,
-        sessionId,
-        connectionId,
-        signal,
-        undefined
-      );
+      const generator = this.queryExecutor.execute(sql, sessionId, connectionId, signal, undefined);
 
       let columns: import('../common/types').ColumnDef[] = [];
 

@@ -2,15 +2,18 @@ import { DaemonMcpToolManager } from '../../server/DaemonMcpToolManager';
 import { SessionManager } from '../../server/SessionManager';
 import { DaemonQueryExecutor } from '../../server/DaemonQueryExecutor';
 import { QueryPage } from '../../common/types';
+import { FileConnectionManager } from '../../server/FileConnectionManager';
 
 // Mock dependencies
 jest.mock('../../server/SessionManager');
 jest.mock('../../server/DaemonQueryExecutor');
+jest.mock('../../server/FileConnectionManager');
 
 describe('DaemonMcpToolManager', () => {
   let manager: DaemonMcpToolManager;
   let sessionManager: jest.Mocked<SessionManager>;
   let queryExecutor: jest.Mocked<DaemonQueryExecutor>;
+  let connectionManager: jest.Mocked<FileConnectionManager>;
   let mockSession: any;
 
   beforeEach(() => {
@@ -20,8 +23,9 @@ describe('DaemonMcpToolManager', () => {
       null as any,
       null as any
     ) as jest.Mocked<DaemonQueryExecutor>;
+    connectionManager = new FileConnectionManager() as jest.Mocked<FileConnectionManager>;
 
-    manager = new DaemonMcpToolManager(sessionManager, queryExecutor);
+    manager = new DaemonMcpToolManager(sessionManager, queryExecutor, connectionManager);
 
     mockSession = {
       id: 'session1',
