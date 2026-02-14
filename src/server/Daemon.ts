@@ -71,7 +71,11 @@ export class Daemon {
     this.queryExecutor = new DaemonQueryExecutor(this.connectorRegistry, this.connectionManager);
 
     // 4. Initialize Tool Manager
-    this.toolManager = new DaemonMcpToolManager(this.sessionManager, this.queryExecutor);
+    this.toolManager = new DaemonMcpToolManager(
+      this.sessionManager,
+      this.queryExecutor,
+      this.connectionManager
+    );
 
     // Singleton Server/Transport initialization REMOVED in favor of per-connection logic in setupRoutes
 
