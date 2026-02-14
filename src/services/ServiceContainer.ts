@@ -4,7 +4,7 @@ import { TabManager } from './TabManager';
 import { ExportService } from './ExportService';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { TrinoConnector } from '../connectors/trino/TrinoConnector';
-import { SQLiteConnector } from '../connectors/sqlite/SQLiteConnector';
+
 import { PostgreSQLConnector } from '../connectors/postgres/PostgreSQLConnector';
 import { QuerySessionRegistry } from './QuerySessionRegistry';
 import { Logger } from '../core/logging/Logger';
@@ -36,7 +36,7 @@ export class ServiceContainer {
     // Initialize Registry and Connectors
     this.connectorRegistry = new ConnectorRegistry();
     this.connectorRegistry.register(new TrinoConnector());
-    this.connectorRegistry.register(new SQLiteConnector());
+
     this.connectorRegistry.register(new PostgreSQLConnector(this.driverManager));
 
     this.daemonClient = new DaemonClient(context);
