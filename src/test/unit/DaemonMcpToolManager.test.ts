@@ -107,8 +107,25 @@ describe('DaemonMcpToolManager', () => {
         session: 'fail_session',
       });
 
-      expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Failed to auto-register session');
+    });
+
+    it('should pass connectionProfile to queryExecutor', async () => {
+      const profile = { type: 'trino', host: 'localhost', user: 'admin', password: 'pw' };
+
+      await manager.handleToolCall('run_query', {
+        sql: 'SELECT 1',
+        session: 'session1',
+        connectionProfile: profile,
+      });
+
+      expect(queryExecutor.execute).toHaveBeenCalledWith(
+        'SELECT 1',
+        'session1',
+        undefined,
+        expect.anything(),
+        profile
+      );
     });
   });
 

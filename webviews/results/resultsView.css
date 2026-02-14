@@ -784,10 +784,10 @@ body {
 }
 
 /* Top Align Code in Cells */
+/* Center Align Code in Cells */
 .ag-theme-quartz .ag-cell-value {
-    align-items: flex-start !important;
-    padding-top: 4px;
-    /* Slight padding for aesthetics */
+    align-items: center !important;
+    padding-top: 0px;
 }
 
 /* --- Row Selector Column Styles --- */

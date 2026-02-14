@@ -40,6 +40,11 @@ export class DaemonMcpToolManager {
               description:
                 'Optional Connection ID to use a specific stored connection. Use list_connections to find available IDs.',
             },
+            connectionProfile: {
+              type: 'object',
+              description:
+                'Optional ad-hoc connection profile (including credentials) to use for this query.',
+            },
             tabId: {
               type: 'string',
               description:
@@ -261,6 +266,7 @@ export class DaemonMcpToolManager {
             displayName?: string;
             newTab?: boolean;
             connectionId?: string;
+            connectionProfile?: unknown;
             tabId?: string;
           }
         | undefined;
@@ -268,6 +274,7 @@ export class DaemonMcpToolManager {
       const sessionId = typedArgs?.session;
       const displayName = typedArgs?.displayName || 'MCP Client';
       const connectionId = typedArgs?.connectionId;
+      const connectionProfile = typedArgs?.connectionProfile;
       const providedTabId = typedArgs?.tabId;
 
       if (!sql) {
@@ -361,7 +368,14 @@ export class DaemonMcpToolManager {
       const controller = new AbortController();
       session.abortControllers.set(tabId, controller);
 
-      this.executeAndStore(sessionId, tabId, sql, connectionId, controller.signal).finally(() => {
+      this.executeAndStore(
+        sessionId,
+        tabId,
+        sql,
+        connectionId,
+        connectionProfile,
+        controller.signal
+      ).finally(() => {
         session.abortControllers.delete(tabId);
       });
 
@@ -387,6 +401,7 @@ export class DaemonMcpToolManager {
     tabId: string,
     sql: string,
     connectionId?: string,
+    connectionProfile?: unknown,
     signal?: AbortSignal
   ) {
     const session = this.sessionManager.getSession(sessionId);
@@ -400,7 +415,13 @@ export class DaemonMcpToolManager {
     }
 
     try {
-      const generator = this.queryExecutor.execute(sql, sessionId, connectionId, signal, undefined);
+      const generator = this.queryExecutor.execute(
+        sql,
+        sessionId,
+        connectionId,
+        signal,
+        connectionProfile as import('../common/types').ConnectionProfile
+      );
 
       let columns: import('../common/types').ColumnDef[] = [];
 
