@@ -9,3 +9,9 @@
 **Vulnerability:** The Daemon HTTP server bound to `0.0.0.0` and enabled CORS, allowing any network device or malicious website to execute SQL queries via the MCP endpoint without authentication.
 **Learning:** Local development tools often expose powerful capabilities (RCE/SQL execution). Binding to `0.0.0.0` by default is dangerous. Auto-registering sessions without authentication bypasses access controls.
 **Prevention:** Bind local servers strictly to `127.0.0.1`. Disable CORS for local daemons unless necessary. Use cryptographically secure session IDs (`crypto.randomUUID`) and require authentication for sensitive operations.
+
+## 2026-02-03 - [Arbitrary File Access via MCP]
+
+**Vulnerability:** The `run_query` MCP tool allowed an optional `connectionProfile` override, which enabled an attacker (or confused LLM) to specify a custom SQLite database path. This could be used to read or potentially corrupt arbitrary files on the system by treating them as SQLite databases.
+**Learning:** Providing "full flexibility" in tools exposed to LLMs can bridge the gap to RCE or arbitrary file access. Overrides that allow specifying file paths or connection strings are dangerous if not strictly validated or sandboxed.
+**Prevention:** Remove the ability to override connection details in public/exposed tools. Force the use of pre-configured, user-vetted `connectionId`s. Implement a `list_connections` tool to allow discovery of valid resources without exposing the ability to create arbitrary new ones.
