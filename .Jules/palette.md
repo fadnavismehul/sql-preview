@@ -9,3 +9,7 @@
 ## 2024-05-24 - Baked-in Accessibility Attributes
 **Learning:** In VS Code Webviews where HTML is generated as a string, including accessibility attributes (ARIA labels, roles) directly in the template is more reliable than adding them via client-side scripts, as it ensures they are present immediately upon render.
 **Action:** Always include `aria-label`, `role`, and `aria-live` attributes in the HTML generation logic (`ResultsHtmlGenerator.ts`) rather than deferring to `resultsView.js`.
+
+## 2024-05-24 - Cross-Platform Keyboard Shortcuts in Webviews
+**Learning:** Webviews run in an isolated context where `navigator.platform` might not reflect the user's host OS (especially in remote dev). The robust way to display platform-specific modifier keys (Cmd vs Ctrl) is to detect `process.platform` in the Extension Host and inject the correct string into the HTML template.
+**Action:** Use `process.platform` in the HTML generator to conditionalize shortcut text before sending it to the webview.
