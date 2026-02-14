@@ -1,4 +1,20 @@
 /**
+ * Character codes for faster parsing
+ */
+const CHAR_NEWLINE = 10;
+const CHAR_ASTERISK = 42;
+const CHAR_SLASH = 47;
+const CHAR_DASH = 45;
+const CHAR_SINGLE_QUOTE = 39;
+const CHAR_DOUBLE_QUOTE = 34;
+const CHAR_SEMICOLON = 59;
+const CHAR_BACKSLASH = 92;
+const CHAR_TAB = 9;
+const CHAR_CR = 13;
+const CHAR_SPACE = 32;
+const CHAR_NBSP = 160;
+
+/**
  * Tokenizes SQL text into statements and their ranges.
  */
 export function* iterateSqlStatements(text: string): Generator<{
@@ -18,45 +34,50 @@ export function* iterateSqlStatements(text: string): Generator<{
   // global flag is needed to use lastIndex
   const nonWhitespaceRegex = /\S/g;
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const nextChar = text[i + 1];
+  // Cache length for performance
+  const len = text.length;
+
+  for (let i = 0; i < len; i++) {
+    const code = text.charCodeAt(i);
 
     if (inLineComment) {
-      if (char === '\n') {
+      if (code === CHAR_NEWLINE) {
         inLineComment = false;
       }
     } else if (inBlockComment) {
-      if (char === '*' && nextChar === '/') {
+      if (code === CHAR_ASTERISK && text.charCodeAt(i + 1) === CHAR_SLASH) {
         inBlockComment = false;
         i++;
       }
     } else if (inSingleQuote) {
-      if (char === "'" && text[i - 1] !== '\\') {
-        if (nextChar === "'") {
-          i++; // Skip escaped quote
+      if (code === CHAR_SINGLE_QUOTE && text.charCodeAt(i - 1) !== CHAR_BACKSLASH) {
+        if (text.charCodeAt(i + 1) === CHAR_SINGLE_QUOTE) {
+          // '' (escaped quote)
+          i++;
         } else {
           inSingleQuote = false;
         }
       }
     } else if (inDoubleQuote) {
-      if (char === '"' && text[i - 1] !== '\\') {
-        if (nextChar === '"') {
-          i++; // Skip escaped quote
+      if (code === CHAR_DOUBLE_QUOTE && text.charCodeAt(i - 1) !== CHAR_BACKSLASH) {
+        if (text.charCodeAt(i + 1) === CHAR_DOUBLE_QUOTE) {
+          // "" (escaped quote)
+          i++;
         } else {
           inDoubleQuote = false;
         }
       }
     } else {
-      if (char === '-' && nextChar === '-') {
+      // Normal mode
+      if (code === CHAR_DASH && text.charCodeAt(i + 1) === CHAR_DASH) {
         inLineComment = true;
-      } else if (char === '/' && nextChar === '*') {
+      } else if (code === CHAR_SLASH && text.charCodeAt(i + 1) === CHAR_ASTERISK) {
         inBlockComment = true;
-      } else if (char === "'") {
+      } else if (code === CHAR_SINGLE_QUOTE) {
         inSingleQuote = true;
-      } else if (char === '"') {
+      } else if (code === CHAR_DOUBLE_QUOTE) {
         inDoubleQuote = true;
-      } else if (char === ';') {
+      } else if (code === CHAR_SEMICOLON) {
         // End of statement
         nonWhitespaceRegex.lastIndex = currentStart;
         const match = nonWhitespaceRegex.exec(text);
@@ -83,13 +104,13 @@ export function* iterateSqlStatements(text: string): Generator<{
   }
 
   // Yield last statement
-  if (currentStart < text.length) {
+  if (currentStart < len) {
     nonWhitespaceRegex.lastIndex = currentStart;
     const match = nonWhitespaceRegex.exec(text);
 
     if (match) {
       const executionStart = match.index;
-      let executionEnd = text.length;
+      let executionEnd = len;
       while (executionEnd > executionStart && isWhitespace(text.charCodeAt(executionEnd - 1))) {
         executionEnd--;
       }
@@ -98,7 +119,7 @@ export function* iterateSqlStatements(text: string): Generator<{
       yield {
         statement,
         start: currentStart,
-        end: text.length,
+        end: len,
         executionStart,
         executionEnd,
       };
@@ -111,7 +132,13 @@ export function* iterateSqlStatements(text: string): Generator<{
  * optimization: checks only common whitespace characters (Space, Tab, LF, CR, NBSP)
  */
 function isWhitespace(code: number): boolean {
-  return code === 32 || code === 9 || code === 10 || code === 13 || code === 160;
+  return (
+    code === CHAR_SPACE ||
+    code === CHAR_TAB ||
+    code === CHAR_NEWLINE ||
+    code === CHAR_CR ||
+    code === CHAR_NBSP
+  );
 }
 
 /**
