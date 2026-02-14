@@ -79,7 +79,7 @@ export class ResultsHtmlGenerator {
             <div id="main-view" class="view-container">
                 <div id="tab-container" class="tab-container">
                     <div id="tab-list" class="tab-list" role="tablist" aria-label="Query Results Tabs"></div>
-                    <div id="active-file-indicator" class="active-file-indicator" style="display:none;"></div>
+                    <div id="active-file-indicator" class="active-file-indicator" style="display:none;" role="status" aria-live="polite"></div>
                     <button id="connections-button" class="icon-button" title="Manage Connections" aria-label="Manage Connections" style="background:none;border:none;color:var(--vscode-foreground);cursor:pointer;padding:4px;">
                         <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.2.7-2.4.5v1.2l2.4.5.3.8-1.3 2 .8.8 2-1.3.8.3.4 2.4h1.2l.5-2.4.8-.3 2 1.3.8-.8-1.3-2 .3-.8 2.3-.4V7.4l-2.4-.5-.3-.8 1.3-2-.8-.8-2 1.3-.7-.2zM8 11c-1.7 0-3-1.3-3-3s1.3-3 3-3 3 1.3 3 3-1.3 3-3 3z"/></svg>
                     </button>
@@ -106,9 +106,9 @@ export class ResultsHtmlGenerator {
                              <div class="version-info" id="version-info-container" style="display: flex; align-items: center; gap: 10px;">
                                 <div style="text-align: right;">
                                     <div class="version-header" style="font-weight: 600; font-size: 13px;">SQL Preview <span id="version-number" style="opacity: 0.8; font-weight: normal;"></span></div>
-                                    <div id="version-status" class="version-status" style="font-size: 11px; opacity: 0.7;">Checking for updates...</div>
+                                    <div id="version-status" class="version-status" style="font-size: 11px; opacity: 0.7;" role="status" aria-live="polite">Checking for updates...</div>
                                 </div>
-                                <button id="update-btn" class="primary-button small" style="display:none; padding: 4px 8px; font-size: 11px;">Update</button>
+                                <button id="update-btn" class="primary-button small" style="display:none; padding: 4px 8px; font-size: 11px;" aria-label="Update SQL Preview Extension">Update</button>
                             </div>
                         </div>
                     </div>
@@ -200,9 +200,9 @@ export class ResultsHtmlGenerator {
                                         <div class="form-group">
                                             <label>Password</label>
                                             <div class="input-with-actions">
-                                                <span id="password-status" class="status-badge">(Checking...)</span>
-                                                <button id="set-password-btn" class="primary-button">Set</button>
-                                                <button id="clear-password-btn" class="danger-button">Clear</button>
+                                                <span id="password-status" class="status-badge" role="status" aria-live="polite">(Checking...)</span>
+                                                <button id="set-password-btn" class="primary-button" aria-label="Set Database Password">Set</button>
+                                                <button id="clear-password-btn" class="danger-button" aria-label="Clear Database Password">Clear</button>
                                             </div>
                                         </div>
 
@@ -223,7 +223,7 @@ export class ResultsHtmlGenerator {
 
                                     <div class="form-group" style="margin-top: 15px;">
                                         <button id="test-connection-btn" class="primary-button" style="width: auto;">Test Connection</button>
-                                        <span id="test-connection-status" class="status-badge" style="margin-left: 10px;"></span>
+                                        <span id="test-connection-status" class="status-badge" style="margin-left: 10px;" role="status" aria-live="polite"></span>
                                     </div>
                                 </div>
                             </div>
@@ -253,7 +253,9 @@ export class ResultsHtmlGenerator {
       "url": "http://127.0.0.1:${mcpPort}/mcp"
     }
 }</pre>
-                                                <button id="copy-mcp-config" class="icon-button" title="Copy Config" aria-label="Copy MCP Config">📋</button>
+                                                <button id="copy-mcp-config" class="icon-button" title="Copy Config" aria-label="Copy MCP Config">
+                                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M4 4H12V13H4V4ZM3 4C3 3.44772 3.44772 3 4 3H12C12.5523 3 13 3.44772 13 4V13C13 13.5523 12.5523 14 12 14H4C3.44772 14 3 13.5523 3 13V4Z"/><path d="M4 1H12V2H4V1Z"/></svg>
+                                                </button>
                                             </div>
                                         </div>
                                         <p style="font-size: 0.9em; color: var(--vscode-descriptionForeground); margin: 8px 0;">
@@ -267,7 +269,7 @@ export class ResultsHtmlGenerator {
                                     </div>
                                     
                                         <button id="test-mcp-btn" class="primary-button" style="width: auto;">Test MCP Server</button>
-                                        <span id="test-mcp-status" class="status-badge"></span>
+                                        <span id="test-mcp-status" class="status-badge" role="status" aria-live="polite"></span>
                                     </div>
                                 </div>
                             </div>

@@ -22,18 +22,39 @@ describe('ResultsHtmlGenerator', () => {
     expect(html).toContain('<title>SQL Preview Results</title>');
   });
 
-  it('should include correct Clear button class', () => {
+  it('should include correct Clear button class and accessibility attributes', () => {
     // We expect class="danger-button" NOT "danger-button small"
     const html = generator.getHtmlForWebview(mockWebview);
 
     // Check Set button
-    expect(html).toContain('<button id="set-password-btn" class="primary-button">Set</button>');
+    expect(html).toContain('<button id="set-password-btn" class="primary-button" aria-label="Set Database Password">Set</button>');
 
     // Check Clear button - Ensure it does NOT have 'small' class
-    expect(html).toContain('<button id="clear-password-btn" class="danger-button">Clear</button>');
+    expect(html).toContain('<button id="clear-password-btn" class="danger-button" aria-label="Clear Database Password">Clear</button>');
     expect(html).not.toContain(
       '<button id="clear-password-btn" class="danger-button small">Clear</button>'
     );
+  });
+
+  it('should include accessible status indicators', () => {
+    const html = generator.getHtmlForWebview(mockWebview);
+
+    expect(html).toContain('id="active-file-indicator" class="active-file-indicator" style="display:none;" role="status" aria-live="polite"');
+    expect(html).toContain('id="password-status" class="status-badge" role="status" aria-live="polite"');
+    expect(html).toContain('id="test-connection-status" class="status-badge" style="margin-left: 10px;" role="status" aria-live="polite"');
+    expect(html).toContain('id="test-mcp-status" class="status-badge" role="status" aria-live="polite"');
+  });
+
+  it('should include accessible Update button', () => {
+    const html = generator.getHtmlForWebview(mockWebview);
+    expect(html).toContain('aria-label="Update SQL Preview Extension"');
+  });
+
+  it('should include SVG icon in copy MCP config button', () => {
+    const html = generator.getHtmlForWebview(mockWebview);
+    expect(html).toContain('id="copy-mcp-config"');
+    // Ensure SVG is present inside the button
+    expect(html).toMatch(/<button id="copy-mcp-config"[^>]*>[\s\S]*?<svg/);
   });
 
   it('should include correct MCP snippet', () => {
