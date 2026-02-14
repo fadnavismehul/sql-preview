@@ -7,6 +7,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { PassThrough } from 'stream';
 
 import { SocketTransport } from './SocketTransport';
 import { SessionManager } from './SessionManager';
@@ -16,7 +17,7 @@ import { DaemonMcpToolManager } from './DaemonMcpToolManager';
 import { DaemonMcpServer } from './DaemonMcpServer';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { TrinoConnector } from '../connectors/trino/TrinoConnector';
-import { SQLiteConnector } from '../connectors/sqlite/SQLiteConnector';
+
 import { logger } from './ConsoleLogger';
 
 export class Daemon {
@@ -64,14 +65,18 @@ export class Daemon {
 
     // 2. Register Connectors
     this.connectorRegistry.register(new TrinoConnector());
-    this.connectorRegistry.register(new SQLiteConnector());
+
     // this.connectorRegistry.register(new PostgreSQLConnector(new DaemonDriverManager()));
 
     // 3. Initialize Executor
     this.queryExecutor = new DaemonQueryExecutor(this.connectorRegistry, this.connectionManager);
 
     // 4. Initialize Tool Manager
-    this.toolManager = new DaemonMcpToolManager(this.sessionManager, this.queryExecutor);
+    this.toolManager = new DaemonMcpToolManager(
+      this.sessionManager,
+      this.queryExecutor,
+      this.connectionManager
+    );
 
     // Singleton Server/Transport initialization REMOVED in favor of per-connection logic in setupRoutes
 
@@ -141,9 +146,57 @@ export class Daemon {
           sessionId = `session-${crypto.randomUUID()}`;
         }
 
-        // 2. Get or Create Session
+        // 2. Get existing session
         let mcpSession = this.mcpSessions.get(sessionId);
 
+        // 3. Peek at body logic (Using buffering to preserve stream for transport)
+        let requestToHandle = req;
+
+        if (req.method === 'POST') {
+          try {
+            // Buffer the stream
+            const bodyBuffer = await new Promise<Buffer>((resolve, reject) => {
+              const chunks: Buffer[] = [];
+              req.on('data', chunk => chunks.push(chunk));
+              req.on('end', () => resolve(Buffer.concat(chunks)));
+              req.on('error', reject);
+            });
+
+            // Inspect
+            const bodyStr = bodyBuffer.toString('utf-8');
+            if (bodyStr.includes('"method":"initialize"')) {
+              // Simple string check is safer/faster
+              if (this.mcpSessions.has(sessionId)) {
+                logger.info(`[Daemon] Resetting session ${sessionId} (initialize detected)`);
+                this.mcpSessions.delete(sessionId);
+                mcpSession = undefined;
+              }
+            }
+
+            // Create Proxy Request for Transport
+            const proxyReq = new PassThrough();
+            // Copy essential properties that Transport might check
+            Object.assign(proxyReq, {
+              headers: req.headers,
+              method: req.method,
+              url: req.url,
+              query: req.query,
+              originalUrl: req.originalUrl,
+            });
+            // Push data
+            proxyReq.end(bodyBuffer);
+
+            // Use this proxy as the request to handle
+            requestToHandle = proxyReq as unknown as express.Request;
+          } catch (e) {
+            logger.warn('[Daemon] Error buffering request:', e);
+            // If buffering failed, we might be in a bad state, but try to proceed with original req?
+            // Original req is consumed though.
+            // In practice, this catch block implies we can't proceed with this request easily.
+          }
+        }
+
+        // 4. Get or Create Session
         if (!mcpSession) {
           logger.info(`[Daemon] Creating new MCP session: ${sessionId}`);
 
@@ -175,8 +228,8 @@ export class Daemon {
           mcpSession.lastActive = Date.now();
         }
 
-        // 3. Delegate to Transport
-        await mcpSession.transport.handleRequest(req, res);
+        // 5. Delegate to Transport
+        await mcpSession.transport.handleRequest(requestToHandle, res);
 
         // 4. Force-announce endpoint (StreamableHTTPServerTransport doesn't do it automatically)
         // Only write if the response is still open (i.e. successful SSE connection)

@@ -258,8 +258,7 @@
         "sqlPreview.defaultConnector": {
           "type": "string",
           "enum": [
-            "trino",
-            "sqlite"
+            "trino"
           ],
           "default": "trino",
           "description": "Database connector to use.",
@@ -302,7 +301,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,js,json}\"",
     "type-check": "tsc --noEmit",
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
-    "esbuild-daemon": "esbuild ./src/server/Daemon.ts --bundle --outfile=out/server/Daemon.js --platform=node --format=cjs --external:sqlite3 --external:vscode",
+    "esbuild-daemon": "esbuild ./src/server/Daemon.ts --bundle --outfile=out/server/Daemon.js --platform=node --format=cjs --external:vscode",
     "build": "npm run esbuild-base -- --minify && npm run esbuild-daemon -- --minify",
     "build-dev": "npm run esbuild-base -- --sourcemap && npm run esbuild-daemon -- --sourcemap",
     "test": "jest --config jest.config.js",
@@ -358,14 +357,12 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.23.0",
     "@types/json-bigint": "^1.0.4",
-    "@types/sqlite3": "^3.1.11",
     "ajv": "^8.17.1",
     "axios": "^1.8.4",
     "body-parser": "^2.2.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "json-bigint": "^1.0.0",
-    "sqlite3": "^5.1.7",
     "trino-client": "^0.2.6"
   },
   "lint-staged": {

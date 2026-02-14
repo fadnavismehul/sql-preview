@@ -1,12 +1,14 @@
 import { SessionManager } from './SessionManager';
 import { DaemonQueryExecutor } from './DaemonQueryExecutor';
-import { TabData, ConnectionProfile } from '../common/types';
+import { FileConnectionManager } from './FileConnectionManager';
+import { TabData } from '../common/types';
 import { logger } from './ConsoleLogger';
 
 export class DaemonMcpToolManager {
   constructor(
     private readonly sessionManager: SessionManager,
-    private readonly queryExecutor: DaemonQueryExecutor
+    private readonly queryExecutor: DaemonQueryExecutor,
+    private readonly connectionManager: FileConnectionManager
   ) {}
 
   public getTools() {
@@ -33,9 +35,10 @@ export class DaemonMcpToolManager {
               type: 'boolean',
               description: 'Whether to open in a new tab (default: true)',
             },
-            connectionProfile: {
-              type: 'object',
-              description: 'Optional connection profile override (includes credentials)',
+            connectionId: {
+              type: 'string',
+              description:
+                'Optional Connection ID to use a specific stored connection. Use list_connections to find available IDs.',
             },
             tabId: {
               type: 'string',
@@ -91,6 +94,15 @@ export class DaemonMcpToolManager {
         },
       },
       {
+        name: 'list_connections',
+        description:
+          'List available database connections managed by the daemon. Returns connection IDs and metadata (excluding passwords).',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
         name: 'cancel_query',
         description:
           'Cancel a running query. Use get_tab_info first to check if a query is still in "loading" state before cancelling.',
@@ -128,6 +140,8 @@ export class DaemonMcpToolManager {
         return this.handleGetTabInfo(args);
       case 'list_sessions':
         return this.handleListSessions();
+      case 'list_connections':
+        return this.handleListConnections();
       case 'cancel_query':
         return this.handleCancelQuery(args);
       case 'close_tab':
@@ -217,6 +231,27 @@ export class DaemonMcpToolManager {
     };
   }
 
+  private async handleListConnections() {
+    const connections = await this.connectionManager.getConnections();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            connections.map(c => ({
+              id: c.id,
+              name: c.name,
+              type: c.type,
+              // Exclude sensitive details if any, though getConnections() should be safe
+            })),
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+
   private async handleRunQuery(args: unknown) {
     try {
       const typedArgs = args as
@@ -225,14 +260,14 @@ export class DaemonMcpToolManager {
             session?: string;
             displayName?: string;
             newTab?: boolean;
-            connectionProfile?: unknown;
+            connectionId?: string;
             tabId?: string;
           }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       const sessionId = typedArgs?.session;
       const displayName = typedArgs?.displayName || 'MCP Client';
-      const connectionProfile = typedArgs?.connectionProfile;
+      const connectionId = typedArgs?.connectionId;
       const providedTabId = typedArgs?.tabId;
 
       if (!sql) {
@@ -326,11 +361,9 @@ export class DaemonMcpToolManager {
       const controller = new AbortController();
       session.abortControllers.set(tabId, controller);
 
-      this.executeAndStore(sessionId, tabId, sql, connectionProfile, controller.signal).finally(
-        () => {
-          session.abortControllers.delete(tabId);
-        }
-      );
+      this.executeAndStore(sessionId, tabId, sql, connectionId, controller.signal).finally(() => {
+        session.abortControllers.delete(tabId);
+      });
 
       return {
         content: [
@@ -353,7 +386,7 @@ export class DaemonMcpToolManager {
     sessionId: string,
     tabId: string,
     sql: string,
-    connectionProfile?: unknown,
+    connectionId?: string,
     signal?: AbortSignal
   ) {
     const session = this.sessionManager.getSession(sessionId);
@@ -367,13 +400,7 @@ export class DaemonMcpToolManager {
     }
 
     try {
-      const generator = this.queryExecutor.execute(
-        sql,
-        sessionId,
-        undefined,
-        signal,
-        connectionProfile as ConnectionProfile
-      );
+      const generator = this.queryExecutor.execute(sql, sessionId, connectionId, signal, undefined);
 
       let columns: import('../common/types').ColumnDef[] = [];
 
