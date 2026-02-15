@@ -179,9 +179,8 @@ export class ResultsMessageHandler {
       }
       case 'testMcpServer': {
         // Check Daemon Health
-        const config = vscode.workspace.getConfiguration('sqlPreview');
         const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
-        const configPort = config.get<number>('mcpPort', 8414);
+        const configPort = 8414; // Ignore user config
 
         // Prefer port sent from UI, then Env Var, then Config
         let rawPort = data.port;
@@ -266,7 +265,7 @@ export class ResultsMessageHandler {
           writeConfig('sslVerify', s.sslVerify),
 
           writeConfig('mcpEnabled', s.mcpEnabled),
-          writeConfig('mcpPort', s.mcpPort ? validatePort(s.mcpPort) : undefined),
+          // mcpPort is not user-configurable from UI, it defaults to 8414 or env var
           writeConfig('defaultConnector', s.defaultConnector),
           writeConfig('databasePath', s.databasePath),
         ]);

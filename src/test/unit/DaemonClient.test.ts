@@ -54,6 +54,9 @@ describe('DaemonClient', () => {
       },
     } as any;
 
+    // Default env var
+    process.env = { ...process.env, SQL_PREVIEW_MCP_PORT: undefined };
+
     // Mock Client SDK
     mockClientInstance = {
       connect: jest.fn().mockResolvedValue(undefined),
@@ -103,6 +106,44 @@ describe('DaemonClient', () => {
       expect(net.createConnection).toHaveBeenCalledTimes(1);
       expect(mockClientInstance.connect).toHaveBeenCalled();
       expect(cp.spawn).not.toHaveBeenCalled();
+    });
+
+    it('should use SQL_PREVIEW_MCP_PORT env var if present', async () => {
+      // Set env var
+      process.env['SQL_PREVIEW_MCP_PORT'] = '9999';
+      // Re-initialize client to pick up env var
+      client = new DaemonClient(mockContext);
+
+      (net.createConnection as jest.Mock).mockReturnValueOnce(mockSocket);
+      mockSocket.on.mockImplementation((event: string, cb: any) => {
+        if (event === 'connect') {
+          cb();
+        }
+      });
+
+      await client.start();
+
+      expect(net.createConnection).toHaveBeenCalledWith(
+        expect.stringContaining('.sql-preview-debug/srv.sock')
+      );
+    });
+
+    it('should default to 8414 and ignore config', async () => {
+      delete process.env['SQL_PREVIEW_MCP_PORT'];
+      client = new DaemonClient(mockContext);
+
+      (net.createConnection as jest.Mock).mockReturnValueOnce(mockSocket);
+      mockSocket.on.mockImplementation((event: string, cb: any) => {
+        if (event === 'connect') {
+          cb();
+        }
+      });
+
+      await client.start();
+
+      expect(net.createConnection).toHaveBeenCalledWith(
+        expect.stringContaining('.sql-preview/srv.sock')
+      );
     });
 
     it('should spawn daemon if connection fails initially', async () => {

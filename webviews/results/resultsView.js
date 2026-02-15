@@ -1781,8 +1781,7 @@ function saveAllSettings() {
         sslVerify: document.getElementById('cfg-sslVerify').checked,
 
         // Experimental
-        mcpEnabled: document.getElementById('cfg-mcpEnabled')?.checked || false,
-        mcpPort: parseInt(document.getElementById('cfg-mcpPort')?.value || '3000', 10)
+        mcpEnabled: document.getElementById('cfg-mcpEnabled')?.checked || false
     };
 
     vscode.postMessage({ command: 'saveSettings', settings });
@@ -1977,10 +1976,17 @@ function populateSettings(config) {
     document.getElementById('cfg-mcpEnabled').checked = config.mcpEnabled === true;
 
     // Snippet is now static or updated here if we want to be explicit, but static HTML handles it mostly.
-    // Ensure snippet shows 8414 to match standard
+    // Ensure snippet shows the ACTUAL running port (from config.mcpStatus.port)
+    const port = config.mcpStatus && config.mcpStatus.port ? config.mcpStatus.port : 8414;
+
     const snippetEl = document.getElementById('mcp-snippet');
     if (snippetEl) {
-        snippetEl.textContent = `{\n    "sql-preview": {\n      "type": "streamable-http",\n      "url": "http://localhost:8414/mcp"\n    }\n}`;
+        snippetEl.textContent = `{\n    "sql-preview": {\n      "type": "streamable-http",\n      "url": "http://localhost:${port}/mcp"\n    }\n}`;
+    }
+
+    const labelEl = document.getElementById('mcp-port-label');
+    if (labelEl) {
+        labelEl.textContent = port;
     }
 }
 

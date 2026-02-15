@@ -54,8 +54,8 @@ export class ResultsHtmlGenerator {
       .getConfiguration('sqlPreview')
       .get<number>('fontSize', 0);
     const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
-    const configPort = vscode.workspace.getConfiguration('sqlPreview').get<number>('mcpPort', 8414);
-    const mcpPort = envPort ? parseInt(envPort, 10) : configPort;
+    // Strict Mode: Ignore user config, only allow Env Var override or default 8414
+    const mcpPort = envPort ? parseInt(envPort, 10) : 8414;
 
     // Detect OS for keyboard shortcuts
     const isMac = process.platform === 'darwin';
@@ -246,7 +246,7 @@ export class ResultsHtmlGenerator {
                                     <div class="form-row align-center" style="margin-top:10px;">
                                         <label class="toggle-label"><input type="checkbox" id="cfg-mcpEnabled"> Enable MCP Server</label>
                                         <div class="form-group horizontal" style="margin-left:auto;">
-                                            <span style="color:var(--vscode-descriptionForeground);">Port: <strong>${mcpPort}</strong></span>
+                                            <span style="color:var(--vscode-descriptionForeground);">Port: <strong id="mcp-port-label">${mcpPort}</strong></span>
                                         </div>
                                     </div>
 

@@ -193,8 +193,7 @@ export class DaemonClient {
     const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'daemon.js');
 
     const devPort = process.env['SQL_PREVIEW_MCP_PORT'];
-    const configPort = vscode.workspace.getConfiguration('sqlPreview').get<number>('mcpPort');
-    const portToUse = devPort || (configPort ? String(configPort) : undefined);
+    const portToUse = devPort; // Ignore config port, force 8414 or env var
 
     // Robust PATH for Mac/Linux if node is not in VS Code's inherited env
     const robustPath = [
