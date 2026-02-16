@@ -1,4 +1,5 @@
 import { DaemonQueryExecutor } from '../../server/DaemonQueryExecutor';
+import { ILogger } from '../../common/logger';
 import { ConnectorRegistry } from '../../connectors/base/ConnectorRegistry';
 import { FileConnectionManager } from '../../server/FileConnectionManager';
 import { IConnector } from '../../connectors/base/IConnector';
@@ -10,8 +11,15 @@ jest.mock('../../server/FileConnectionManager');
 describe('DaemonQueryExecutor', () => {
   let executor: DaemonQueryExecutor;
   let connectorRegistry: ConnectorRegistry;
+
   let fileConnectionManager: jest.Mocked<FileConnectionManager>;
   let mockConnector: jest.Mocked<IConnector>;
+  const mockLogger: ILogger = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  };
 
   beforeEach(() => {
     // Setup mocks
@@ -29,7 +37,7 @@ describe('DaemonQueryExecutor', () => {
 
     connectorRegistry.register(mockConnector);
 
-    executor = new DaemonQueryExecutor(connectorRegistry, fileConnectionManager);
+    executor = new DaemonQueryExecutor(connectorRegistry, fileConnectionManager, mockLogger);
   });
 
   const mockProfile: TrinoConnectionProfile = {

@@ -18,7 +18,7 @@ import { DaemonMcpServer } from './DaemonMcpServer';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { TrinoConnector } from '../connectors/trino/TrinoConnector';
 
-import { logger } from './ConsoleLogger';
+import { logger, ConsoleLogger } from './ConsoleLogger';
 
 export class Daemon {
   private app: express.Express;
@@ -59,7 +59,7 @@ export class Daemon {
     this.SOCKET_PATH = path.join(this.CONFIG_DIR, `srv-${this.HTTP_PORT}.sock`);
 
     // 1. Initialize Managers
-    this.sessionManager = new SessionManager();
+    this.sessionManager = new SessionManager(ConsoleLogger.getInstance());
     this.connectionManager = new FileConnectionManager();
     this.connectorRegistry = new ConnectorRegistry();
 
@@ -69,7 +69,11 @@ export class Daemon {
     // this.connectorRegistry.register(new PostgreSQLConnector(new DaemonDriverManager()));
 
     // 3. Initialize Executor
-    this.queryExecutor = new DaemonQueryExecutor(this.connectorRegistry, this.connectionManager);
+    this.queryExecutor = new DaemonQueryExecutor(
+      this.connectorRegistry,
+      this.connectionManager,
+      ConsoleLogger.getInstance()
+    );
 
     // 4. Initialize Tool Manager
     this.toolManager = new DaemonMcpToolManager(

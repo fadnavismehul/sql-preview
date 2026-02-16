@@ -1,6 +1,7 @@
 import { LogLevel } from '../common/types';
+import { ILogger } from '../common/logger';
 
-export class ConsoleLogger {
+export class ConsoleLogger implements ILogger {
   private static instance: ConsoleLogger;
   private logLevel: LogLevel = LogLevel.INFO;
 

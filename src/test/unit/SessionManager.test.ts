@@ -1,10 +1,17 @@
 import { SessionManager } from '../../server/SessionManager';
+import { ILogger } from '../../common/logger';
 
 describe('SessionManager', () => {
   let sessionManager: SessionManager;
+  const mockLogger: ILogger = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  };
 
   beforeEach(() => {
-    sessionManager = new SessionManager();
+    sessionManager = new SessionManager(mockLogger);
   });
 
   it('should register a new session', () => {

@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
 import { LogLevel } from '../../common/types';
+import { ILogger } from '../../common/logger';
 
 export interface LoggerOptions {
   outputChannelName: string;
   logLevel: LogLevel;
 }
 
-export class Logger {
+export class Logger implements ILogger {
   private static instance: Logger;
   private outputChannel: vscode.OutputChannel;
   private logLevel: LogLevel;

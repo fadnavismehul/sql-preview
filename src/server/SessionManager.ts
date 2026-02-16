@@ -1,6 +1,6 @@
 import { TabData } from '../common/types';
 
-import { logger } from './ConsoleLogger';
+import { ILogger } from '../common/logger';
 
 export interface Session {
   id: string;
@@ -16,6 +16,9 @@ export interface Session {
 import { EventEmitter } from 'events';
 
 export class SessionManager extends EventEmitter {
+  constructor(private logger: ILogger) {
+    super();
+  }
   private sessions: Map<string, Session> = new Map();
   private readonly MAX_SESSIONS = 50;
   private readonly MAX_TABS_PER_SESSION = 20;
@@ -25,7 +28,7 @@ export class SessionManager extends EventEmitter {
     displayName: string,
     clientType: Session['clientType']
   ): Session {
-    logger.info(`Registering session: ${id} (${clientType})`);
+    this.logger.info(`Registering session: ${id} (${clientType})`);
 
     // Resume existing or create new?
     let session = this.sessions.get(id);
@@ -64,7 +67,7 @@ export class SessionManager extends EventEmitter {
     const toRemove = sorted.slice(0, countToRemove);
 
     for (const s of toRemove) {
-      logger.info(`Pruning old session: ${s.id} (Last activity: ${s.lastActivityAt})`);
+      this.logger.info(`Pruning old session: ${s.id} (Last activity: ${s.lastActivityAt})`);
       this.sessions.delete(s.id);
     }
   }

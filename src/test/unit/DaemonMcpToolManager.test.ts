@@ -18,8 +18,9 @@ describe('DaemonMcpToolManager', () => {
 
   beforeEach(() => {
     // Instantiate mocks
-    sessionManager = new SessionManager() as jest.Mocked<SessionManager>;
+    sessionManager = new SessionManager({} as any) as jest.Mocked<SessionManager>;
     queryExecutor = new DaemonQueryExecutor(
+      null as any,
       null as any,
       null as any
     ) as jest.Mocked<DaemonQueryExecutor>;

@@ -2,14 +2,13 @@ import { IConnector, ConnectorConfig } from '../connectors/base/IConnector';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { QueryPage, ConnectionProfile } from '../common/types';
 import { FileConnectionManager } from './FileConnectionManager';
-import { ConsoleLogger } from './ConsoleLogger';
+import { ILogger } from '../common/logger';
 
 export class DaemonQueryExecutor {
-  private logger = ConsoleLogger.getInstance();
-
   constructor(
     private readonly connectorRegistry: ConnectorRegistry,
-    private readonly connectionManager: FileConnectionManager
+    private readonly connectionManager: FileConnectionManager,
+    private readonly logger: ILogger
   ) {}
 
   private getConnector(type: string): IConnector {
