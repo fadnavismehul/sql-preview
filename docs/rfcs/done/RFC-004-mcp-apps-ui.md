@@ -1,6 +1,6 @@
 # RFC-004: MCP Apps Integration for Inline Query Results
 
-**Status**: Proposed
+**Status**: Implemented
 **Created**: 2026-01-28
 
 ## Goal
