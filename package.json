@@ -38,6 +38,13 @@
   "bin": {
     "sql-preview-server": "./out/server/standalone.js"
   },
+  "files": [
+    "out/server",
+    "out/common",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
   "contributes": {
     "commands": [
       {
