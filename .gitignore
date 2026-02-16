@@ -12,6 +12,7 @@ yarn-error.log*
 
 # Build outputs
 out/
+dist/
 coverage/
 
 # Node

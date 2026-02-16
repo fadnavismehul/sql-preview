@@ -152,11 +152,15 @@ jest.mock('trino-client', () => ({
 }));
 
 // Mock sqlite3
-jest.mock('sqlite3', () => ({
-  Database: jest.fn(),
-  OPEN_READWRITE: 1,
-  OPEN_CREATE: 2,
-}));
+jest.mock(
+  'sqlite3',
+  () => ({
+    Database: jest.fn(),
+    OPEN_READWRITE: 1,
+    OPEN_CREATE: 2,
+  }),
+  { virtual: true }
+);
 
 // Mock pg
 jest.mock('pg', () => ({

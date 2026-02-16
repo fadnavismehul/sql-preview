@@ -53,6 +53,11 @@ export class DaemonMcpToolManager {
           },
           required: ['sql', 'session'],
         },
+        _meta: {
+          ui: {
+            resourceUri: 'ui://sql-preview/results-grid',
+          },
+        },
       },
       {
         name: 'get_tab_info',
