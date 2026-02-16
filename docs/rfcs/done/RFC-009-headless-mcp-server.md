@@ -1,8 +1,8 @@
 # RFC-009: Headless MCP Server
 
-**Status:** Proposed  
-**Created:** 2026-02-16  
-**Owner:** Core Team  
+**Status:** Implemented
+**Created:** 2026-02-15
+**Owner:** @mehul.fadnavism  
 **Related ADRs:** None
 
 ## Goal

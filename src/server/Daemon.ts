@@ -7,6 +7,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { PassThrough } from 'stream';
 
 import { SocketTransport } from './SocketTransport';
@@ -463,6 +464,27 @@ export class Daemon {
     await this.startSocketServer();
 
     // MCP Server connection is now handled on-demand per session in /mcp route
+  }
+
+  public async startStdio() {
+    // 1. Configure Logging to fail-safe Stderr
+    ConsoleLogger.getInstance().setUseStdErr(true);
+    logger.info('Starting MCP Server in Stdio Mode...');
+
+    // 2. Create Server Instance
+    const server = new Server(
+      { name: 'sql-preview-daemon-stdio', version: '1.0.0' },
+      { capabilities: { resources: {}, tools: {} } }
+    );
+
+    // 3. Register Domain Logic
+    new DaemonMcpServer(server, this.sessionManager, this.toolManager);
+
+    // 4. Connect Transport
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+
+    logger.info('MCP Server connected to Stdio');
   }
 
   private async startSocketServer() {

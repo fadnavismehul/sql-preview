@@ -41,25 +41,37 @@ async function main() {
     process.env['SQL_PREVIEW_LOG_LEVEL'] = args['loglevel'].toUpperCase();
   }
 
-  logger.info('Starting SQL Preview MCP Server (Headless Mode)...');
+  const isStdio = args['stdio'] === 'true';
+
+  if (!isStdio) {
+    logger.info('Starting SQL Preview MCP Server (Headless Mode)...');
+  }
 
   const daemon = new Daemon();
 
   // Handle signals
   process.on('SIGINT', () => {
-    logger.info('Received SIGINT. Shutting down...');
+    if (!isStdio) {
+      logger.info('Received SIGINT. Shutting down...');
+    }
     daemon.stop();
     process.exit(0);
   });
 
   process.on('SIGTERM', () => {
-    logger.info('Received SIGTERM. Shutting down...');
+    if (!isStdio) {
+      logger.info('Received SIGTERM. Shutting down...');
+    }
     daemon.stop();
     process.exit(0);
   });
 
   try {
-    await daemon.start();
+    if (isStdio) {
+      await daemon.startStdio();
+    } else {
+      await daemon.start();
+    }
   } catch (error) {
     logger.error('Failed to start daemon:', error);
     process.exit(1);

@@ -12,11 +12,17 @@ export class ConsoleLogger implements ILogger {
     }
   }
 
+  private useStdErr = false;
+
   public static getInstance(): ConsoleLogger {
     if (!ConsoleLogger.instance) {
       ConsoleLogger.instance = new ConsoleLogger();
     }
     return ConsoleLogger.instance;
+  }
+
+  public setUseStdErr(use: boolean) {
+    this.useStdErr = use;
   }
 
   private shouldLog(level: LogLevel): boolean {
@@ -26,7 +32,11 @@ export class ConsoleLogger implements ILogger {
 
   public info(message: string, data?: unknown) {
     if (this.shouldLog(LogLevel.INFO)) {
-      console.log(`[INFO] ${message}`, data ? JSON.stringify(data) : '');
+      if (this.useStdErr) {
+        console.error(`[INFO] ${message}`, data ? JSON.stringify(data) : '');
+      } else {
+        console.log(`[INFO] ${message}`, data ? JSON.stringify(data) : '');
+      }
     }
   }
 
@@ -44,7 +54,11 @@ export class ConsoleLogger implements ILogger {
 
   public debug(message: string, data?: unknown) {
     if (this.shouldLog(LogLevel.DEBUG)) {
-      console.debug(`[DEBUG] ${message}`, data ? JSON.stringify(data) : '');
+      if (this.useStdErr) {
+        console.error(`[DEBUG] ${message}`, data ? JSON.stringify(data) : '');
+      } else {
+        console.debug(`[DEBUG] ${message}`, data ? JSON.stringify(data) : '');
+      }
     }
   }
 }
