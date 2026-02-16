@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.11] - 2026-02-16
+
+### Fixed
+
+- **MCP Connection**: Resolved issues with MCP server startup and connection handling.
+- **Testing**: Fixed failing unit and integration tests.
+
 ## [0.5.1] - 2026-02-04
 
 ### Added

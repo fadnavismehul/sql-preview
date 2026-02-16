@@ -320,7 +320,10 @@
     "publish:all": "npm run publish:vscode && npm run publish:ovsx",
     "prepare": "husky install",
     "probe": "node scripts/probe-presto.mjs",
-    "probe:extension": "node scripts/probe-extension-path.mjs"
+    "probe:extension": "node scripts/probe-extension-path.mjs",
+    "check-changelog": "node scripts/check-changelog.js",
+    "typecheck": "npm run type-check",
+    "postinstall": "node -e \"try { require('child_process').execSync('bash scripts/install-hooks.sh', {stdio:'inherit'}) } catch(e) {}\""
   },
   "devDependencies": {
     "@types/body-parser": "^1.19.6",

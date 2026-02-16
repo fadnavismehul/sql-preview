@@ -7,19 +7,22 @@
 
 **SQL Preview** is a VS Code extension for connecting to Presto/Trino databases, executing queries, and visualizing results.
 
+### Core Modules
+
+- **[Server & Daemon](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/server/AGENTS.md)**: The backend process handling database connections and MCP server.
+- **[UI & Webviews](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/ui/AGENTS.md)**: The frontend visualization layer (React + AG Grid).
+- **[Connectors](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/AGENTS.md)**: Database driver implementations (Trino, Postgres, SQLite).
+
 ### Key Locations
 
 - **[src/extension.ts](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/extension.ts)**: The main entry point for the VS Code extension.
-- **[src/server/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/server/)**: The backend Daemon process (MCP Server) that handles database connections and query execution.
-- **[src/connectors/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/)**: Implementations of database drivers (e.g., Trino, Hive).
-- **[src/webviews/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/webviews/)**: Frontend code for the results view (React/Vanilla JS).
 - **[package.json](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/package.json)**: Definition of extension commands, configuration, and dependencies.
 
 ### Documentation Index
 
 - **[README.md](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/README.md)**: User-facing documentation, features, and setup.
 - **[CONTRIBUTING.md](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/CONTRIBUTING.md)**: Developer guide for setup, building, and submitting changes.
-- **[docs/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/docs/)**: Additional documentation and implementation guides.
+- **[docs/rfcs/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/docs/rfcs/README.md)**: Request for Comments (Architectural Decisions).
 
 ## 🏗️ Architecture Patterns
 
@@ -49,9 +52,9 @@ The extension operates on a client-server architecture:
 
 Before submitting changes:
 
-1.  Run `npm run lint` to ensure no style violations.
-2.  Run `npm test` to verify no regressions.
-3.  Ensure any new features have corresponding tests in `src/test/`.
+1.  Check the **[Changelog](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/Changelog.md)** entry requirement.
+2.  Run `npm run lint` to ensure no style violations.
+3.  Run `npm test` to verify no regressions.
 
 ---
 

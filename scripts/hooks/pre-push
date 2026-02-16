@@ -1,0 +1,100 @@
+#!/bin/bash
+# Pre-push hook: Validate before pushing version tags
+#
+# This hook runs the full validation suite before allowing version tag pushes:
+# 1. Changelog entry exists
+# 2. Linting passes (ESLint)
+# 3. Type checking passes (TypeScript)
+# 4. Tests pass (Jest/Mocha)
+# 5. Build succeeds
+#
+# Install: ./scripts/install-hooks.sh
+# Or manually: cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+
+set -e
+
+# Get the directory where the script is located
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Track if we're pushing a version tag
+pushing_version_tag=false
+version_tag=""
+
+while read local_ref local_sha remote_ref remote_sha; do
+    # Check if pushing a version tag (refs/tags/v*)
+    if [[ "$local_ref" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        pushing_version_tag=true
+        version_tag="${local_ref#refs/tags/}"
+        break
+    fi
+done
+
+# Only run validations for version tag pushes
+if [ "$pushing_version_tag" = false ]; then
+    exit 0
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Pre-release validation for $version_tag"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# Extract version (v0.1.27 -> 0.1.27)
+version="${version_tag#v}"
+
+# 1. Check changelog
+echo "[1/5] Checking changelog..."
+if ! node "$REPO_ROOT/scripts/check-changelog.js" "$version"; then
+    echo ""
+    echo "❌ Push rejected: Missing changelog entry"
+    exit 1
+fi
+echo ""
+
+# 2. Run linting
+echo "[2/5] Running linter (ESLint)..."
+if ! npm run lint; then
+    echo ""
+    echo "❌ Push rejected: Linting errors found"
+    echo "Run 'npm run lint:fix' to auto-fix some issues"
+    exit 1
+fi
+echo "✓ Linting passed"
+echo ""
+
+# 3. Run type checking
+echo "[3/5] Running type checker (TypeScript)..."
+if ! npm run typecheck; then
+    echo ""
+    echo "❌ Push rejected: Type errors found"
+    exit 1
+fi
+echo "✓ Type checking passed"
+echo ""
+
+# 4. Run tests
+echo "[4/5] Running tests..."
+if ! npm test; then
+    echo ""
+    echo "❌ Push rejected: Tests failed"
+    exit 1
+fi
+echo "✓ Tests passed"
+echo ""
+
+# 5. Run build
+echo "[5/5] Running build..."
+if ! npm run build; then
+    echo ""
+    echo "❌ Push rejected: Build failed"
+    exit 1
+fi
+echo "✓ Build succeeded"
+echo ""
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✓ All pre-release checks passed for $version_tag"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+exit 0
