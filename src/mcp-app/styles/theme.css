@@ -1,0 +1,29 @@
+:root {
+    --bg-color: #ffffff;
+    --text-color: #333333;
+    --border-color: #e0e0e0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.ag-theme-alpine {
+    --ag-background-color: #ffffff;
+    --ag-foreground-color: #181d1f;
+    --ag-border-color: #e0e0e0;
+}
+
+/* Dark Theme overrides via class on body/container */
+.dark-theme {
+    --bg-color: #1e1e1e;
+    --text-color: #cccccc;
+    --border-color: #3e3e3e;
+}
+
+.ag-theme-alpine-dark {
+    --ag-background-color: #1e1e1e;
+    --ag-foreground-color: #cccccc;
+    --ag-border-color: #3e3e3e;
+}

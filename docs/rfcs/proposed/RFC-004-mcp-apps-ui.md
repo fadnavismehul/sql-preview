@@ -180,24 +180,29 @@ For SQL Preview, we don't need any special permissions - we're just displaying d
 sql-preview/
 ├── src/
 │   ├── extension.ts                    # VS Code extension (existing)
-│   ├── modules/
-│   │   └── mcp/
-│   │       ├── McpServer.ts            # Existing SSE server
-│   │       ├── McpToolManager.ts       # Existing tool definitions
-│   │       └── McpAppsServer.ts        # NEW: Streamable HTTP server with UI resources
+│   ├── server/
+│   │   ├── Daemon.ts                   # Existing Daemon entry point
+│   │   ├── McpServer.ts                # Existing server logic
+│   │   ├── McpToolManager.ts           # Existing tool definitions
+│   │   └── McpAppsServer.ts            # NEW: Streamable HTTP server with UI resources
 │   │
-│   └── mcp-app/                        # NEW: MCP App UI
-│       ├── index.html                  # Entry point
-│       ├── App.tsx                     # Main React component
-│       ├── components/
-│       │   ├── ResultsGrid.tsx         # AG Grid wrapper
-│       │   ├── Toolbar.tsx             # Export, copy, re-run buttons
-│       │   ├── QueryInfo.tsx           # Shows query text, timing
-│       │   └── StatusBar.tsx           # Row count, connection info
-│       ├── hooks/
-│       │   └── useMcpApp.ts            # App class wrapper
-│       └── styles/
-│           └── theme.css               # Matches host theme
+│   ├── mcp-app/                        # NEW: MCP App UI
+│   │   ├── index.html                  # Entry point
+│   │   ├── App.tsx                     # Main React component
+│   │   ├── components/
+│   │   │   ├── ResultsGrid.tsx         # AG Grid wrapper
+│   │   │   ├── Toolbar.tsx             # Export, copy, re-run buttons
+│   │   │   ├── QueryInfo.tsx           # Shows query text, timing
+│   │   │   └── StatusBar.tsx           # Row count, connection info
+│   │   ├── hooks/
+│   │   │   └── useMcpApp.ts            # App class wrapper
+│   │   └── styles/
+│   │       └── theme.css               # Matches host theme
+│   │
+│   ├── services/
+│   │   └── ServiceContainer.ts         # Existing Service Container
+│   │
+│   └── ui/                             # Existing Webview UI
 │
 ├── vite.config.mcp-app.ts              # NEW: Builds single-file HTML bundle
 └── package.json
@@ -208,7 +213,7 @@ sql-preview/
 We'll create a new `McpAppsServer` that uses Streamable HTTP transport (the modern approach) and registers UI resources:
 
 ```typescript
-// src/modules/mcp/McpAppsServer.ts
+// src/server/McpAppsServer.ts
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {
@@ -683,9 +688,11 @@ For unsupported clients, the tool still works - they just get text output instea
 ### Phase 1: Basic MCP App
 
 1. Set up Vite build for single-file HTML bundle
+   - Install dev dependencies: `vite`, `vite-plugin-singlefile`, `@vitejs/plugin-react`
+   - Install dependencies: `react`, `react-dom`, `ag-grid-react`, `ag-grid-community`, `@modelcontextprotocol/ext-apps`, `express`
 2. Create minimal React app with AG Grid
 3. Implement `App` class connection and `ontoolresult` handler
-4. Create `McpAppsServer` with Streamable HTTP transport
+4. Create `McpAppsServer` in `src/server/` with Streamable HTTP transport
 5. Register `run_query` tool with UI metadata
 6. Register UI resource handler
 7. Test with `basic-host` from ext-apps repo

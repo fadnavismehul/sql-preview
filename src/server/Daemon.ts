@@ -209,9 +209,7 @@ export class Daemon {
           // "Stateless" mode: We manage the session ID at the Daemon/Route level.
           // This allows the transport to accept the initial GET request (SSE connection)
           // without requiring a prior POST 'initialize' (which is the SDK's stateful behavior).
-          const transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: undefined,
-          });
+          const transport = new StreamableHTTPServerTransport();
 
           // Create dedicated Server
           const server = new Server(
@@ -227,7 +225,8 @@ export class Daemon {
           this.mcpSessions.set(sessionId, mcpSession);
 
           // Connect
-          await server.connect(transport);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await server.connect(transport as any);
         } else {
           // Update activity
           mcpSession.lastActive = Date.now();
