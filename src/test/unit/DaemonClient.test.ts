@@ -124,7 +124,7 @@ describe('DaemonClient', () => {
       await client.start();
 
       expect(net.createConnection).toHaveBeenCalledWith(
-        expect.stringContaining('.sql-preview-debug/srv.sock')
+        expect.stringContaining('.sql-preview-debug/srv-9999.sock')
       );
     });
 
@@ -142,7 +142,7 @@ describe('DaemonClient', () => {
       await client.start();
 
       expect(net.createConnection).toHaveBeenCalledWith(
-        expect.stringContaining('.sql-preview/srv.sock')
+        expect.stringContaining('.sql-preview/srv-8414.sock')
       );
     });
 
@@ -177,10 +177,10 @@ describe('DaemonClient', () => {
 
       let callCount = 0;
       (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
-        if (pathArg.includes('server.pid')) {
+        if (pathArg.includes('.pid')) {
           return false;
         }
-        if (pathArg.includes('srv.sock')) {
+        if (pathArg.includes('.sock')) {
           callCount++;
           return callCount > 1; // 1st check false, 2nd true
         }
@@ -219,10 +219,10 @@ describe('DaemonClient', () => {
       // 2. socket stale check -> TRUE -> unlink
       // 3. poll loop -> TRUE
       (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
-        if (pathArg.includes('server.pid')) {
+        if (pathArg.includes('.pid')) {
           return false;
         }
-        if (pathArg.includes('srv.sock')) {
+        if (pathArg.includes('.sock')) {
           return true; // Always true (stale found, then loop matches)
         }
         return false;
@@ -263,10 +263,10 @@ describe('DaemonClient', () => {
 
       let socketCheckCount = 0;
       (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
-        if (pathArg.includes('server.pid')) {
+        if (pathArg.includes('.pid')) {
           return true;
         }
-        if (pathArg.includes('srv.sock')) {
+        if (pathArg.includes('.sock')) {
           socketCheckCount++;
           return socketCheckCount > 1;
         }
@@ -287,7 +287,7 @@ describe('DaemonClient', () => {
       await startPromise;
 
       expect(killSpy).toHaveBeenCalledWith(9999, 'SIGTERM');
-      expect(fs.unlinkSync).toHaveBeenCalledWith(expect.stringContaining('server.pid'));
+      expect(fs.unlinkSync).toHaveBeenCalledWith(expect.stringContaining('.pid'));
       expect(cp.spawn).toHaveBeenCalled();
 
       killSpy.mockRestore();
@@ -326,7 +326,7 @@ describe('DaemonClient', () => {
       // fs logic: loop a few times then die
       let checks = 0;
       (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
-        if (pathArg.includes('srv.sock')) {
+        if (pathArg.includes('.sock')) {
           checks++;
           if (checks > 2) {
             // Simulate crash
@@ -399,7 +399,7 @@ describe('DaemonClient', () => {
       // Mock fs logic for polling
       let checks = 0;
       (fs.existsSync as jest.Mock).mockImplementation((pathArg: string) => {
-        if (pathArg.includes('srv.sock')) {
+        if (pathArg.includes('.sock')) {
           checks++;
           return checks > 1;
         }

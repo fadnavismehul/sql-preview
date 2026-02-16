@@ -98,7 +98,8 @@ export class DaemonClient {
     this.configDir = devPort
       ? path.join(homeDir, '.sql-preview-debug')
       : path.join(homeDir, '.sql-preview');
-    this.socketPath = path.join(this.configDir, 'srv.sock');
+    const port = process.env['SQL_PREVIEW_MCP_PORT'] || '8414';
+    this.socketPath = path.join(this.configDir, `srv-${port}.sock`);
 
     this.client = new Client({ name: 'vscode-extension', version: '1.0.0' }, { capabilities: {} });
   }
@@ -409,7 +410,9 @@ export class DaemonClient {
   }
 
   private async cleanupStaleDaemon() {
-    const pidPath = path.join(this.configDir, 'server.pid');
+    // Default port is 8414 if not specified by env
+    const port = process.env['SQL_PREVIEW_MCP_PORT'] || '8414';
+    const pidPath = path.join(this.configDir, `server-${port}.pid`);
 
     if (fs.existsSync(pidPath)) {
       try {

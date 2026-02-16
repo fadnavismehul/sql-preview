@@ -56,7 +56,7 @@ export class Daemon {
     if (!fs.existsSync(this.CONFIG_DIR)) {
       fs.mkdirSync(this.CONFIG_DIR, { recursive: true });
     }
-    this.SOCKET_PATH = path.join(this.CONFIG_DIR, 'srv.sock');
+    this.SOCKET_PATH = path.join(this.CONFIG_DIR, `srv-${this.HTTP_PORT}.sock`);
 
     // 1. Initialize Managers
     this.sessionManager = new SessionManager();
@@ -395,7 +395,7 @@ export class Daemon {
 
   public async start() {
     // 1. PID Check (Prevent multiple instances)
-    const pidPath = path.join(this.CONFIG_DIR, 'server.pid');
+    const pidPath = path.join(this.CONFIG_DIR, `server-${this.HTTP_PORT}.pid`);
     try {
       if (fs.existsSync(pidPath)) {
         const pidContent = fs.readFileSync(pidPath, 'utf8');
@@ -551,7 +551,7 @@ export class Daemon {
     }
 
     // Cleanup PID and Socket
-    const pidPath = path.join(this.CONFIG_DIR, 'server.pid');
+    const pidPath = path.join(this.CONFIG_DIR, `server-${this.HTTP_PORT}.pid`);
     if (fs.existsSync(pidPath)) {
       try {
         fs.unlinkSync(pidPath);
