@@ -143,4 +143,72 @@ describe('SessionManager', () => {
       expect(emitSpy).not.toHaveBeenCalled();
     });
   });
+
+  describe('addTab', () => {
+    it('should add tab and emit event', () => {
+      const session = sessionManager.registerSession('session1', 'user1', 'vscode');
+      const tab = { id: 'tab1', title: 'Start', status: 'success' } as any;
+
+      const emitSpy = jest.fn();
+      sessionManager.on('tab-added', emitSpy);
+
+      sessionManager.addTab('session1', tab);
+
+      expect(session.tabs.has('tab1')).toBe(true);
+      expect(session.tabs.get('tab1')).toBe(tab);
+      expect(emitSpy).toHaveBeenCalledWith({ sessionId: 'session1', tab });
+    });
+
+    it('should update session lastActivityAt', async () => {
+      const session = sessionManager.registerSession('session1', 'user1', 'vscode');
+      const initialActivity = session.lastActivityAt;
+
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      sessionManager.addTab('session1', { id: 'tab1' } as any);
+
+      expect(session.lastActivityAt.getTime()).toBeGreaterThan(initialActivity.getTime());
+    });
+
+    it('should do nothing if session does not exist', () => {
+      const emitSpy = jest.fn();
+      sessionManager.on('tab-added', emitSpy);
+
+      sessionManager.addTab('non-existent', { id: 'tab1' } as any);
+
+      expect(emitSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateTab', () => {
+    it('should update tab and emit event', () => {
+      const session = sessionManager.registerSession('session1', 'user1', 'vscode');
+      const tab = { id: 'tab1', title: 'Old Title', status: 'success' } as any;
+      session.tabs.set('tab1', tab);
+
+      const emitSpy = jest.fn();
+      sessionManager.on('tab-updated', emitSpy);
+
+      sessionManager.updateTab('session1', 'tab1', { title: 'New Title' });
+
+      expect(session.tabs.get('tab1')!.title).toBe('New Title');
+      expect(emitSpy).toHaveBeenCalledWith({
+        sessionId: 'session1',
+        tabId: 'tab1',
+        tab: expect.objectContaining({ title: 'New Title' }),
+      });
+    });
+
+    it('should do nothing if session or tab not found', () => {
+      const emitSpy = jest.fn();
+      sessionManager.on('tab-updated', emitSpy);
+
+      sessionManager.updateTab('non-existent', 'tab1', {});
+      expect(emitSpy).not.toHaveBeenCalled();
+
+      sessionManager.registerSession('session1', 'user1', 'vscode');
+      sessionManager.updateTab('session1', 'tab-not-there', {});
+      expect(emitSpy).not.toHaveBeenCalled();
+    });
+  });
 });
