@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-console */
 /**
  * Validate CHANGELOG.md has an entry for the release version.
  *

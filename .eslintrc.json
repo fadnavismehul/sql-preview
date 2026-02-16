@@ -28,6 +28,13 @@
         "@typescript-eslint/no-explicit-any": "off",
         "no-console": "off"
       }
+    },
+    {
+      "files": ["scripts/**/*.js"],
+      "rules": {
+        "no-console": "off",
+        "@typescript-eslint/no-var-requires": "off"
+      }
     }
   ],
   "ignorePatterns": ["out", "dist", "coverage", "**/*.d.ts", "webviews/**/*.js", "media/**"]
