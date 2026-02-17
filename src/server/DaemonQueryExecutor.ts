@@ -39,7 +39,9 @@ export class DaemonQueryExecutor {
       profile = await this.connectionManager.getConnection(connectionId);
     } else {
       // Fallback to first available connection
+      this.logger.info(`Fetching connections for fallback...`);
       const connections = await this.connectionManager.getConnections();
+      this.logger.info(`Found ${connections.length} connections.`);
       if (connections.length > 0 && connections[0]) {
         // Need to fetch full profile including password
         profile = await this.connectionManager.getConnection(connections[0].id);
@@ -47,6 +49,7 @@ export class DaemonQueryExecutor {
     }
 
     if (!profile) {
+      this.logger.error('No valid connection profile found.');
       throw new Error('No valid connection profile found.');
     }
 

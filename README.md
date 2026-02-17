@@ -104,3 +104,7 @@ sql-preview/
 2.  **Install**: `npm install`
 3.  **Build**: `npm run build`
 4.  **Debug**: Press `F5` to start the Extension Host.
+
+## MCP Debugging
+
+- `MCP_PORT=8552 npx @modelcontextprotocol/inspector node out/server/standalone.js --stdio`

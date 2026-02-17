@@ -45,6 +45,11 @@ export class DaemonMcpToolManager {
               description:
                 'Optional ad-hoc connection profile (including credentials) to use for this query.',
             },
+            waitForResult: {
+              type: 'boolean',
+              description:
+                'Whether to wait for the query to complete and return results (default: false)',
+            },
             tabId: {
               type: 'string',
               description:
@@ -273,25 +278,30 @@ export class DaemonMcpToolManager {
             connectionId?: string;
             connectionProfile?: unknown;
             tabId?: string;
+            waitForResult?: boolean;
           }
         | undefined;
       const sql = typedArgs?.sql?.trim();
-      const sessionId = typedArgs?.session;
+      // Default to a known session ID if not provided (e.g. from Inspector or App)
+      const sessionId = typedArgs?.session || 'default-session';
       const displayName = typedArgs?.displayName || 'MCP Client';
       const connectionId = typedArgs?.connectionId;
       const connectionProfile = typedArgs?.connectionProfile;
       const providedTabId = typedArgs?.tabId;
+      const waitForResult = typedArgs?.waitForResult === true;
 
       if (!sql) {
         throw new Error('SQL query is required');
       }
-      if (!sessionId) {
-        throw new Error('Session ID is required');
-      }
+      // Session ID is now guaranteed
+      // if (!sessionId) {
+      //   throw new Error('Session ID is required');
+      // }
 
       // Lazy session registration: auto-create if not found
       let session = this.sessionManager.getSession(sessionId);
       if (!session) {
+        logger.info('Session not found, auto-registering...');
         this.sessionManager.registerSession(sessionId, displayName, 'standalone');
         session = this.sessionManager.getSession(sessionId);
         if (!session) {
@@ -369,11 +379,11 @@ export class DaemonMcpToolManager {
       session.activeTabId = tabId;
       session.lastActivityAt = new Date();
 
-      // Start Execution in Background
+      // Start Execution
       const controller = new AbortController();
       session.abortControllers.set(tabId, controller);
 
-      this.executeAndStore(
+      const executionPromise = this.executeAndStore(
         sessionId,
         tabId,
         sql,
@@ -384,15 +394,47 @@ export class DaemonMcpToolManager {
         session.abortControllers.delete(tabId);
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Query submitted to Session '${session.displayName}'. Tab ID: ${tabId}. Status: Loading.`,
+      if (waitForResult) {
+        await executionPromise;
+
+        // Re-fetch tab to get results
+        const updatedTab = session.tabs.get(tabId);
+        const rowCount = updatedTab?.rows?.length ?? 0;
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Query returned ${rowCount} rows`,
+            },
+          ],
+          data: {
+            query: sql,
+            columns: updatedTab?.columns || [],
+            rows: updatedTab?.rows || [],
+            rowCount: rowCount,
+            executionTime: 0,
+            connection: connectionId || 'default',
           },
-        ],
-      };
+        };
+      } else {
+        // Fire and forget (Extension behavior)
+        // Ensure we catch errors in background to avoid unhandled rejections
+        executionPromise.catch(err => {
+          logger.error('[Daemon] Background query execution error:', err);
+        });
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Query started. Tab ID: ${tabId}`,
+            },
+          ],
+        };
+      }
     } catch (error: unknown) {
+      logger.error('Error inside handleRunQuery:', error);
       const message = error instanceof Error ? error.message : String(error);
       return {
         isError: true,

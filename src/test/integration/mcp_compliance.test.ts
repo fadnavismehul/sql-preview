@@ -88,7 +88,7 @@ describe('MCP Compliance Integration', () => {
     expect(result.content[0].type).toBe('text');
     const text = result.content[0].text as string;
 
-    expect(text).toContain('Query submitted');
+    expect(text).toContain('Query started');
 
     // Extract Tab ID
     const tabIdMatch = text.match(/Tab ID: ([^.]+)/);

@@ -70,7 +70,7 @@ describe('DaemonMcpToolManager', () => {
         session: 'session1',
       });
 
-      expect(result.content[0].text).toContain('Query submitted');
+      expect(result.content[0].text).toContain('Query started');
       expect(sessionManager.getSession).toHaveBeenCalledWith('session1');
 
       // Verify tab creation

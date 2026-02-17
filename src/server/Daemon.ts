@@ -595,6 +595,7 @@ export class Daemon {
 }
 
 // Auto-start if run directly
+// Auto-start if run directly
 if (require.main === module) {
   const daemon = new Daemon();
   daemon.start().catch(err => {

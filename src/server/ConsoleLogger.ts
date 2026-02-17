@@ -32,32 +32,36 @@ export class ConsoleLogger implements ILogger {
 
   public info(message: string, data?: unknown) {
     if (this.shouldLog(LogLevel.INFO)) {
+      const msg = `[INFO] ${message} ${data ? JSON.stringify(data) : ''}`;
       if (this.useStdErr) {
-        console.error(`[INFO] ${message}`, data ? JSON.stringify(data) : '');
+        console.error(msg);
       } else {
-        console.log(`[INFO] ${message}`, data ? JSON.stringify(data) : '');
+        console.log(msg);
       }
     }
   }
 
   public error(message: string, error?: unknown) {
     if (this.shouldLog(LogLevel.ERROR)) {
-      console.error(`[ERROR] ${message}`, error);
+      const msg = `[ERROR] ${message} ${error ? JSON.stringify(error) : ''}`;
+      console.error(msg);
     }
   }
 
   public warn(message: string, data?: unknown) {
     if (this.shouldLog(LogLevel.WARN)) {
-      console.warn(`[WARN] ${message}`, data ? JSON.stringify(data) : '');
+      const msg = `[WARN] ${message} ${data ? JSON.stringify(data) : ''}`;
+      console.warn(msg);
     }
   }
 
   public debug(message: string, data?: unknown) {
     if (this.shouldLog(LogLevel.DEBUG)) {
+      const msg = `[DEBUG] ${message} ${data ? JSON.stringify(data) : ''}`;
       if (this.useStdErr) {
-        console.error(`[DEBUG] ${message}`, data ? JSON.stringify(data) : '');
+        console.error(msg);
       } else {
-        console.debug(`[DEBUG] ${message}`, data ? JSON.stringify(data) : '');
+        console.debug(msg);
       }
     }
   }

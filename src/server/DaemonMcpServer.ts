@@ -32,6 +32,7 @@ export class DaemonMcpServer {
     });
 
     this.server.setRequestHandler(CallToolRequestSchema, async request => {
+      // console.error('[DEBUG] Handling CallToolRequest:', request.params.name);
       return await this.toolManager.handleToolCall(request.params.name, request.params.arguments);
     });
 
@@ -59,6 +60,8 @@ export class DaemonMcpServer {
     });
 
     this.server.setRequestHandler(ReadResourceRequestSchema, async request => {
+      // console.error('[DEBUG] Handling ReadResourceRequest:', request.params.uri);
+
       const uri = request.params.uri;
 
       if (uri === UI_RESOURCE_URI) {
