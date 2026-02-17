@@ -377,6 +377,7 @@
     "vite-plugin-singlefile": "^2.3.0"
   },
   "dependencies": {
+    "@duckdb/node-api": "^1.4.4-r.1",
     "@modelcontextprotocol/ext-apps": "^1.0.1",
     "@modelcontextprotocol/sdk": "^1.23.0",
     "@types/json-bigint": "^1.0.4",

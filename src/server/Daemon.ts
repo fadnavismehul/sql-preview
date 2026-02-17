@@ -18,6 +18,7 @@ import { DaemonMcpToolManager } from './DaemonMcpToolManager';
 import { DaemonMcpServer } from './DaemonMcpServer';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { TrinoConnector } from '../connectors/trino/TrinoConnector';
+import { DuckDbConnector } from '../connectors/duckdb/DuckDbConnector';
 
 import { logger, ConsoleLogger } from './ConsoleLogger';
 
@@ -66,6 +67,7 @@ export class Daemon {
 
     // 2. Register Connectors
     this.connectorRegistry.register(new TrinoConnector());
+    this.connectorRegistry.register(new DuckDbConnector());
 
     // this.connectorRegistry.register(new PostgreSQLConnector(new DaemonDriverManager()));
 
