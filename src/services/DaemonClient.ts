@@ -208,8 +208,14 @@ export class DaemonClient {
       .filter(Boolean)
       .join(path.delimiter);
 
+    const cwd =
+      vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0
+        ? vscode.workspace.workspaceFolders[0]?.uri.fsPath || os.homedir()
+        : os.homedir();
+
     this.process = cp.spawn('node', [serverPath], {
       detached: true,
+      cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,

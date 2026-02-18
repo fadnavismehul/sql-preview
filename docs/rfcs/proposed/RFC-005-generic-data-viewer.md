@@ -20,11 +20,14 @@ We incorporated **DuckDB** as the core local processing engine via the `@duckdb/
 
 ### Key Features
 
-1.  **Unified Interface**: To the LLM, everything looks like a table.
-    - _Files_: `SELECT * FROM 'data.csv'`
-    - _APIs_: Data fetched from APIs can be loaded into DuckDB memory.
-2.  **Native Integration**: Implemented as a standard `IConnector` within the `Daemon`.
-3.  **Zero-Setup**: Uses in-memory processing (`:memory:`) or local file mounting.
+1.  **Direct File Querying (Zero-Config)**: The LLM and User can query files directly using standard DuckDB SQL.
+    - _CSV_: `SELECT * FROM './data/sales.csv'`
+    - _JSON_: `SELECT * FROM read_json_auto('./logs/app.json')`
+    - _Parquet_: `SELECT * FROM './warehouse/data.parquet'`
+    - _Remote_: `SELECT * FROM 'https://domain.com/data.csv'`
+2.  **Unified Interface**: Everything looks like a table.
+3.  **Native Integration**: Implemented as a standard `IConnector` within the `Daemon`.
+4.  **Zero-Setup**: Uses in-memory processing (`:memory:`) by default. No need to create specific "tables" beforehand; just query the files.
 
 ## Architecture Changes
 

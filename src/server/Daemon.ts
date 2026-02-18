@@ -257,6 +257,64 @@ export class Daemon {
     this.app.get('/mcp', mcpHandler);
     this.app.post('/mcp', mcpHandler);
 
+    // Direct Query Endpoint (for Integration Tests / Simple Clients)
+    this.app.post('/query', express.json(), async (req, res) => {
+      this.refreshActivity();
+      try {
+        const { query, sessionId } = req.body;
+        if (!query) {
+          res.status(400).json({ error: 'Query is required' });
+          return;
+        }
+
+        const sid = sessionId || `test-session-${crypto.randomUUID()}`;
+
+        // Create a temporary controller for this request
+        const controller = new AbortController();
+
+        // Use array to collect all rows
+        const allRows: any[] = [];
+        let columns: any[] = [];
+
+        try {
+          const generator = this.queryExecutor.execute(
+            query,
+            sid, // sessionId
+            undefined, // connectionId
+            controller.signal, // abortSignal
+            {
+              id: 'adhoc-duckdb',
+              name: 'Adhoc DuckDB',
+              type: 'duckdb',
+              databasePath: ':memory:', // Default to memory, CWD set by process
+            } as any
+          );
+
+          for await (const page of generator) {
+            if (page.columns) {
+              columns = page.columns;
+            }
+            if (page.data) {
+              allRows.push(...page.data);
+            }
+          }
+
+          res.json({
+            columns: columns,
+            data: allRows,
+          });
+        } catch (err) {
+          logger.error('[Daemon] Query execution failed:', err);
+          res.status(500).json({
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      } catch (err) {
+        logger.error('[Daemon] Error in /query:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+      }
+    });
+
     // Session Management API
     this.app.get('/sessions', (_req, res) => {
       this.refreshActivity();

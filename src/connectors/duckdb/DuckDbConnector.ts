@@ -134,7 +134,9 @@ export class DuckDbConnector implements IConnector<DuckDbConfig> {
         // Ensure data is in array format for UI
         // If rows are already arrays, great. If objects, convert.
         // Let's assume arrays for now, check types in test.
-        const pageData = batch;
+        const pageData = batch.map((row: any[]) =>
+          row.map(cell => (typeof cell === 'bigint' ? Number(cell) : cell))
+        );
 
         yield {
           data: pageData,

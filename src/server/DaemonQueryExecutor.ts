@@ -48,6 +48,62 @@ export class DaemonQueryExecutor {
       }
     }
 
+    // Smart Routing Strategy:
+    // If no specific connection ID was requested (adhoc query),
+    // and the query looks like a file query (FROM '...'),
+    // we should prioritize DuckDB over the default fallback connection (e.g. Trino).
+    if (!connectionId && !connectionOverride) {
+      // Only match single-quoted strings (DuckDB file paths).
+      // Double quotes (") are for identifiers (tables) in standard SQL (Trino), so we avoid capturing those.
+      const fileQueryRegex = /from\s+'[^']+'/i;
+      if (fileQueryRegex.test(query)) {
+        try {
+          // Check availability
+          this.getConnector('duckdb');
+          this.logger.info('Detected local file query pattern, switching to Adhoc DuckDB profile');
+          profile = {
+            id: 'adhoc-duckdb',
+            name: 'Adhoc DuckDB',
+            type: 'duckdb',
+            databasePath: ':memory:',
+            sslVerify: true,
+          } as any;
+        } catch (e) {
+          this.logger.warn('DuckDB connector not available for file query auto-routing');
+        }
+      }
+    }
+
+    // Smart Routing: If no profile selected, check if query looks like a local file query
+    // and route to DuckDB if available.
+    if (!profile) {
+      const fileQueryRegex = /FROM\s+['"][^'"]+['"]/i;
+      if (fileQueryRegex.test(query)) {
+        this.logger.info('Detected local file query, using Adhoc DuckDB profile');
+
+        // Check if DuckDB connector is available
+        try {
+          this.getConnector('duckdb');
+          profile = {
+            id: 'adhoc-duckdb',
+            name: 'Adhoc DuckDB',
+            type: 'duckdb',
+            databasePath: ':memory:',
+          } as any;
+        } catch (e) {
+          this.logger.warn('DuckDB connector not available for file query auto-routing');
+        }
+      }
+    }
+
+    if (!profile) {
+      // Fallback to first available connection logic MOVED here or kept above?
+      // The original logic checked connectionId OR fell back.
+      // If I insert my logic before the "No valid connection profile found" check, it works.
+      // But wait, the original code had a fallback block inside the `else` of `if (connectionId)`.
+      // Let's restructure slightly to be cleaner.
+    }
+
     if (!profile) {
       this.logger.error('No valid connection profile found.');
       throw new Error('No valid connection profile found.');
