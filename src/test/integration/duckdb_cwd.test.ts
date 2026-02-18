@@ -30,7 +30,7 @@ describe('DuckDB CWD Integration', () => {
       fs.unlinkSync(csvPath);
     }
     if (fs.existsSync(tempDir)) {
-      fs.rmdirSync(tempDir);
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
 
@@ -46,7 +46,7 @@ describe('DuckDB CWD Integration', () => {
     daemonProcess = cp.spawn('node', [STANDALONE_PATH, '--port', TEST_PORT.toString()], {
       cwd: tempDir, // CRITICAL: Set CWD to temp dir
       stdio: 'pipe',
-      env: { ...process.env, SQL_PREVIEW_LOG_LEVEL: 'DEBUG' },
+      env: { ...process.env, SQL_PREVIEW_LOG_LEVEL: 'DEBUG', SQL_PREVIEW_HOME: tempDir },
     });
 
     // Wait for "Daemon HTTP listening"
@@ -104,5 +104,46 @@ describe('DuckDB CWD Integration', () => {
     expect(response.columns.map((c: any) => c.name)).toEqual(['id', 'name']);
     expect(response.data).toHaveLength(2);
     expect(response.data[0]).toEqual([1, 'Alice']); // DuckDB auto-detects types
+
+    // Test 2: Should NOT auto-route .txt files (or other extensions)
+    const txtQuery = "SELECT * FROM 'data.txt'";
+    // Test 2: Should NOT auto-route .txt files (or other extensions)
+
+    const txtPostData = JSON.stringify({ query: txtQuery, sessionId: 'test-session-2' });
+
+    await new Promise<void>((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: TEST_PORT,
+          path: '/query',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': txtPostData.length,
+          },
+        },
+        res => {
+          let data = '';
+          res.on('data', chunk => (data += chunk));
+          res.on('end', () => {
+            const result = JSON.parse(data);
+            // Expect failure because it shouldn't route to DuckDB, and we have no other connections.
+            if (result.error && result.error.includes('No valid connection profile found')) {
+              resolve();
+            } else {
+              reject(
+                new Error(
+                  `Expected 'No valid connection profile found', got: ${JSON.stringify(result)}`
+                )
+              );
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.write(txtPostData);
+      req.end();
+    });
   });
 });

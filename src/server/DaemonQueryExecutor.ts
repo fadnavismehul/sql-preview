@@ -4,6 +4,8 @@ import { QueryPage, ConnectionProfile } from '../common/types';
 import { FileConnectionManager } from './FileConnectionManager';
 import { ILogger } from '../common/logger';
 
+import { isFileQuery } from '../common/routing';
+
 export class DaemonQueryExecutor {
   constructor(
     private readonly connectorRegistry: ConnectorRegistry,
@@ -35,15 +37,11 @@ export class DaemonQueryExecutor {
 
     if (connectionOverride) {
       profile = connectionOverride;
-    } else if (connectionId) {
-      profile = await this.connectionManager.getConnection(connectionId);
     } else {
-      // 1. Smart Routing Strategy:
-      // If no specific connection ID was requested (adhoc query),
-      // and the query looks like a file query (FROM '...'),
-      // we should prioritize DuckDB over the default fallback connection (e.g. Trino).
-      const fileQueryRegex = /from\s+'[^']+'/i;
-      if (fileQueryRegex.test(query)) {
+      // 1. Smart Routing Strategy
+      // We check this BEFORE connectionId to allow "adhoc" file queries (e.g. FROM 'data.csv')
+      // to override the currently selected connection in the UI.
+      if (isFileQuery(query)) {
         try {
           // Check availability
           this.getConnector('duckdb');
@@ -52,15 +50,23 @@ export class DaemonQueryExecutor {
             id: 'adhoc-duckdb',
             name: 'Adhoc DuckDB',
             type: 'duckdb',
-            databasePath: ':memory:',
+            databasePath: ':memory:', // Default to memory, CWD set by process
             sslVerify: true,
           } as any;
         } catch (e) {
-          this.logger.warn('DuckDB connector not available for file query auto-routing');
+          this.logger.error('DuckDB connector failed during auto-routing', e);
+          throw new Error(
+            `Auto-Routing Failed: Detected file query but DuckDB connector is unavailable. ${e instanceof Error ? e.message : String(e)}`
+          );
         }
       }
 
-      // 2. Fallback to first available connection if Smart Routing didn't pick one
+      // 2. If Smart Routing didn't pick a profile, use connectionId if provided
+      if (!profile && connectionId) {
+        profile = await this.connectionManager.getConnection(connectionId);
+      }
+
+      // 3. Fallback to first available connection if still no profile
       if (!profile) {
         this.logger.info(`Fetching connections for fallback...`);
         const connections = await this.connectionManager.getConnections();

@@ -6,6 +6,8 @@ import { DaemonClient } from '../../services/DaemonClient';
 import { Logger } from '../logging/Logger';
 import { ConnectorConfig } from '../../connectors/base/IConnector';
 
+import { isFileQuery } from '../../common/routing';
+
 export class QueryExecutor {
   private logger = Logger.getInstance();
 
@@ -28,22 +30,32 @@ export class QueryExecutor {
     const correlationId = Math.random().toString(36).substring(7);
     this.logger.info(`Starting query execution via Daemon`, { query, tabId }, correlationId);
 
+    // 0. Smart Routing Check (Client Side)
+    // If this looks like a file query, we SKIP resolving a connection profile.
+    // This ensures we don't accidentally force a Trino/Postgres connection
+    // which would cause the Daemon to bypass its own smart routing (or fall back to it incorrectly).
+    const localFileQuery = isFileQuery(query);
+
     // Resolve Connection Profile (Client Side) to pass to Daemon
-    const connections = await this.connectionManager.getConnections();
+    // Only do this if it's NOT a file query (or if we want to allow mixed mode, but for now strict separation is safer)
     let profile: any = undefined;
 
-    if (connections.length > 0) {
-      // Fallback or Active logic
-      const config = vscode.workspace.getConfiguration('sqlPreview', contextUri);
-      const defaultType = config.get<string>('defaultConnector', 'trino');
-      const matching = connections.find(c => c.type === defaultType);
-      const active = matching || connections[0];
+    if (!localFileQuery) {
+      const connections = await this.connectionManager.getConnections();
 
-      if (active) {
-        profile = await this.connectionManager.getConnection(active.id);
+      if (connections.length > 0) {
+        // Fallback or Active logic
+        const config = vscode.workspace.getConfiguration('sqlPreview', contextUri);
+        const defaultType = config.get<string>('defaultConnector', 'trino');
+        const matching = connections.find(c => c.type === defaultType);
+        const active = matching || connections[0];
+
+        if (active) {
+          profile = await this.connectionManager.getConnection(active.id);
+        }
+      } else {
+        profile = await this.connectionManager.getWorkspaceFallbackProfile();
       }
-    } else {
-      profile = await this.connectionManager.getWorkspaceFallbackProfile();
     }
 
     // Inject Driver Path if needed (Extension Host Side)

@@ -62,7 +62,7 @@ export class Daemon {
 
     // 1. Initialize Managers
     this.sessionManager = new SessionManager(ConsoleLogger.getInstance());
-    this.connectionManager = new FileConnectionManager();
+    this.connectionManager = new FileConnectionManager(this.CONFIG_DIR);
     this.connectorRegistry = new ConnectorRegistry();
 
     // 2. Register Connectors
@@ -282,12 +282,7 @@ export class Daemon {
             sid, // sessionId
             undefined, // connectionId
             controller.signal, // abortSignal
-            {
-              id: 'adhoc-duckdb',
-              name: 'Adhoc DuckDB',
-              type: 'duckdb',
-              databasePath: ':memory:', // Default to memory, CWD set by process
-            } as any
+            undefined // connectionOverride
           );
 
           for await (const page of generator) {

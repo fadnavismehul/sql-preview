@@ -12,9 +12,11 @@ export class FileConnectionManager {
   private configPath: string;
   private inMemoryPasswords = new Map<string, string>();
 
-  constructor() {
+  constructor(configDir?: string) {
     const homeDir = os.homedir();
-    this.configPath = path.join(homeDir, '.sql-preview', 'config.json');
+    const baseDir =
+      configDir || process.env['SQL_PREVIEW_HOME'] || path.join(homeDir, '.sql-preview');
+    this.configPath = path.join(baseDir, 'config.json');
     this.ensureConfigExists();
   }
 
