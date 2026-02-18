@@ -38,23 +38,10 @@ export class DaemonQueryExecutor {
     } else if (connectionId) {
       profile = await this.connectionManager.getConnection(connectionId);
     } else {
-      // Fallback to first available connection
-      this.logger.info(`Fetching connections for fallback...`);
-      const connections = await this.connectionManager.getConnections();
-      this.logger.info(`Found ${connections.length} connections.`);
-      if (connections.length > 0 && connections[0]) {
-        // Need to fetch full profile including password
-        profile = await this.connectionManager.getConnection(connections[0].id);
-      }
-    }
-
-    // Smart Routing Strategy:
-    // If no specific connection ID was requested (adhoc query),
-    // and the query looks like a file query (FROM '...'),
-    // we should prioritize DuckDB over the default fallback connection (e.g. Trino).
-    if (!connectionId && !connectionOverride) {
-      // Only match single-quoted strings (DuckDB file paths).
-      // Double quotes (") are for identifiers (tables) in standard SQL (Trino), so we avoid capturing those.
+      // 1. Smart Routing Strategy:
+      // If no specific connection ID was requested (adhoc query),
+      // and the query looks like a file query (FROM '...'),
+      // we should prioritize DuckDB over the default fallback connection (e.g. Trino).
       const fileQueryRegex = /from\s+'[^']+'/i;
       if (fileQueryRegex.test(query)) {
         try {
@@ -72,36 +59,17 @@ export class DaemonQueryExecutor {
           this.logger.warn('DuckDB connector not available for file query auto-routing');
         }
       }
-    }
 
-    // Smart Routing: If no profile selected, check if query looks like a local file query
-    // and route to DuckDB if available.
-    if (!profile) {
-      const fileQueryRegex = /FROM\s+['"][^'"]+['"]/i;
-      if (fileQueryRegex.test(query)) {
-        this.logger.info('Detected local file query, using Adhoc DuckDB profile');
-
-        // Check if DuckDB connector is available
-        try {
-          this.getConnector('duckdb');
-          profile = {
-            id: 'adhoc-duckdb',
-            name: 'Adhoc DuckDB',
-            type: 'duckdb',
-            databasePath: ':memory:',
-          } as any;
-        } catch (e) {
-          this.logger.warn('DuckDB connector not available for file query auto-routing');
+      // 2. Fallback to first available connection if Smart Routing didn't pick one
+      if (!profile) {
+        this.logger.info(`Fetching connections for fallback...`);
+        const connections = await this.connectionManager.getConnections();
+        this.logger.info(`Found ${connections.length} connections.`);
+        if (connections.length > 0 && connections[0]) {
+          // Need to fetch full profile including password
+          profile = await this.connectionManager.getConnection(connections[0].id);
         }
       }
-    }
-
-    if (!profile) {
-      // Fallback to first available connection logic MOVED here or kept above?
-      // The original logic checked connectionId OR fell back.
-      // If I insert my logic before the "No valid connection profile found" check, it works.
-      // But wait, the original code had a fallback block inside the `else` of `if (connectionId)`.
-      // Let's restructure slightly to be cleaner.
     }
 
     if (!profile) {
