@@ -1,6 +1,8 @@
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as os from 'os';
 
 // Ensure we use real FS for integration test
 jest.unmock('fs');
@@ -12,10 +14,18 @@ const TEST_PORT = 8500 + Math.floor(Math.random() * 1000);
 
 describe('Standalone Daemon Integration', () => {
   let daemonProcess: cp.ChildProcess;
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sql-preview-standalone-test-'));
+  });
 
   afterEach(() => {
     if (daemonProcess) {
       daemonProcess.kill();
+    }
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
 
@@ -24,7 +34,7 @@ describe('Standalone Daemon Integration', () => {
     console.log(`Spawning daemon on port ${TEST_PORT}...`);
     daemonProcess = cp.spawn('node', [STANDALONE_PATH, '--port', TEST_PORT.toString()], {
       stdio: 'pipe',
-      env: { ...process.env, SQL_PREVIEW_LOG_LEVEL: 'DEBUG' },
+      env: { ...process.env, SQL_PREVIEW_LOG_LEVEL: 'DEBUG', SQL_PREVIEW_HOME: tempDir },
     });
 
     // Wait for "Daemon HTTP listening"
