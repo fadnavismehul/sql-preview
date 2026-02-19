@@ -10,6 +10,8 @@
 - **[trino/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/trino/)**: Trino/Presto implementation using `trino-client`.
 - **[postgres/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/postgres/)**: PostgreSQL implementation using `pg`.
 - **[sqlite/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/sqlite/)**: SQLite implementation.
+- **[duckdb/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/duckdb/)**: DuckDB implementation using `@duckdb/node-api`.
+  - **Note**: This connector is feature-flagged and disabled by default due to native module constraints.
 
 ## 🔌 Interface Contract
 

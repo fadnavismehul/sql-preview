@@ -44,16 +44,17 @@ Every RFC must include:
 
 ## RFC Registry
 
-| RFC     | Status      | Location                                               | Summary                         |
-| ------- | ----------- | ------------------------------------------------------ | ------------------------------- |
-| RFC-000 | Proposed    | `docs/rfcs/proposed/RFC-000-roadmap.md`                | Roadmap                         |
-| RFC-001 | Proposed    | `docs/rfcs/proposed/RFC-001-agentic-testing.md`        | Agentic Testing Principles      |
-| RFC-002 | Parked      | `docs/rfcs/parked/RFC-002-standalone-browser-ui.md`    | Standalone Browser UI           |
-| RFC-003 | Implemented | `docs/rfcs/done/RFC-003-single-server-architecture.md` | Single Server Architecture      |
-| RFC-004 | Proposed    | `docs/rfcs/proposed/RFC-004-mcp-apps-ui.md`            | MCP Apps UI                     |
-| RFC-005 | Proposed    | `docs/rfcs/proposed/RFC-005-mcp-session-security.md`   | MCP Session Security            |
-| RFC-006 | Implemented | `docs/rfcs/done/RFC-006-mcp-data-handling.md`          | MCP Data Handling               |
-| RFC-007 | Implemented | `docs/rfcs/done/RFC-007-multi-session-http.md`         | Multi-Session HTTP Architecture |
-| RFC-008 | Proposed    | `docs/rfcs/proposed/RFC-008-sqlite-support.md`         | SQLite Support                  |
-| RFC-009 | Implemented | `docs/rfcs/done/RFC-009-headless-mcp-server.md`        | Headless MCP Server             |
-| RFC-010 | Proposed    | `docs/rfcs/proposed/RFC-010-connection-profiles.md`    | Connection Profiles             |
+| RFC     | Status      | Location                                                        | Summary                                |
+| ------- | ----------- | --------------------------------------------------------------- | -------------------------------------- |
+| RFC-000 | Proposed    | `docs/rfcs/proposed/RFC-000-roadmap.md`                         | Roadmap                                |
+| RFC-001 | Proposed    | `docs/rfcs/proposed/RFC-001-agentic-testing.md`                 | Agentic Testing Principles             |
+| RFC-002 | Parked      | `docs/rfcs/parked/RFC-002-standalone-browser-ui.md`             | Standalone Browser UI                  |
+| RFC-003 | Implemented | `docs/rfcs/done/RFC-003-single-server-architecture.md`          | Single Server Architecture             |
+| RFC-004 | Proposed    | `docs/rfcs/proposed/RFC-004-mcp-apps-ui.md`                     | MCP Apps UI                            |
+| RFC-005 | Proposed    | `docs/rfcs/proposed/RFC-005-mcp-session-security.md`            | MCP Session Security                   |
+| RFC-006 | Implemented | `docs/rfcs/done/RFC-006-mcp-data-handling.md`                   | MCP Data Handling                      |
+| RFC-007 | Implemented | `docs/rfcs/done/RFC-007-multi-session-http.md`                  | Multi-Session HTTP Architecture        |
+| RFC-008 | Proposed    | `docs/rfcs/proposed/RFC-008-sqlite-support.md`                  | SQLite Support                         |
+| RFC-009 | Implemented | `docs/rfcs/done/RFC-009-headless-mcp-server.md`                 | Headless MCP Server                    |
+| RFC-010 | Proposed    | `docs/rfcs/proposed/RFC-010-connection-profiles.md`             | Connection Profiles                    |
+| RFC-011 | Implemented | `docs/rfcs/done/RFC-011-node-independence-and-feature-flags.md` | Node.js Independence and Feature Flags |

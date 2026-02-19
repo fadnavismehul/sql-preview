@@ -24,5 +24,6 @@
 ## ⚠️ Key Constraints
 
 - **No VS Code API**: This process **cannot** import `vscode`. It is a standard Node.js process.
+- **Node.js Independence**: The daemon is spawned such that it can run using the system `node` OR fall back to the VS Code bundled runtime (`process.execPath`) if system node is missing.
 - **Statelessness**: While `SessionManager` holds state, the process should be robust to restarts.
 - **security**: Credentials are passed securely via the `connect` tool or environment variables, never logged.
