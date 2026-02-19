@@ -56,3 +56,4 @@ Every RFC must include:
 | RFC-007 | Implemented | `docs/rfcs/done/RFC-007-multi-session-http.md`         | Multi-Session HTTP Architecture |
 | RFC-008 | Proposed    | `docs/rfcs/proposed/RFC-008-sqlite-support.md`         | SQLite Support                  |
 | RFC-009 | Implemented | `docs/rfcs/done/RFC-009-headless-mcp-server.md`        | Headless MCP Server             |
+| RFC-010 | Proposed    | `docs/rfcs/proposed/RFC-010-connection-profiles.md`    | Connection Profiles             |
