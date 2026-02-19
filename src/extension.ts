@@ -31,7 +31,6 @@ export function activate(context: vscode.ExtensionContext) {
     // We do this in the background so it doesn't block startup
     serviceContainer.connectionManager
       .migrateLegacySettings()
-      .then(() => serviceContainer.connectionManager.sync())
       .catch(err => Logger.getInstance().error(`Migration/Sync error`, err));
 
     // Register Webview Provider
@@ -93,6 +92,18 @@ export function activate(context: vscode.ExtensionContext) {
       );
       if (choice === 'Reload') {
         vscode.commands.executeCommand('workbench.action.reloadWindow');
+      }
+    }),
+    vscode.commands.registerCommand('sql.openConnections', async () => {
+      try {
+        // Ensure Daemon is running
+        await serviceContainer.daemonClient.start();
+
+        const port = process.env['SQL_PREVIEW_MCP_PORT'] || '8414';
+        const url = `http://localhost:${port}/`;
+        await vscode.env.openExternal(vscode.Uri.parse(url));
+      } catch (e) {
+        vscode.window.showErrorMessage(`Failed to open connections: ${e}`);
       }
     })
   );

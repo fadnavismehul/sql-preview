@@ -30,7 +30,8 @@ export class ServiceContainer {
   public readonly daemonClient: DaemonClient;
 
   private constructor(context: vscode.ExtensionContext) {
-    this.connectionManager = new ConnectionManager(context);
+    this.daemonClient = new DaemonClient(context);
+    this.connectionManager = new ConnectionManager(context, this.daemonClient);
     this.driverManager = new DriverManager(context);
 
     // Initialize Registry and Connectors
@@ -38,8 +39,6 @@ export class ServiceContainer {
     this.connectorRegistry.register(new TrinoConnector());
 
     this.connectorRegistry.register(new PostgreSQLConnector(this.driverManager));
-
-    this.daemonClient = new DaemonClient(context);
 
     // Pass DaemonClient to QueryExecutor
     this.queryExecutor = new QueryExecutor(

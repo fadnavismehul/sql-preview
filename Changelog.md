@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.12] - 2026-02-19
+
+### Added
+
+- **Modular Connection Profiles**: Implemented a robust connection management system supporting multiple profile stores (File, Environment Variables) and secure credential handling.
+- **Environment Configuration**: Added support for configuring connections via `SQL_PREVIEW_CONNECTIONS` environment variable.
+- **Profile Management**: Updated Daemon to serve as the single source of truth for connection profiles.
+
+### Fixed
+
+- **Connection Listing**: Fixed `list_connections` tool to correctly return full profile details (excluding passwords) ensuring the extension can execute queries reliably.
+
 ## [0.5.11] - 2026-02-16
 
 ### Fixed

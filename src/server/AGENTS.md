@@ -9,6 +9,7 @@
 - **[DaemonMcpToolManager.ts](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/server/DaemonMcpToolManager.ts)**: Registers and handles execution of MCP tools (e.g., `run_query`, `list_tables`).
 - **[SessionManager.ts](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/server/SessionManager.ts)**: Manages stateful sessions, mapping persistent IDs to connection states.
 - **[DaemonQueryExecutor.ts](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/server/DaemonQueryExecutor.ts)**: wrapper around `QueryExecutor` to run queries in the daemon context.
+- **[ConnectionManager.ts](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/server/connection/ConnectionManager.ts)**: Orchestrates connection profiles and credentials from multiple stores (File, Env, Memory).
 
 ## 🔄 Data Flow
 

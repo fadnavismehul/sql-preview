@@ -1,16 +1,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { ConnectionProfile } from '../common/types';
-import { logger } from './ConsoleLogger';
+import { ConnectionProfile } from '../../common/types';
+import { IProfileStore } from './interfaces';
+import { logger } from '../ConsoleLogger';
 
-export interface ServerConfig {
+interface ServerConfig {
   connections: ConnectionProfile[];
 }
 
-export class FileConnectionManager {
+export class FileProfileStore implements IProfileStore {
   private configPath: string;
-  private inMemoryPasswords = new Map<string, string>();
+  public readonly isReadOnly = false;
 
   constructor(configDir?: string) {
     const homeDir = os.homedir();
@@ -32,6 +33,9 @@ export class FileConnectionManager {
 
   private readConfig(): ServerConfig {
     try {
+      if (!fs.existsSync(this.configPath)) {
+        return { connections: [] };
+      }
       const raw = fs.readFileSync(this.configPath, 'utf8');
       return JSON.parse(raw);
     } catch (error) {
@@ -44,32 +48,19 @@ export class FileConnectionManager {
     fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), 'utf8');
   }
 
-  public async getConnections(): Promise<ConnectionProfile[]> {
+  public async loadProfiles(): Promise<ConnectionProfile[]> {
     const config = this.readConfig();
     return config.connections;
   }
 
-  public async getConnection(id: string): Promise<ConnectionProfile | undefined> {
-    const connections = await this.getConnections();
-    const profile = connections.find(c => c.id === id);
-    if (profile) {
-      const password = this.inMemoryPasswords.get(id);
-      return { ...profile, ...(password ? { password } : {}) };
-    }
-    return undefined;
-  }
-
-  public async saveConnection(profile: ConnectionProfile): Promise<void> {
+  public async saveProfile(profile: ConnectionProfile): Promise<void> {
     const config = this.readConfig();
     const index = config.connections.findIndex(c => c.id === profile.id);
 
-    // Extract password to store separately (in memory for now)
+    // Security: Ensure we don't accidentally persist passwords in the file store
+    // The Manager should handle stripping them, but we do it here as a safety net.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password, ...safeProfile } = profile;
-
-    // In a real implementation, we might use keytar here if available
-    if (password) {
-      this.inMemoryPasswords.set(profile.id, password);
-    }
 
     if (index !== -1) {
       config.connections[index] = safeProfile as ConnectionProfile;
@@ -80,10 +71,13 @@ export class FileConnectionManager {
     this.writeConfig(config);
   }
 
-  public async deleteConnection(id: string): Promise<void> {
+  public async deleteProfile(id: string): Promise<void> {
     const config = this.readConfig();
+    const initialLength = config.connections.length;
     config.connections = config.connections.filter(c => c.id !== id);
-    this.writeConfig(config);
-    this.inMemoryPasswords.delete(id);
+
+    if (config.connections.length !== initialLength) {
+      this.writeConfig(config);
+    }
   }
 }

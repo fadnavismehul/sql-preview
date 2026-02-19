@@ -1,6 +1,8 @@
+
 import { useEffect, useState } from 'react';
 import { useMcpApp } from './hooks/useMcpApp';
 import { ResultsGrid } from './components/ResultsGrid';
+import { ConnectionsManager } from './components/ConnectionsManager';
 import './styles/theme.css';
 
 interface QueryResult {
@@ -18,6 +20,7 @@ export function App() {
     const [error, setError] = useState<string | null>(null);
     const [sql, setSql] = useState('SELECT 1');
     const [isLoading, setIsLoading] = useState(false);
+    const [view, setView] = useState<'query' | 'connections'>('query');
 
     useEffect(() => {
         if (!app) return;
@@ -97,34 +100,56 @@ export function App() {
         );
     }
 
-    if (!result) {
-        return (
-            <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <h2>SQL Preview</h2>
-                <textarea
-                    value={sql}
-                    onChange={(e) => setSql(e.target.value)}
-                    rows={5}
-                    style={{ width: '100%', fontFamily: 'monospace' }}
-                />
-                <button
-                    onClick={handleRunQuery}
-                    disabled={isLoading || !app}
-                    style={{ padding: '8px 16px', alignSelf: 'flex-start', cursor: 'pointer' }}
-                >
-                    {isLoading ? 'Running...' : 'Run Query'}
-                </button>
-            </div>
-        );
-    }
-
     return (
         <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`} style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-            <div className="toolbar" style={{ padding: '8px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{result.rowCount} rows ({result.executionTime}ms)</span>
-                <button onClick={() => setResult(null)} style={{ padding: '4px 8px' }}>New Query</button>
+            <div className="nav-bar" style={{ padding: '10px', display: 'flex', gap: '10px', borderBottom: '1px solid var(--border-color)' }}>
+                <button
+                    onClick={() => setView('query')}
+                    style={{ fontWeight: view === 'query' ? 'bold' : 'normal' }}
+                >
+                    Query
+                </button>
+                <button
+                    onClick={() => setView('connections')}
+                    style={{ fontWeight: view === 'connections' ? 'bold' : 'normal' }}
+                >
+                    Connections
+                </button>
             </div>
-            <ResultsGrid rows={result.rows} columns={result.columns} theme={theme} />
+
+            <div className="content" style={{ flex: 1, padding: '20px', overflow: 'auto' }}>
+                {view === 'connections' ? (
+                    <ConnectionsManager app={app} theme={theme} />
+                ) : (
+                    // Query View
+                    result ? (
+                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                            <div className="toolbar" style={{ paddingBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{result.rowCount} rows ({result.executionTime}ms)</span>
+                                <button onClick={() => setResult(null)} style={{ padding: '4px 8px' }}>New Query</button>
+                            </div>
+                            <ResultsGrid rows={result.rows} columns={result.columns} theme={theme} />
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <h2>SQL Preview</h2>
+                            <textarea
+                                value={sql}
+                                onChange={(e) => setSql(e.target.value)}
+                                rows={5}
+                                style={{ width: '100%', fontFamily: 'monospace' }}
+                            />
+                            <button
+                                onClick={handleRunQuery}
+                                disabled={isLoading || !app}
+                                style={{ padding: '8px 16px', alignSelf: 'flex-start', cursor: 'pointer' }}
+                            >
+                                {isLoading ? 'Running...' : 'Run Query'}
+                            </button>
+                        </div>
+                    )
+                )}
+            </div>
         </div>
     );
 }

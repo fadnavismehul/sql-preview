@@ -2,7 +2,7 @@
   "name": "sql-preview",
   "displayName": "SQL Preview",
   "description": "Run SQL queries directly from VS Code with tabbed results",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "publisher": "mehul",
   "icon": "media/icon.png",
   "repository": {
@@ -92,6 +92,10 @@
       {
         "command": "sql.debug.resetSession",
         "title": "SQL Preview: Reset Session (Debug)"
+      },
+      {
+        "command": "sql.openConnections",
+        "title": "SQL Preview: Manage Connections"
       }
     ],
     "viewsContainers": {
@@ -320,7 +324,7 @@
     "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
     "esbuild-daemon": "esbuild ./src/server/Daemon.ts --bundle --outfile=out/server/Daemon.js --platform=node --format=cjs --external:vscode --external:@duckdb/node-api",
     "esbuild-standalone": "esbuild ./src/server/standalone.ts --bundle --outfile=out/server/standalone.js --platform=node --format=cjs --external:vscode --external:@duckdb/node-api --banner:js=\"#!/usr/bin/env node\"",
-    "build:mcp-app": "vite build --config vite.config.mcp-app.mts && mv dist/index.html dist/mcp-app.html",
+    "build:mcp-app": "vite build --config vite.config.mcp-app.mts",
     "build": "npm run esbuild-base -- --minify && npm run esbuild-daemon -- --minify && npm run esbuild-standalone -- --minify && npm run build:mcp-app",
     "build-dev": "npm run esbuild-base -- --sourcemap && npm run esbuild-daemon -- --sourcemap",
     "test": "jest --config jest.config.js",

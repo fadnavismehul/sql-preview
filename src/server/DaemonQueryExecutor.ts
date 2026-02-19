@@ -1,7 +1,7 @@
 import { IConnector, ConnectorConfig } from '../connectors/base/IConnector';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { QueryPage, ConnectionProfile } from '../common/types';
-import { FileConnectionManager } from './FileConnectionManager';
+import { ConnectionManager } from './connection/ConnectionManager';
 import { ILogger } from '../common/logger';
 
 import { isFileQuery } from '../common/routing';
@@ -9,7 +9,7 @@ import { isFileQuery } from '../common/routing';
 export class DaemonQueryExecutor {
   constructor(
     private readonly connectorRegistry: ConnectorRegistry,
-    private readonly connectionManager: FileConnectionManager,
+    private readonly connectionManager: ConnectionManager,
     private readonly logger: ILogger
   ) {}
 
@@ -63,17 +63,17 @@ export class DaemonQueryExecutor {
 
       // 2. If Smart Routing didn't pick a profile, use connectionId if provided
       if (!profile && connectionId) {
-        profile = await this.connectionManager.getConnection(connectionId);
+        profile = await this.connectionManager.getProfile(connectionId);
       }
 
       // 3. Fallback to first available connection if still no profile
       if (!profile) {
         this.logger.info(`Fetching connections for fallback...`);
-        const connections = await this.connectionManager.getConnections();
+        const connections = await this.connectionManager.getProfiles();
         this.logger.info(`Found ${connections.length} connections.`);
         if (connections.length > 0 && connections[0]) {
           // Need to fetch full profile including password
-          profile = await this.connectionManager.getConnection(connections[0].id);
+          profile = await this.connectionManager.getProfile(connections[0].id);
         }
       }
     }

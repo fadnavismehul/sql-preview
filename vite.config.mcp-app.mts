@@ -7,7 +7,7 @@ export default defineConfig({
     plugins: [react(), viteSingleFile()],
     root: 'src/mcp-app',
     build: {
-        outDir: '../../dist',
+        outDir: '../../out/webviews/daemon',
         emptyOutDir: false, // Don't wipe existing dist files from other builds if any
         rollupOptions: {
             input: 'src/mcp-app/index.html',

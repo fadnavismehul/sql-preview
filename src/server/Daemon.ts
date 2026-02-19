@@ -12,7 +12,10 @@ import { PassThrough } from 'stream';
 
 import { SocketTransport } from './SocketTransport';
 import { SessionManager } from './SessionManager';
-import { FileConnectionManager } from './FileConnectionManager';
+import { ConnectionManager } from './connection/ConnectionManager';
+import { FileProfileStore } from './connection/FileProfileStore';
+import { EnvProfileStore } from './connection/EnvProfileStore';
+import { MemoryCredentialStore } from './connection/MemoryCredentialStore';
 import { DaemonQueryExecutor } from './DaemonQueryExecutor';
 import { DaemonMcpToolManager } from './DaemonMcpToolManager';
 import { DaemonMcpServer } from './DaemonMcpServer';
@@ -38,7 +41,7 @@ export class Daemon {
   >();
 
   private sessionManager: SessionManager;
-  private connectionManager: FileConnectionManager;
+  private connectionManager: ConnectionManager;
   private connectorRegistry: ConnectorRegistry;
   private queryExecutor: DaemonQueryExecutor;
 
@@ -63,7 +66,20 @@ export class Daemon {
 
     // 1. Initialize Managers
     this.sessionManager = new SessionManager(ConsoleLogger.getInstance());
-    this.connectionManager = new FileConnectionManager(this.CONFIG_DIR);
+
+    const fileStore = new FileProfileStore(this.CONFIG_DIR);
+    const envStore = new EnvProfileStore();
+    const credStore = new MemoryCredentialStore();
+    // Env Store (index 0) has highest priority in our ConnectionManager implementation?
+    // Wait, ConnectionManager iterates REVERSE: `for (let i = length - 1; i >= 0; i--)`
+    // And earlier stores (higher priority) overwrite later ones?
+    // Code says: "earlier stores (higher priority) overwrite later ones"
+    // Loop:
+    // for i = 1 (fileStore): map.set(id, profile)
+    // for i = 0 (envStore): map.set(id, profile) -> Overwrites.
+    // So Index 0 is HIGHEST priority.
+    this.connectionManager = new ConnectionManager([envStore, fileStore], credStore);
+
     this.connectorRegistry = new ConnectorRegistry();
 
     // 2. Register Connectors

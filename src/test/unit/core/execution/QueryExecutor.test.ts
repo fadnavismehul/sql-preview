@@ -22,7 +22,10 @@ describe('QueryExecutor (Dynamic Loading Regression)', () => {
     jest.clearAllMocks();
 
     mockConnectorRegistry = new ConnectorRegistry();
-    mockConnectionManager = new ConnectionManager({} as any) as jest.Mocked<ConnectionManager>;
+    mockConnectionManager = new ConnectionManager(
+      {} as any,
+      {} as any
+    ) as jest.Mocked<ConnectionManager>;
     mockDaemonClient = new DaemonClient({} as any) as jest.Mocked<DaemonClient>;
     mockDriverManager = new DriverManager({} as any) as jest.Mocked<DriverManager>;
 

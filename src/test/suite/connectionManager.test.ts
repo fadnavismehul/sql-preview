@@ -52,7 +52,11 @@ describe('ConnectionManager Test Suite', () => {
       secrets: secretsStub,
     } as any;
 
-    connectionManager = new ConnectionManager(context);
+    connectionManager = new ConnectionManager(context, {
+      listConnections: () => Promise.resolve([]),
+      saveConnection: () => Promise.resolve(),
+      deleteConnection: () => Promise.resolve(),
+    } as any);
   });
 
   it('Save and Get Connection', async () => {

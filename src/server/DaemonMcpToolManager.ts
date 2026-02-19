@@ -1,6 +1,6 @@
 import { SessionManager } from './SessionManager';
 import { DaemonQueryExecutor } from './DaemonQueryExecutor';
-import { FileConnectionManager } from './FileConnectionManager';
+import { ConnectionManager } from './connection/ConnectionManager';
 import { TabData } from '../common/types';
 import { logger } from './ConsoleLogger';
 
@@ -8,7 +8,7 @@ export class DaemonMcpToolManager {
   constructor(
     private readonly sessionManager: SessionManager,
     private readonly queryExecutor: DaemonQueryExecutor,
-    private readonly connectionManager: FileConnectionManager
+    private readonly connectionManager: ConnectionManager
   ) {}
 
   public getTools() {
@@ -118,6 +118,48 @@ export class DaemonMcpToolManager {
         },
       },
       {
+        name: 'save_connection',
+        description: 'Save or update a connection profile.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            connectionProfile: {
+              type: 'object',
+              description: 'The connection profile to save (must include "id", "name", "type").',
+            },
+          },
+          required: ['connectionProfile'],
+        },
+      },
+      {
+        name: 'test_connection',
+        description: 'Test connectivity for a specific connection profile.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            connectionId: {
+              type: 'string',
+              description: 'The Connection ID to test.',
+            },
+          },
+          required: ['connectionId'],
+        },
+      },
+      {
+        name: 'delete_connection',
+        description: 'Delete a connection profile.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            connectionId: {
+              type: 'string',
+              description: 'The Connection ID to delete.',
+            },
+          },
+          required: ['connectionId'],
+        },
+      },
+      {
         name: 'cancel_query',
         description:
           'Cancel a running query. Use get_tab_info first to check if a query is still in "loading" state before cancelling.',
@@ -157,6 +199,12 @@ export class DaemonMcpToolManager {
         return this.handleListSessions();
       case 'list_connections':
         return this.handleListConnections();
+      case 'save_connection':
+        return this.handleSaveConnection(args);
+      case 'test_connection':
+        return this.handleTestConnection(args);
+      case 'delete_connection':
+        return this.handleDeleteConnection(args);
       case 'cancel_query':
         return this.handleCancelQuery(args);
       case 'close_tab':
@@ -247,24 +295,105 @@ export class DaemonMcpToolManager {
   }
 
   private async handleListConnections() {
-    const connections = await this.connectionManager.getConnections();
+    const connections = await this.connectionManager.getProfiles();
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify(
-            connections.map(c => ({
-              id: c.id,
-              name: c.name,
-              type: c.type,
-              // Exclude sensitive details if any, though getConnections() should be safe
-            })),
+            connections.map(c => {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { password, ...safeProfile } = c as any;
+              return safeProfile;
+            }),
             null,
             2
           ),
         },
       ],
     };
+  }
+
+  private async handleSaveConnection(args: unknown) {
+    const typedArgs = args as { connectionProfile?: any } | undefined;
+    const profile = typedArgs?.connectionProfile;
+
+    if (!profile || !profile.id || !profile.name || !profile.type) {
+      throw new Error('Invalid connection profile: missing id, name, or type');
+    }
+
+    // Delegate to ConnectionManager
+    await this.connectionManager.saveProfile(profile);
+
+    return {
+      content: [{ type: 'text', text: `Connection '${profile.id}' saved.` }],
+    };
+  }
+
+  private async handleTestConnection(args: unknown) {
+    const typedArgs = args as { connectionId?: string } | undefined;
+    const connectionId = typedArgs?.connectionId;
+
+    if (!connectionId) {
+      throw new Error('Connection ID required');
+    }
+
+    const profile = await this.connectionManager.getProfile(connectionId);
+    if (!profile) {
+      throw new Error(`Connection profile '${connectionId}' not found`);
+    }
+
+    // Construct Config & Auth similar to runQuery logic
+    // We should probably share this logic, but for now duplicate
+    const connectorConfig: any = {
+      ...profile,
+      maxRows: 1,
+      sslVerify: 'sslVerify' in profile ? profile.sslVerify : true,
+    };
+
+    let authHeader: string | undefined;
+    if ('password' in profile && profile.password && 'user' in profile && profile.user) {
+      authHeader = 'Basic ' + Buffer.from(`${profile.user}:${profile.password}`).toString('base64');
+    }
+
+    // Call Executor Test
+    // Using 'any' cast on executor because testConnection might not be public in interface?
+    // It IS public in class.
+    const result = await this.queryExecutor.testConnection(
+      profile.type,
+      connectorConfig,
+      authHeader
+    );
+
+    if (result.success) {
+      return {
+        content: [{ type: 'text', text: 'Connection Test Successful' }],
+      };
+    } else {
+      return {
+        isError: true,
+        content: [{ type: 'text', text: `Connection Test Failed: ${result.error}` }],
+      };
+    }
+  }
+
+  private async handleDeleteConnection(args: unknown) {
+    const typedArgs = args as { connectionId?: string } | undefined;
+    const connectionId = typedArgs?.connectionId;
+
+    if (!connectionId) {
+      throw new Error('Connection ID required');
+    }
+
+    try {
+      await this.connectionManager.deleteProfile(connectionId);
+      return {
+        content: [{ type: 'text', text: `Connection '${connectionId}' deleted.` }],
+      };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Failed to delete connection '${connectionId}': ${msg}`);
+    }
   }
 
   private async handleRunQuery(args: unknown) {

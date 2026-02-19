@@ -418,6 +418,45 @@ export class DaemonClient {
     return [];
   }
 
+  public async listConnections() {
+    if (!this.isConnected) {
+      await this.start();
+    }
+    const result = await this.client.callTool({
+      name: 'list_connections',
+      arguments: {},
+    });
+    const content = result.content as { type: string; text: string }[];
+    if (content && content[0]?.text) {
+      return JSON.parse(content[0].text);
+    }
+    return [];
+  }
+
+  public async saveConnection(profile: unknown) {
+    if (!this.isConnected) {
+      await this.start();
+    }
+    await this.client.callTool({
+      name: 'save_connection',
+      arguments: {
+        connectionProfile: profile,
+      },
+    });
+  }
+
+  public async deleteConnection(connectionId: string) {
+    if (!this.isConnected) {
+      await this.start();
+    }
+    await this.client.callTool({
+      name: 'delete_connection',
+      arguments: {
+        connectionId,
+      },
+    });
+  }
+
   public async cancelQuery(tabId: string) {
     if (!this.isConnected) {
       await this.start();

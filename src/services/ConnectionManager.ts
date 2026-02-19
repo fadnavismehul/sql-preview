@@ -1,58 +1,59 @@
 import * as vscode from 'vscode';
-import * as os from 'os';
-import * as path from 'path';
-import * as fs from 'fs';
 import { ConnectionProfile } from '../common/types';
-import { Logger } from '../core/logging/Logger';
+
+import { DaemonClient } from './DaemonClient';
 
 export class ConnectionManager {
-  private static readonly STORAGE_KEY = 'sqlPreview.connections';
   private static readonly PASSWORD_KEY_PREFIX = 'sqlPreview.password.';
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly daemonClient: DaemonClient
+  ) {}
 
   public async getConnections(): Promise<ConnectionProfile[]> {
-    const connections = this.context.globalState.get<ConnectionProfile[]>(
-      ConnectionManager.STORAGE_KEY,
-      []
+    // Fetch from Daemon
+    const daemonConnections = await this.daemonClient.listConnections();
+
+    // Add Fallback Profile from Workspace Settings
+    const fallback = await this.getWorkspaceFallbackProfile();
+    if (fallback) {
+      daemonConnections.push(fallback as any);
+    }
+
+    // Merge with local passwords
+    const enriched = await Promise.all(
+      daemonConnections.map(async (c: any) => {
+        const password = await this.getPassword(c.id);
+        if (password) {
+          return { ...c, password };
+        }
+        return c;
+      })
     );
-    return connections;
+
+    return enriched;
   }
 
   public async saveConnection(profile: ConnectionProfile): Promise<void> {
-    const connections = await this.getConnections();
-    const index = connections.findIndex(c => c.id === profile.id);
-
-    // Don't persist password in globalState
-    // Remove password from profile before saving to state
+    // 1. Separate Password
     const { password, ...safeProfile } = profile;
 
-    if (index !== -1) {
-      connections[index] = safeProfile as ConnectionProfile;
-    } else {
-      connections.push(safeProfile as ConnectionProfile);
-    }
+    // 2. Save Profile to Daemon
+    await this.daemonClient.saveConnection(safeProfile);
 
-    await this.context.globalState.update(ConnectionManager.STORAGE_KEY, connections);
-
+    // 3. Save Password to Secrets
     if (password !== undefined) {
       if (password) {
         await this.setPassword(profile.id, password);
       } else {
-        // Clear password if empty string provided
         await this.deletePassword(profile.id);
       }
     }
-
-    // Sync to Daemon
-    this.syncToDaemon(connections);
   }
 
   public async deleteConnection(id: string): Promise<void> {
-    let connections = await this.getConnections();
-    connections = connections.filter(c => c.id !== id);
-    await this.context.globalState.update(ConnectionManager.STORAGE_KEY, connections);
-    this.syncToDaemon(connections);
+    await this.daemonClient.deleteConnection(id);
     await this.deletePassword(id);
   }
 
@@ -183,51 +184,6 @@ export class ConnectionManager {
 
   // --- Daemon Sync ---
 
-  private getDaemonConfigPath(): string {
-    const homeDir = os.homedir();
-
-    // Check for Dev Port override logic mirroring DaemonClient
-    const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
-    const configDir = envPort
-      ? path.join(homeDir, '.sql-preview-debug')
-      : path.join(homeDir, '.sql-preview');
-
-    return path.join(configDir, 'config.json');
-  }
-
-  public async sync(): Promise<void> {
-    const connections = await this.getConnections();
-    this.syncToDaemon(connections);
-  }
-
-  private syncToDaemon(connections: ConnectionProfile[]) {
-    try {
-      const configPath = this.getDaemonConfigPath();
-
-      const dir = path.dirname(configPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-
-      // Read existing to preserve any manual secrets if possible?
-      // For now, simple overwrite of profiles. Daemon FileConnectionManager is simple.
-      // We strip passwords before writing (security).
-      const safeConnections = connections.map(c => {
-        const { password, ...rest } = c;
-        void password;
-        return rest;
-      });
-
-      fs.writeFileSync(
-        configPath,
-        JSON.stringify({ connections: safeConnections }, null, 2),
-        'utf8'
-      );
-    } catch (e) {
-      // Ignore sync errors (e.g. permission)
-      Logger.getInstance().error(
-        `Failed to sync connections to daemon: ${e instanceof Error ? e.message : String(e)}`
-      );
-    }
-  }
+  // --- Daemon Sync ---
+  // (Obsolete)
 }

@@ -1,6 +1,6 @@
 # RFC-010: Modular Connection Profiles
 
-**Status:** Proposed
+**Status:** Implemented
 **Created:** 2026-02-18
 **Owner:** Core Team
 
@@ -16,6 +16,7 @@ Currently, connection management is handled by `FileConnectionManager`, which co
 2.  **Configuration Hierarchy**: There is no support for overriding configurations via environment variables or workspace-specific settings.
 3.  **Tightly Coupled Concerns**: The persistence layer is tightly coupled with the runtime representation of a connection.
 4.  **Scalability**: Adding new connector types requires updating the single profile schema and manager logic potentially in multiple places.
+5.  **Node.js Independence & DuckDB**: With the introduction of the optional DuckDB connector (requiring a native node module), strict isolation is needed to ensure the extension works in environments where the system Node.js is missing or incompatible. The connection profile system must handle cases where a connector is "configured but unavailable."
 
 ## Proposed Architecture
 
@@ -80,8 +81,29 @@ interface ICredentialStore {
 
 - **`KeytarCredentialStore`**: Uses `keytar` (system keychain) for production.
 - **`MemoryCredentialStore`**: Fallback for development/headless environments (current behavior, but encapsulated).
+- **`CommandCredentialStore`**: (Future) Executes a user-defined shell command to retrieve the password (similar to AWS `credential_process`). This enables integration with 1Password, LastPass, Vault, or custom scripts without modification to the Daemon.
 
-### 4. Connection Manager (`ConnectionManager`)
+### 4. Credential Strategy & "Injection" Pattern
+
+The system must support two distinct modes of operation:
+
+1.  **Iteractive (VS Code Extension)**:
+    - **Storage**: Secrets are stored in VS Code's `SecretStorage` (User Keychain).
+    - **Runtime**: The extension **injects** credentials into the Daemon with every request (via `run_query` arguments).
+    - **Benefit**: The Daemon remains stateless regarding secrets, reducing surface area.
+
+2.  **Headless / Autonomous (MCP Server)**:
+    - **Storage**: Secrets are retrieved by the Daemon itself via `EnvProfileStore` or `KeytarCredentialStore`.
+    - **Runtime**: The Daemon resolves missing credentials on-demand.
+    - **Benefit**: Enables `npx sql-preview-server` to work in CI/CD or remote environments.
+
+The `ConnectionManager` logic will prioritize:
+
+1.  Injected Credentials (Request-scoped)
+2.  Environment Variables
+3.  Secure Storage (Keytar)
+
+### 5. Connection Manager (`ConnectionManager`)
 
 The `ConnectionManager` becomes the orchestrator.
 
@@ -92,7 +114,7 @@ The `ConnectionManager` becomes the orchestrator.
   3.  Enriches profiles with credentials fetched from `ICredentialStore`.
 - **Runtime State**: capabilities to "test" a connection before returning it.
 
-### 5. API Changes
+### 6. API Changes
 
 The `Daemon` will initialize the `ConnectionManager` with the appropriate stores.
 
@@ -107,6 +129,19 @@ this.connectionManager = new ConnectionManager(
   credentialStore
 );
 ```
+
+### 7. UI/UX & Headless Transparency
+
+A key requirement is that the "Connections" page in VS Code is merely a _view_ into the Daemon's state.
+
+- **Tiered Architecture**: The VS Code extension acts as a thin UI layer. The Core logic resides entirely in the Daemon.
+- **Headless Support**: The Daemon must support "headless" operation (e.g., `npx sql-preview-server`) where no UI is present. In this mode, connections are configured solely via `IProfileStore` sources (File, Env).
+- **Connections Page**: A specific "Connections" view will be added to the extension:
+  - **Status Dashboard**: View connectivity status of all profiles.
+  - **Test Connection**: Button to verify credentials and network path.
+  - **Transparency**: The availability of this UI does not couple the Daemon to VS Code.
+
+See `docs/design/connection-management-ui.md` for detailed UI mockups and architecture.
 
 ## Security Considerations
 

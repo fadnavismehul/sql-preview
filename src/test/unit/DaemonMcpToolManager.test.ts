@@ -2,18 +2,18 @@ import { DaemonMcpToolManager } from '../../server/DaemonMcpToolManager';
 import { SessionManager } from '../../server/SessionManager';
 import { DaemonQueryExecutor } from '../../server/DaemonQueryExecutor';
 import { QueryPage } from '../../common/types';
-import { FileConnectionManager } from '../../server/FileConnectionManager';
+import { ConnectionManager } from '../../server/connection/ConnectionManager';
 
 // Mock dependencies
 jest.mock('../../server/SessionManager');
 jest.mock('../../server/DaemonQueryExecutor');
-jest.mock('../../server/FileConnectionManager');
+jest.mock('../../server/connection/ConnectionManager');
 
 describe('DaemonMcpToolManager', () => {
   let manager: DaemonMcpToolManager;
   let sessionManager: jest.Mocked<SessionManager>;
   let queryExecutor: jest.Mocked<DaemonQueryExecutor>;
-  let connectionManager: jest.Mocked<FileConnectionManager>;
+  let connectionManager: jest.Mocked<ConnectionManager>;
   let mockSession: any;
 
   beforeEach(() => {
@@ -24,7 +24,7 @@ describe('DaemonMcpToolManager', () => {
       null as any,
       null as any
     ) as jest.Mocked<DaemonQueryExecutor>;
-    connectionManager = new FileConnectionManager() as jest.Mocked<FileConnectionManager>;
+    connectionManager = new ConnectionManager([], null as any) as jest.Mocked<ConnectionManager>;
 
     manager = new DaemonMcpToolManager(sessionManager, queryExecutor, connectionManager);
 
@@ -261,6 +261,37 @@ describe('DaemonMcpToolManager', () => {
       expect(list[0].id).toBe('session1');
       expect(list[0].tabs).toBeDefined();
       expect(Array.isArray(list[0].tabs)).toBe(true);
+    });
+  });
+
+  describe('list_connections', () => {
+    it('should list connections with full details excluding password', async () => {
+      const mockProfiles = [
+        {
+          id: '1',
+          name: 'Test',
+          type: 'trino',
+          host: 'localhost',
+          port: 8080,
+          user: 'test',
+          password: 'pwd',
+        },
+      ];
+      (connectionManager.getProfiles as jest.Mock).mockResolvedValue(mockProfiles);
+
+      const result: any = await manager.handleToolCall('list_connections', {});
+      const connections = JSON.parse(result.content[0].text);
+
+      expect(connections).toHaveLength(1);
+      expect(connections[0]).toEqual({
+        id: '1',
+        name: 'Test',
+        type: 'trino',
+        host: 'localhost',
+        port: 8080,
+        user: 'test',
+      });
+      expect(connections[0].password).toBeUndefined();
     });
   });
 });

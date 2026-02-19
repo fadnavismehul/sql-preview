@@ -1,18 +1,18 @@
 import { DaemonQueryExecutor } from '../../server/DaemonQueryExecutor';
 import { ILogger } from '../../common/logger';
 import { ConnectorRegistry } from '../../connectors/base/ConnectorRegistry';
-import { FileConnectionManager } from '../../server/FileConnectionManager';
+import { ConnectionManager } from '../../server/connection/ConnectionManager';
 import { IConnector } from '../../connectors/base/IConnector';
 import { TrinoConnectionProfile, QueryPage } from '../../common/types';
 
-// Mock FileConnectionManager
-jest.mock('../../server/FileConnectionManager');
+// Mock ConnectionManager
+jest.mock('../../server/connection/ConnectionManager');
 
 describe('DaemonQueryExecutor', () => {
   let executor: DaemonQueryExecutor;
   let connectorRegistry: ConnectorRegistry;
 
-  let fileConnectionManager: jest.Mocked<FileConnectionManager>;
+  let connectionManager: jest.Mocked<ConnectionManager>;
   let mockConnector: jest.Mocked<IConnector>;
   const mockLogger: ILogger = {
     info: jest.fn(),
@@ -25,7 +25,7 @@ describe('DaemonQueryExecutor', () => {
     // Setup mocks
     connectorRegistry = new ConnectorRegistry();
 
-    fileConnectionManager = new FileConnectionManager() as jest.Mocked<FileConnectionManager>;
+    connectionManager = new ConnectionManager([], null as any) as jest.Mocked<ConnectionManager>;
 
     mockConnector = {
       id: 'trino',
@@ -37,7 +37,7 @@ describe('DaemonQueryExecutor', () => {
 
     connectorRegistry.register(mockConnector);
 
-    executor = new DaemonQueryExecutor(connectorRegistry, fileConnectionManager, mockLogger);
+    executor = new DaemonQueryExecutor(connectorRegistry, connectionManager, mockLogger);
   });
 
   const mockProfile: TrinoConnectionProfile = {
@@ -66,7 +66,7 @@ describe('DaemonQueryExecutor', () => {
   });
 
   it('should execute query successfully using stored connection', async () => {
-    fileConnectionManager.getConnection.mockResolvedValue(mockProfile);
+    connectionManager.getProfile.mockResolvedValue(mockProfile);
 
     mockConnector.runQuery.mockImplementation(async function* () {
       yield { data: [['result']], columns: [] } as QueryPage;
@@ -76,12 +76,12 @@ describe('DaemonQueryExecutor', () => {
 
     const result = await iterator.next();
     expect(result.done).toBe(false);
-    expect(fileConnectionManager.getConnection).toHaveBeenCalledWith('conn1');
+    expect(connectionManager.getProfile).toHaveBeenCalledWith('conn1');
   });
 
   it('should throw error if connector not registered', async () => {
     const invalidProfile = { ...mockProfile, type: 'unknown' as any };
-    fileConnectionManager.getConnection.mockResolvedValue(invalidProfile);
+    connectionManager.getProfile.mockResolvedValue(invalidProfile);
 
     const iterator = executor.execute('SELECT 1', 'session1', 'conn1');
 
@@ -90,7 +90,7 @@ describe('DaemonQueryExecutor', () => {
 
   it('should throw error if validation fails', async () => {
     mockConnector.validateConfig.mockReturnValue('Validation Error');
-    fileConnectionManager.getConnection.mockResolvedValue(mockProfile);
+    connectionManager.getProfile.mockResolvedValue(mockProfile);
 
     const iterator = executor.execute('SELECT 1', 'session1', 'conn1');
 
@@ -98,10 +98,10 @@ describe('DaemonQueryExecutor', () => {
   });
 
   it('should throw error if connection profile not found', async () => {
-    // fileConnectionManager.getConnection returns undefined by default mock if not set
-    fileConnectionManager.getConnection.mockResolvedValue(undefined);
-    // also getConnections empty for fallback
-    fileConnectionManager.getConnections.mockResolvedValue([]);
+    // connectionManager.getProfile returns undefined by default mock if not set
+    connectionManager.getProfile.mockResolvedValue(undefined);
+    // also getProfiles empty for fallback
+    connectionManager.getProfiles.mockResolvedValue([]);
 
     const iterator = executor.execute('SELECT 1', 'session1', 'conn1');
 
@@ -143,7 +143,7 @@ describe('DaemonQueryExecutor', () => {
 
   it('should construct Basic Auth header when password is present', async () => {
     const profileWithAuth = { ...mockProfile, password: 'password123' };
-    fileConnectionManager.getConnection.mockResolvedValue(profileWithAuth);
+    connectionManager.getProfile.mockResolvedValue(profileWithAuth);
 
     // Mock runQuery to capture authHeader
     mockConnector.runQuery.mockImplementation(async function* (_query, _config, authHeader) {
@@ -159,12 +159,12 @@ describe('DaemonQueryExecutor', () => {
   });
 
   it('should fallback to first connection if no connectionId provided', async () => {
-    fileConnectionManager.getConnections.mockResolvedValue([mockProfile]);
-    fileConnectionManager.getConnection.mockResolvedValue(mockProfile);
+    connectionManager.getProfiles.mockResolvedValue([mockProfile]);
+    connectionManager.getProfile.mockResolvedValue(mockProfile);
 
     // Explicitly return undefined for the first call (which would be by ID if provided)
     // But wait, the code checks 'connectionId' arg first. If undefined, it goes to else.
-    // So we don't need to mock getConnection with arguments.
+    // So we don't need to mock getProfile with arguments.
 
     mockConnector.runQuery.mockImplementation(async function* () {
       yield { data: [], columns: [] } as QueryPage;
@@ -173,8 +173,8 @@ describe('DaemonQueryExecutor', () => {
     const iterator = executor.execute('SELECT 1', 'session1'); // No connectionId
     await iterator.next();
 
-    expect(fileConnectionManager.getConnections).toHaveBeenCalled();
-    expect(fileConnectionManager.getConnection).toHaveBeenCalledWith(mockProfile.id);
+    expect(connectionManager.getProfiles).toHaveBeenCalled();
+    expect(connectionManager.getProfile).toHaveBeenCalledWith(mockProfile.id);
   });
 
   it('should yield multiple pages from connector', async () => {
@@ -183,7 +183,7 @@ describe('DaemonQueryExecutor', () => {
       yield { data: [['page2']], columns: [] } as QueryPage;
     });
 
-    fileConnectionManager.getConnection.mockResolvedValue(mockProfile);
+    connectionManager.getProfile.mockResolvedValue(mockProfile);
 
     const iterator = executor.execute('SELECT 1', 'session1', 'conn1');
 

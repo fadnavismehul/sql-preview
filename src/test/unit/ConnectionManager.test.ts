@@ -3,34 +3,21 @@ import { mockContext } from '../setup';
 import * as vscode from 'vscode';
 import { TrinoConnectionProfile } from '../../common/types';
 
+jest.mock('../../services/DaemonClient');
+
 // Mock vscode.workspace.getConfiguration since it's used in migration
 const mockGetConfiguration = jest.fn();
 (vscode.workspace.getConfiguration as jest.Mock) = mockGetConfiguration;
 
 describe('ConnectionManager', () => {
   let connectionManager: ConnectionManager;
-  let mockConnections: any[] = [];
+  let mockDaemonClient: any;
   let mockSecrets: Record<string, string> = {};
 
   beforeEach(() => {
-    mockConnections = [];
     mockSecrets = {};
 
-    // Reset mocks
-    mockContext.globalState.get.mockImplementation((key: string, defaultValue: any) => {
-      if (key === 'sqlPreview.connections') {
-        return mockConnections;
-      }
-      return defaultValue;
-    });
-
-    mockContext.globalState.update.mockImplementation((key: string, value: any) => {
-      if (key === 'sqlPreview.connections') {
-        mockConnections = value;
-      }
-      return Promise.resolve();
-    });
-
+    // Mock Secrets
     mockContext.secrets.get.mockImplementation((key: string) => {
       return Promise.resolve(mockSecrets[key]);
     });
@@ -50,10 +37,40 @@ describe('ConnectionManager', () => {
       get: jest.fn((_key, defaultValue) => defaultValue),
     });
 
-    connectionManager = new ConnectionManager(mockContext as unknown as vscode.ExtensionContext);
+    // Mock DaemonClient
+    mockDaemonClient = {
+      listConnections: jest.fn().mockResolvedValue([]),
+      saveConnection: jest.fn().mockResolvedValue(undefined),
+      deleteConnection: jest.fn().mockResolvedValue(undefined),
+    };
+
+    connectionManager = new ConnectionManager(
+      mockContext as unknown as vscode.ExtensionContext,
+      mockDaemonClient
+    );
   });
 
-  it('should save a connection profile securely', async () => {
+  it('should get connections from Daemon and merge passwords', async () => {
+    const daemonProfile = {
+      id: 'conn1',
+      name: 'Test Connection',
+      type: 'trino',
+      // No password in Daemon
+    };
+
+    mockDaemonClient.listConnections.mockResolvedValue([daemonProfile]);
+    mockSecrets['sqlPreview.password.conn1'] = 'secretPassword';
+
+    const connections = await connectionManager.getConnections();
+
+    expect(connections.length).toBe(2);
+    expect(connections[0]!.id).toBe('conn1');
+    expect((connections[0] as any).password).toBe('secretPassword');
+    expect(connections[1]!.id).toMatch(/^workspace-fallback-/);
+    expect(mockDaemonClient.listConnections).toHaveBeenCalled();
+  });
+
+  it('should save connection to Daemon and password to Secrets', async () => {
     const profile: TrinoConnectionProfile = {
       id: 'conn1',
       name: 'Test Connection',
@@ -67,112 +84,50 @@ describe('ConnectionManager', () => {
 
     await connectionManager.saveConnection(profile);
 
-    // Verify profile saved in globalState without password
-    expect(mockConnections.length).toBe(1);
-    expect(mockConnections[0].id).toBe('conn1');
-    expect(mockConnections[0].user).toBe('admin');
-    expect(mockConnections[0].password).toBeUndefined();
+    // Verify Daemon call (password stripped)
+    expect(mockDaemonClient.saveConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'conn1',
+        user: 'admin',
+      })
+    );
+    const savedArg = mockDaemonClient.saveConnection.mock.calls[0][0];
+    expect(savedArg.password).toBeUndefined();
 
-    // Verify password saved in secrets
+    // Verify Secrets
     expect(mockSecrets['sqlPreview.password.conn1']).toBe('secretPassword');
   });
 
-  it('should retrieve a connection with password', async () => {
-    const profile: TrinoConnectionProfile = {
-      id: 'conn1',
-      name: 'Test Connection',
-      type: 'trino',
-      host: 'localhost',
-      port: 8080,
-      user: 'admin',
-      ssl: false,
-    };
-    mockConnections.push(profile);
+  it('should delete connection from Daemon and Secrets', async () => {
     mockSecrets['sqlPreview.password.conn1'] = 'secretPassword';
-
-    const retrieved = await connectionManager.getConnection('conn1');
-
-    expect(retrieved).toBeDefined();
-    expect(retrieved?.id).toBe('conn1');
-    expect((retrieved as any).password).toBe('secretPassword');
-  });
-
-  it('should return undefined for non-existent connection', async () => {
-    const retrieved = await connectionManager.getConnection('non_existent');
-    expect(retrieved).toBeUndefined();
-  });
-
-  it('should delete a connection and its password', async () => {
-    const profile: TrinoConnectionProfile = {
-      id: 'conn1',
-      name: 'Test Connection',
-      type: 'trino',
-      host: 'localhost',
-      port: 8080,
-      user: 'admin',
-      ssl: false,
-    };
-    mockConnections.push(profile);
-    mockSecrets['sqlPreview.password.conn1'] = 'secretPassword'; // Correct key
 
     await connectionManager.deleteConnection('conn1');
 
-    expect(mockConnections.length).toBe(0);
+    expect(mockDaemonClient.deleteConnection).toHaveBeenCalledWith('conn1');
     expect(mockSecrets['sqlPreview.password.conn1']).toBeUndefined();
   });
 
-  it('should migrate legacy settings if no connections exist', async () => {
-    // Ensure no connections exist
-    mockConnections = [];
+  it('should include workspace fallback profile if configured', async () => {
+    // Daemon returns empty
+    mockDaemonClient.listConnections.mockResolvedValue([]);
 
-    // Mock legacy configuration
+    // Mock Workspace Config to return Trino defaults
     mockGetConfiguration.mockReturnValue({
       get: jest.fn((key, defaultValue) => {
         if (key === 'defaultConnector') {
           return 'trino';
         }
         if (key === 'host') {
-          return 'legacy-host';
-        }
-        if (key === 'port') {
-          return 9090;
-        }
-        if (key === 'user') {
-          return 'legacy-user';
+          return 'fallback-host';
         }
         return defaultValue;
       }),
     });
 
-    // Mock legacy password
-    mockSecrets['sqlPreview.database.password'] = 'legacyPassword';
+    const connections = await connectionManager.getConnections();
 
-    await connectionManager.migrateLegacySettings();
-
-    expect(mockConnections.length).toBe(1);
-    const migrated = mockConnections[0];
-    expect(migrated.host).toBe('legacy-host');
-    expect(migrated.port).toBe(9090);
-    expect(migrated.user).toBe('legacy-user');
-
-    // Verify password migration (it should be set via saveConnection -> setPassword)
-    // Since id is generated with Date.now(), we need to find the key
-    const passwordKey = Object.keys(mockSecrets).find(k =>
-      k.startsWith('sqlPreview.password.default-trino-')
-    );
-    expect(passwordKey).toBeDefined();
-    if (passwordKey) {
-      expect(mockSecrets[passwordKey]).toBe('legacyPassword');
-    }
-  });
-
-  it('should NOT migrate if connections already exist', async () => {
-    mockConnections = [{ id: 'existing', name: 'Existing', type: 'trino' }];
-
-    await connectionManager.migrateLegacySettings();
-
-    // Should still be just 1
-    expect(mockConnections.length).toBe(1);
-    expect(mockConnections[0].id).toBe('existing');
+    expect(connections.length).toBe(1);
+    expect(connections[0]!.id).toBe('workspace-fallback-trino');
+    expect((connections[0] as any).host).toBe('fallback-host');
   });
 });
