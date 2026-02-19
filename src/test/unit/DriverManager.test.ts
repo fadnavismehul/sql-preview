@@ -47,7 +47,25 @@ describe('DriverManager', () => {
       stdout: { on: jest.fn() },
       stderr: { on: jest.fn() },
     };
-    (cp.spawn as jest.Mock).mockReturnValue(mockChildProcess);
+    (cp.spawn as jest.Mock).mockImplementation((_cmd, args) => {
+      // Handle 'npm --version' check separately if needed, or assume all succeed by default
+      if (args && args[0] === '--version') {
+        const mockCheckProcess: any = {
+          on: jest.fn((event, cb) => {
+            if (event === 'close') {
+              cb(0);
+            } // Success for version check
+            if (event === 'error') {
+              // no-op
+            }
+          }),
+          stdout: { on: jest.fn() },
+          stderr: { on: jest.fn() },
+        };
+        return mockCheckProcess;
+      }
+      return mockChildProcess;
+    });
   });
 
   describe('getDriver', () => {
@@ -100,6 +118,16 @@ describe('DriverManager', () => {
       // Mock spawn failure
       mockChildProcess.on.mockImplementation((event: string, cb: any) => {
         if (event === 'close') {
+          // Assume the first call was version check (success) and second was install (fail)
+          // But here we are mocking the returned process object's method.
+          // Since getDriver calls 'isNpmAvailable' first, that spawns a process.
+          // Then 'installDriver' spawns another.
+          // We need simpler mocking strategy or inspect calls.
+          // Let's assume the test sets up mockChildProcess to fail, and we want that failure to apply to the INSTALL command.
+          // BUT the version check must succeed first.
+
+          // Simplified approach: make version check succeed (handled in spawn mock above),
+          // and this mockChildProcess (returned for install) fail.
           cb(1);
         } // Error code
       });

@@ -41,6 +41,13 @@ export class DriverManager {
   }
 
   private async installDriver(packageName: string): Promise<void> {
+    // Check if npm is available
+    if (!(await this.isNpmAvailable())) {
+      throw new Error(
+        `Cannot install driver '${packageName}' because 'npm' was not found. Please install Node.js and npm to use this feature.`
+      );
+    }
+
     // Ensure storage directory exists
     if (!fs.existsSync(this.storagePath)) {
       fs.mkdirSync(this.storagePath, { recursive: true });
@@ -97,5 +104,28 @@ export class DriverManager {
         });
       }
     );
+  }
+
+  private async isNpmAvailable(): Promise<boolean> {
+    try {
+      const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+      await new Promise<void>((resolve, reject) => {
+        const child = cp.spawn(npmCommand, ['--version'], {
+          stdio: 'ignore',
+          env: process.env,
+        });
+        child.on('error', reject);
+        child.on('close', code => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error('npm check failed'));
+          }
+        });
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 }

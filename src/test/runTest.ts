@@ -28,6 +28,10 @@ async function main() {
       extensionDevelopmentPath,
       extensionTestsPath,
       launchArgs: args,
+      extensionTestsEnv: {
+        ...process.env,
+        SQL_PREVIEW_ENABLE_DUCKDB: 'true',
+      },
     });
   } catch (err) {
     // console.error('Failed to run tests:', err);

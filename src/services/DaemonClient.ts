@@ -189,14 +189,12 @@ export class DaemonClient {
 
   private async spawnDaemon() {
     // Path to Daemon.js
-    // If running in dev with ts-node, we might need adjustments,
-    // but assuming compiled 'out' structure for production/standard run.
     const serverPath = path.join(this.context.extensionPath, 'out', 'server', 'daemon.js');
 
     const devPort = process.env['SQL_PREVIEW_MCP_PORT'];
     const portToUse = devPort; // Ignore config port, force 8414 or env var
 
-    // Robust PATH for Mac/Linux if node is not in VS Code's inherited env
+    // Robust PATH for Mac/Linux
     const robustPath = [
       process.env['PATH'],
       '/usr/local/bin',
@@ -213,20 +211,52 @@ export class DaemonClient {
         ? vscode.workspace.workspaceFolders[0]?.uri.fsPath || os.homedir()
         : os.homedir();
 
-    this.process = cp.spawn('node', [serverPath], {
+    const config = vscode.workspace.getConfiguration('sqlPreview');
+    const enableDuckDb = config.get<boolean>('experimental.duckDb', false);
+
+    // Env vars common to bothspawn methods
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      PATH: robustPath,
+      SQL_PREVIEW_DAEMON: '1',
+      SQL_PREVIEW_HOME: this.configDir,
+      SQL_PREVIEW_LOG_LEVEL:
+        process.env['SQL_PREVIEW_LOG_LEVEL'] || config.get<string>('logLevel', 'INFO'),
+      SQL_PREVIEW_ENABLE_DUCKDB: enableDuckDb ? 'true' : 'false',
+      ...(portToUse ? { MCP_PORT: portToUse } : {}),
+    };
+
+    // 1. Check for System Node
+    let nodeRuntime = 'node';
+    const args = [serverPath];
+
+    try {
+      // Try to invoke node --version
+      // We use execSync for a quick check, or could use spawn and wait.
+      // Since this is inside spawnDaemon (async), let's use a quick promisified spawn or exec.
+      // Actually, standard cp.spawn with error listener is enough, but we want to decide BEFORE failing the main process.
+      // Let's rely on 'error' event of the main spawn? No, we want fallback.
+      // Let's try to verify node existence first.
+      cp.execSync('node --version', { env });
+      Logger.getInstance().info('Using system Node.js runtime.');
+    } catch (e) {
+      // System node not found or failed
+      Logger.getInstance().info('System Node.js not found. Falling back to VS Code runtime.');
+      nodeRuntime = process.execPath;
+      // When running via Electron/VS Code executable, we need slightly different args if we were forking,
+      // but for spawning a script, 'process.execPath' acts as the node binary (mostly).
+      // However, it might be the Electron executable.
+      // Usually standard node script execution works if ELECTRON_RUN_AS_NODE is set.
+      env['ELECTRON_RUN_AS_NODE'] = '1';
+    }
+
+    Logger.getInstance().info(`Spawning daemon with: ${nodeRuntime} ${args.join(' ')}`);
+
+    this.process = cp.spawn(nodeRuntime, args, {
       detached: true,
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        PATH: robustPath,
-        SQL_PREVIEW_DAEMON: '1',
-        SQL_PREVIEW_HOME: this.configDir,
-        SQL_PREVIEW_LOG_LEVEL:
-          process.env['SQL_PREVIEW_LOG_LEVEL'] ||
-          vscode.workspace.getConfiguration('sqlPreview').get<string>('logLevel', 'INFO'),
-        ...(portToUse ? { MCP_PORT: portToUse } : {}),
-      },
+      env,
     });
 
     this.process.on('error', err => {
@@ -234,7 +264,7 @@ export class DaemonClient {
       this.startupLogBuffer += `\nSpawn Error: ${err.message}`;
     });
 
-    this.process.unref(); // Let it run independently
+    this.process.unref();
 
     const outputChannel = Logger.getInstance().getOutputChannel();
 
@@ -245,17 +275,12 @@ export class DaemonClient {
       });
     }
 
-    // Capture stderr for debugging startup failures AND log to output
+    // Capture stderr
     if (this.process.stderr) {
       this.process.stderr.on('data', data => {
         const chunk = data.toString();
-
-        // Stream to output channel
         outputChannel.append(chunk);
-
-        // Append to startup buffer
         this.startupLogBuffer = (this.startupLogBuffer || '') + chunk;
-        // Limit buffer size
         if (this.startupLogBuffer.length > 2000) {
           this.startupLogBuffer = this.startupLogBuffer.substring(
             this.startupLogBuffer.length - 2000

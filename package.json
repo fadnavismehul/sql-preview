@@ -266,6 +266,12 @@
           "description": "(Beta) If enabled, MCP server will only execute read-only queries (SELECT, SHOW, DESCRIBE, etc.)",
           "order": 22
         },
+        "sqlPreview.experimental.duckDb": {
+          "type": "boolean",
+          "default": false,
+          "description": "(Experimental) Enable DuckDB connector. Requires a compatible Node.js environment.",
+          "order": 23
+        },
         "sqlPreview.defaultConnector": {
           "type": "string",
           "enum": [

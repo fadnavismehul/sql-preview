@@ -1,3 +1,6 @@
+// Enable DuckDB for tests
+process.env['SQL_PREVIEW_ENABLE_DUCKDB'] = 'true';
+
 // import * as vscode from 'vscode'; // Currently unused in this file
 
 // Mock VS Code API
