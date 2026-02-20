@@ -325,8 +325,9 @@
     "esbuild-daemon": "esbuild ./src/server/Daemon.ts --bundle --outfile=out/server/Daemon.js --platform=node --format=cjs --external:vscode --external:@duckdb/node-api",
     "esbuild-standalone": "esbuild ./src/server/standalone.ts --bundle --outfile=out/server/standalone.js --platform=node --format=cjs --external:vscode --external:@duckdb/node-api --banner:js=\"#!/usr/bin/env node\"",
     "build:mcp-app": "vite build --config vite.config.mcp-app.mts",
-    "build": "npm run esbuild-base -- --minify && npm run esbuild-daemon -- --minify && npm run esbuild-standalone -- --minify && npm run build:mcp-app",
-    "build-dev": "npm run esbuild-base -- --sourcemap && npm run esbuild-daemon -- --sourcemap",
+    "copy-wasm": "mkdir -p out/server && cp node_modules/sql.js/dist/sql-wasm.wasm out/server/",
+    "build": "npm run copy-wasm && npm run esbuild-base -- --minify && npm run esbuild-daemon -- --minify && npm run esbuild-standalone -- --minify && npm run build:mcp-app",
+    "build-dev": "npm run copy-wasm && npm run esbuild-base -- --sourcemap && npm run esbuild-daemon -- --sourcemap",
     "test": "jest --config jest.config.js",
     "test:watch": "jest --config jest.config.js --watch",
     "test:coverage": "jest --config jest.config.js --coverage",
@@ -360,6 +361,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/sinon": "^17.0.4",
+    "@types/sql.js": "^1.4.9",
     "@types/sqlite3": "^3.1.11",
     "@types/vscode": "^1.80.0",
     "@typescript-eslint/eslint-plugin": "^5.59.8",
@@ -400,6 +402,7 @@
     "json-bigint": "^1.0.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "sql.js": "^1.14.0",
     "trino-client": "^0.2.6"
   },
   "lint-staged": {

@@ -42,22 +42,53 @@ export class DaemonQueryExecutor {
       // We check this BEFORE connectionId to allow "adhoc" file queries (e.g. FROM 'data.csv')
       // to override the currently selected connection in the UI.
       if (isFileQuery(query)) {
-        try {
-          // Check availability
-          this.getConnector('duckdb');
-          this.logger.info('Detected local file query pattern, switching to Adhoc DuckDB profile');
-          profile = {
-            id: 'adhoc-duckdb',
-            name: 'Adhoc DuckDB',
-            type: 'duckdb',
-            databasePath: ':memory:', // Default to memory, CWD set by process
-            sslVerify: true,
-          } as any;
-        } catch (e) {
-          this.logger.error('DuckDB connector failed during auto-routing', e);
-          throw new Error(
-            `Auto-Routing Failed: Detected file query but DuckDB connector is unavailable. ${e instanceof Error ? e.message : String(e)}`
-          );
+        const isSqliteFile = /[^']+\.(sqlite|db)\s*'/i.test(query);
+
+        if (isSqliteFile) {
+          try {
+            this.getConnector('sqlite');
+            this.logger.info(
+              'Detected local sqlite file query pattern, switching to Adhoc SQLite profile'
+            );
+            // Extract the path for the Adhoc profile from the query.
+            // In a real file query "SELECT * FROM 'path.db'", it's in the FROM clause.
+            const pathMatch = query.match(
+              /from(?:\s+|(?:\s*--[^\n]*\n)|(?:\s*\/\*[\s\S]*?\*\/))*'([^']+)'/i
+            );
+            const databasePath = pathMatch && pathMatch[1] ? pathMatch[1].trim() : '';
+
+            profile = {
+              id: 'adhoc-sqlite',
+              name: 'Adhoc SQLite',
+              type: 'sqlite',
+              databasePath: databasePath,
+            } as any;
+          } catch (e) {
+            this.logger.error('SQLite connector failed during auto-routing', e);
+            throw new Error(
+              `Auto-Routing Failed: Detected file query but SQLite connector is unavailable. ${e instanceof Error ? e.message : String(e)}`
+            );
+          }
+        } else {
+          try {
+            // Check availability
+            this.getConnector('duckdb');
+            this.logger.info(
+              'Detected local file query pattern, switching to Adhoc DuckDB profile'
+            );
+            profile = {
+              id: 'adhoc-duckdb',
+              name: 'Adhoc DuckDB',
+              type: 'duckdb',
+              databasePath: ':memory:', // Default to memory, CWD set by process
+              sslVerify: true,
+            } as any;
+          } catch (e) {
+            this.logger.error('DuckDB connector failed during auto-routing', e);
+            throw new Error(
+              `Auto-Routing Failed: Detected file query but DuckDB connector is unavailable. ${e instanceof Error ? e.message : String(e)}`
+            );
+          }
         }
       }
 

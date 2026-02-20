@@ -196,4 +196,54 @@ describe('DaemonQueryExecutor', () => {
     const third = await iterator.next();
     expect(third.done).toBe(true);
   });
+
+  it('should dynamically route sqlite file queries to ad-hoc sqlite connector', async () => {
+    const mockSqliteConnector = {
+      id: 'sqlite',
+      validateConfig: jest.fn(),
+      runQuery: jest.fn().mockImplementation(async function* () {
+        yield { data: [['sqlite-data']], columns: [] } as QueryPage;
+      }),
+      supportsPagination: false,
+      testConnection: jest.fn(),
+    };
+    connectorRegistry.register(mockSqliteConnector);
+
+    const iterator = executor.execute("SELECT * FROM 'my_db.sqlite'", 'session1');
+    const result = await iterator.next();
+
+    expect(result.done).toBe(false);
+    expect((result.value as QueryPage).data).toEqual([['sqlite-data']]);
+    expect(mockSqliteConnector.runQuery).toHaveBeenCalledWith(
+      "SELECT * FROM 'my_db.sqlite'",
+      expect.objectContaining({ type: 'sqlite', databasePath: 'my_db.sqlite' }),
+      undefined,
+      undefined
+    );
+  });
+
+  it('should route non-sqlite file queries to ad-hoc duckdb connector', async () => {
+    const mockDuckDbConnector = {
+      id: 'duckdb',
+      validateConfig: jest.fn(),
+      runQuery: jest.fn().mockImplementation(async function* () {
+        yield { data: [['duckdb-data']], columns: [] } as QueryPage;
+      }),
+      supportsPagination: false,
+      testConnection: jest.fn(),
+    };
+    connectorRegistry.register(mockDuckDbConnector);
+
+    const iterator = executor.execute("SELECT * FROM 'data.csv'", 'session1');
+    const result = await iterator.next();
+
+    expect(result.done).toBe(false);
+    expect((result.value as QueryPage).data).toEqual([['duckdb-data']]);
+    expect(mockDuckDbConnector.runQuery).toHaveBeenCalledWith(
+      "SELECT * FROM 'data.csv'",
+      expect.objectContaining({ type: 'duckdb' }), // Ad-hoc DuckDB profile doesn't hardcode a databasePath, relies on query
+      undefined,
+      undefined
+    );
+  });
 });

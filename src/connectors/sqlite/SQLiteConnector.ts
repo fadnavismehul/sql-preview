@@ -1,15 +1,18 @@
-import type { Database } from 'sqlite3';
+import * as fs from 'fs';
 import { IConnector, ConnectorConfig } from '../base/IConnector';
 import { QueryPage, ColumnDef } from '../../common/types';
+import initSqlJs, { SqlJsStatic } from 'sql.js';
 
 export interface SQLiteConfig extends ConnectorConfig {
   databasePath: string;
-  driverPath?: string;
+  driverPath?: string; // Obsolete with WASM
 }
 
 export class SQLiteConnector implements IConnector<SQLiteConfig> {
   readonly id = 'sqlite';
-  readonly supportsPagination = false; // SQLite returns all results at once
+  readonly supportsPagination = false; // SQLite WASM loads memory, paginating post-execution
+
+  private sqlPromise: Promise<SqlJsStatic> | null = null;
 
   validateConfig(config: SQLiteConfig): string | undefined {
     if (!config.databasePath) {
@@ -18,144 +21,99 @@ export class SQLiteConnector implements IConnector<SQLiteConfig> {
     return undefined;
   }
 
+  private async getSql(): Promise<SqlJsStatic> {
+    if (!this.sqlPromise) {
+      this.sqlPromise = initSqlJs();
+    }
+    return this.sqlPromise;
+  }
+
   async *runQuery(
     query: string,
     config: SQLiteConfig,
     _authHeader?: string,
     abortSignal?: AbortSignal
   ): AsyncGenerator<QueryPage, void, unknown> {
-    // Lazy load sqlite3 to avoid startup crashes if native bindings are missing
-    // or if we are using dynamic driver loading
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let sqlite3: any;
-    try {
-      if (config.driverPath) {
-        sqlite3 = await import(config.driverPath);
-      } else {
-        sqlite3 = await import('sqlite3');
-      }
-
-      if (sqlite3.default) {
-        sqlite3 = sqlite3.default;
-      }
-    } catch (e) {
-      throw new Error(
-        `SQLite3 module not found (path: ${config.driverPath || 'default'}). Please ensure it is installed and rebuilt for your platform.`
-      );
+    if (abortSignal?.aborted) {
+      return;
     }
 
-    const db: Database = new sqlite3.Database(config.databasePath);
-
-    // Wait for open
-    await new Promise<void>((resolve, reject) => {
-      db.once('open', resolve);
-      db.once('error', reject);
-      // Trigger open verification
-      db.get('PRAGMA user_version', err => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
-    });
-
     try {
+      // 1. Initialize WASM module
+      const SQL = await this.getSql();
+
       if (abortSignal?.aborted) {
         return;
       }
 
-      // We use a queue to buffer rows from db.each
-      // This allows us to yield pages
-      const queue: unknown[] = [];
-      let columns: ColumnDef[] | undefined;
-      let error: Error | undefined;
-      let completed = false;
-      let resolveNext: (() => void) | undefined;
-
-      // Start execution
-      db.each(
-        query,
-        (err, row) => {
-          if (err) {
-            error = err;
-          } else {
-            queue.push(row);
-          }
-          if (resolveNext) {
-            resolveNext();
-            resolveNext = undefined;
-          }
-        },
-        err => {
-          if (err) {
-            error = err;
-          }
-          completed = true;
-          if (resolveNext) {
-            resolveNext();
-            resolveNext = undefined;
-          }
-        }
-      );
-
-      // Check for synchronous errors immediately
-      if (error) {
-        throw error;
+      // 2. Load database file into memory buffer
+      let fileBuffer: Buffer;
+      try {
+        fileBuffer = await fs.promises.readFile(config.databasePath);
+      } catch (err: any) {
+        throw new Error(`Failed to load SQLite file at ${config.databasePath}: ${err.message}`);
       }
 
-      // Generator loop
-      while (!completed || queue.length > 0) {
-        if (abortSignal?.aborted) {
-          // If aborted, we stop yielding.
-          // The db query continues in background until done, but we close db in finally.
-          return;
-        }
+      if (abortSignal?.aborted) {
+        return;
+      }
 
-        if (error) {
-          throw error;
-        }
+      // 3. Instantiate database
+      const db = new SQL.Database(fileBuffer);
 
-        if (queue.length === 0) {
-          // Wait for data or completion
-          await new Promise<void>(resolve => {
-            resolveNext = resolve;
-          });
-          continue;
-        }
+      try {
+        // 4. Prepare and execute the query
+        const stmt = db.prepare(query);
 
-        // Flush current queue as a page
-        // We take a snapshot of the queue length to batch
-        const batchSize = queue.length; // yield all available
-        const batch = queue.splice(0, batchSize);
+        let columns: ColumnDef[] | null = null;
+        const data: unknown[][] = [];
 
-        if (batch.length > 0) {
+        // 5. Gather rows
+        while (stmt.step()) {
+          if (abortSignal?.aborted) {
+            stmt.free();
+            return;
+          }
+
           if (!columns) {
-            // Infer columns from the first row of the first batch
-            const firstRow = batch[0] as Record<string, unknown>;
-            columns = Object.keys(firstRow).map(key => ({
-              name: key,
-              type: typeof firstRow[key], // rough type inference
+            columns = stmt.getColumnNames().map(name => ({
+              name,
+              // we don't know exact types easily in sql.js without digging into stmt,
+              // but we can default generic object or leave vague
+              type: 'unknown',
             }));
           }
 
-          // Convert rows to array of values (if that's what QueryPage expects)
-          if (columns) {
-            const currentColumns = columns; // Capture for closure if needed, though map is sync
-            const data = batch.map(row => {
-              const r = row as Record<string, unknown>;
-              return currentColumns.map(col => r[col.name]);
-            });
-
-            yield {
-              columns,
-              data,
-            };
-          }
+          data.push(stmt.get());
         }
+        stmt.free();
+
+        // If no rows were returned but columns exist (or if we can get them)
+        // sql.js doesn't give columns if step() is false on first try, unless we parse schema.
+        if (!columns) {
+          // It might have been an INSERT/UPDATE or a SELECT making 0 rows.
+          // In sql.js, you can get affected rows but not usually empty column names this way
+          // We can fallback to empty
+          yield {
+            columns: [],
+            data: [],
+          };
+        } else {
+          yield {
+            columns,
+            data,
+          };
+        }
+      } finally {
+        // 6. Safely free memory
+        db.close();
       }
-    } finally {
-      db.close();
+    } catch (e: any) {
+      // Improve error message matching
+      if (e.message?.includes('SQL error')) {
+        throw new Error(`SQLite Error: ${e.message}`);
+      }
+      throw e;
     }
   }
 }

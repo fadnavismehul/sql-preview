@@ -59,9 +59,9 @@ export class QueryExecutor {
     }
 
     // Inject Driver Path if needed (Extension Host Side)
-    if (profile && (profile.type === 'sqlite' || profile.type === 'postgres')) {
+    if (profile && profile.type === 'postgres') {
       try {
-        const packageName = profile.type === 'sqlite' ? 'sqlite3' : 'pg';
+        const packageName = 'pg';
         const driverPath = await this.driverManager.getDriver(packageName);
         // Inject into profile for Daemon to use
         (profile as any).driverPath = driverPath;

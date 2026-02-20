@@ -3,7 +3,6 @@ import { ConnectionManager } from '../../../../services/ConnectionManager';
 import { DriverManager } from '../../../../services/DriverManager';
 import { DaemonClient } from '../../../../services/DaemonClient';
 import { ConnectorRegistry } from '../../../../connectors/base/ConnectorRegistry';
-import { SQLiteConnectionProfile } from '../../../../common/types';
 
 // Mock dependencies
 jest.mock('../../../../services/ConnectionManager');
@@ -44,38 +43,6 @@ describe('QueryExecutor (Dynamic Loading Regression)', () => {
       mockDaemonClient,
       mockDriverManager
     );
-  });
-
-  it('should inject driver path for SQLite connections', async () => {
-    const sqliteProfile: SQLiteConnectionProfile = {
-      id: 'test-sqlite',
-      name: 'Test SQLite',
-      type: 'sqlite',
-      databasePath: '/tmp/test.db',
-    };
-
-    mockConnectionManager.getConnections.mockResolvedValue([sqliteProfile]);
-    mockConnectionManager.getConnection.mockResolvedValue(sqliteProfile);
-
-    // Mock Driver Manager to return a specific path
-    const expectedPath = '/mock/path/to/sqlite3';
-    mockDriverManager.getDriver.mockResolvedValue(expectedPath);
-
-    // Run execution (we just need to trigger the initial logic)
-    const generator = queryExecutor.execute('SELECT 1');
-    await generator.next();
-
-    // Verify getDriver was called
-    expect(mockDriverManager.getDriver).toHaveBeenCalledWith('sqlite3');
-
-    // Verify runQuery was called with the injected driverPath
-    expect(mockDaemonClient.runQuery).toHaveBeenCalled();
-    const passedProfile = mockDaemonClient.runQuery.mock.calls[0]
-      ? (mockDaemonClient.runQuery.mock.calls[0][2] as any)
-      : undefined;
-
-    expect(passedProfile).toBeDefined();
-    expect(passedProfile.driverPath).toBe(expectedPath);
   });
 
   it('should NOT inject driver path for Trino connections', async () => {

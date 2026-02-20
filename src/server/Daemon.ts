@@ -21,6 +21,7 @@ import { DaemonMcpToolManager } from './DaemonMcpToolManager';
 import { DaemonMcpServer } from './DaemonMcpServer';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { TrinoConnector } from '../connectors/trino/TrinoConnector';
+import { SQLiteConnector } from '../connectors/sqlite/SQLiteConnector';
 // Feature flagged
 // import { DuckDbConnector } from '../connectors/duckdb/DuckDbConnector';
 
@@ -84,6 +85,7 @@ export class Daemon {
 
     // 2. Register Connectors
     this.connectorRegistry.register(new TrinoConnector());
+    this.connectorRegistry.register(new SQLiteConnector());
     // Feature Flag: DuckDB
     if (process.env['SQL_PREVIEW_ENABLE_DUCKDB'] === 'true') {
       try {
@@ -211,20 +213,20 @@ export class Daemon {
             }
 
             // Create Proxy Request for Transport
+            // Create a custom object that extends the buffer stream
+            // but inherits all Express request properties so the SDK
+            // doesn't crash on undefined 'url', 'method', 'headers', 'headers["content-length"]'
             const proxyReq = new PassThrough();
-            // Copy essential properties that Transport might check
-            Object.assign(proxyReq, {
-              headers: req.headers,
-              method: req.method,
-              url: req.url,
-              query: req.query,
-              originalUrl: req.originalUrl,
-            });
-            // Push data
             proxyReq.end(bodyBuffer);
 
-            // Use this proxy as the request to handle
-            requestToHandle = proxyReq as unknown as express.Request;
+            requestToHandle = new Proxy(proxyReq as unknown as express.Request, {
+              get(target, prop) {
+                if (prop in target) {
+                  return (target as any)[prop];
+                }
+                return req[prop as keyof express.Request];
+              },
+            });
           } catch (e) {
             logger.warn('[Daemon] Error buffering request:', e);
             // If buffering failed, we might be in a bad state, but try to proceed with original req?
@@ -483,35 +485,41 @@ export class Daemon {
   }
 
   public async start() {
-    // 1. PID Check (Prevent multiple instances)
+    // 1. PID Check (Prevent multiple instances & Auto-Kill Stale)
     const pidPath = path.join(this.CONFIG_DIR, `server-${this.HTTP_PORT}.pid`);
     try {
       if (fs.existsSync(pidPath)) {
         const pidContent = fs.readFileSync(pidPath, 'utf8');
         const existingPid = parseInt(pidContent, 10);
 
-        if (!isNaN(existingPid)) {
+        if (!isNaN(existingPid) && existingPid !== process.pid) {
           try {
             // Check if process is actually running
             process.kill(existingPid, 0);
-            logger.error(
-              `[Daemon] ERROR: Another instance is already running (PID: ${existingPid})`
+            logger.warn(
+              `[Daemon] Existing instance detected (PID: ${existingPid}). Attempting to terminate...`
             );
-            process.exit(1);
+
+            // Send SIGKILL to forcibly release the port and socket
+            process.kill(existingPid, 'SIGKILL');
+            logger.info(`[Daemon] Successfully terminated stale instance (PID: ${existingPid}).`);
+
+            // Wait briefly to ensure OS releases resources
+            await new Promise(r => setTimeout(r, 500));
           } catch (e) {
-            // Process is not running (man process.kill says throws if process not found)
+            // Process doesn't exist, ignore
             if ((e as NodeJS.ErrnoException).code === 'ESRCH') {
               logger.info(`[Daemon] Cleaning up stale PID file for ${existingPid}`);
-              fs.unlinkSync(pidPath);
             } else {
-              // Other error (EPERM etc) - process exists but we can't signal it? Assume running.
-              logger.error(`[Daemon] ERROR: Cannot check process ${existingPid}: ${e}`);
+              logger.error(`[Daemon] Failed to terminate existing process ${existingPid}: ${e}`);
+              // Fallback to erroring if we can't kill it (e.g., owned by root)
               process.exit(1);
             }
           }
-        } else {
-          // Invalid PID file content
-          logger.warn('[Daemon] Invalid PID file found, removing.');
+        }
+
+        // Always clean up the pid file if it exists, since we either killed it or it was dead
+        if (fs.existsSync(pidPath)) {
           fs.unlinkSync(pidPath);
         }
       }

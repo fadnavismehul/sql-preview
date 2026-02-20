@@ -20,9 +20,9 @@ export function isFileQuery(query: string): boolean {
   //   (?:\s*--[^\n]*\n) - line comment (starts with --, ends with newline) with optional leading whitespace
   //   | - OR
   //   (?:\s*\/\*[\s\S]*?\*\/) - block comment (starts with /*, ends with */) with optional leading whitespace
-  // '[^']+\.(csv|parquet)\s*' - matches file path in single quotes with extension and optional trailing whitespace
+  // '[^']+\.(csv|parquet|sqlite|db)\s*' - matches file path in single quotes with extension and optional trailing whitespace
   const fileQueryRegex =
-    /from(?:\s+|(?:\s*--[^\n]*\n)|(?:\s*\/\*[\s\S]*?\*\/))*'[^']+\.(csv|parquet)\s*'/i;
+    /from(?:\s+|(?:\s*--[^\n]*\n)|(?:\s*\/\*[\s\S]*?\*\/))*'[^']+\.(csv|parquet|sqlite|db)\s*'/i;
 
   return fileQueryRegex.test(query);
 }
