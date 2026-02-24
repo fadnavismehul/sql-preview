@@ -921,7 +921,17 @@ function getColumnDefs(data, tabId) {
     });
 
     // 2. Add Data Columns
+    const nameCounts = {};
     data.columns.forEach(col => {
+        let fieldName = col.name;
+        if (nameCounts[fieldName]) {
+            let count = nameCounts[fieldName];
+            nameCounts[fieldName] = count + 1;
+            fieldName = `${fieldName}_${count}`;
+        } else {
+            nameCounts[fieldName] = 1;
+        }
+
         const type = col.type.toLowerCase();
         const isJson = type.includes('json') || type.includes('array') || type.includes('map') || type.includes('struct') || type.includes('row');
         // Simple heuristic for boolean types.
@@ -930,7 +940,7 @@ function getColumnDefs(data, tabId) {
         const width = Math.min(Math.max(col.name.length * 9 + 80, 100), 250);
 
         columnDefs.push({
-            field: col.name,
+            field: fieldName,
             headerName: col.name,
             sortable: true,
             filter: CustomSetFilter, // Use Custom Set Filter (Community)
@@ -963,8 +973,17 @@ function updateTabWithResults(tabId, data, title) {
     const columnDefs = getColumnDefs(data, tabId);
     const rowData = data.rows.map(row => {
         const obj = {};
+        const rowNameCounts = {};
         data.columns.forEach((col, index) => {
-            obj[col.name] = row[index];
+            let fieldName = col.name;
+            if (rowNameCounts[fieldName]) {
+                let count = rowNameCounts[fieldName];
+                rowNameCounts[fieldName] = count + 1;
+                fieldName = `${fieldName}_${count}`;
+            } else {
+                rowNameCounts[fieldName] = 1;
+            }
+            obj[fieldName] = row[index];
         });
         return obj;
     });

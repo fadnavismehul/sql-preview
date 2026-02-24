@@ -65,7 +65,7 @@ export class ExportService {
         let rowCount = 0;
 
         try {
-          const generator = this.queryExecutor.execute(tab.query, contextUri);
+          const generator = this.queryExecutor.execute(tab.query, contextUri, undefined, tab.id);
           let firstPage = true;
           let columns: import('../common/types').ColumnDef[] | undefined;
 
@@ -82,13 +82,18 @@ export class ExportService {
               columns = page.columns;
             }
 
-            if (columns && firstPage && (format === 'csv' || format === 'tsv')) {
+            if (
+              columns &&
+              columns.length > 0 &&
+              firstPage &&
+              (format === 'csv' || format === 'tsv')
+            ) {
               const separator = format === 'csv' ? ',' : '\t';
               const header =
                 columns.map(c => this._escapeCsv(c.name, separator)).join(separator) + '\n';
               stream.write(header);
               firstPage = false;
-            } else if (page.columns && firstPage) {
+            } else if (page.columns && page.columns.length > 0 && firstPage) {
               // Ensure firstPage flag is flipped for other formats if columns arrived
               firstPage = false;
             }
@@ -103,12 +108,22 @@ export class ExportService {
                   let item: unknown = row;
                   if (currentColumns) {
                     const obj: Record<string, unknown> = {};
+                    const nameCounts: Record<string, number> = {};
                     currentColumns.forEach((col, idx) => {
+                      let colName = col.name;
+                      const count = nameCounts[colName];
+                      if (count) {
+                        nameCounts[colName] = count + 1;
+                        colName = `${colName}_${count}`;
+                      } else {
+                        nameCounts[colName] = 1;
+                      }
+
                       // Safety check for row length?
                       // The row should match columns.
                       // row is unknown[] actually, let's cast
                       const vals = row as unknown[];
-                      obj[col.name] = vals[idx];
+                      obj[colName] = vals[idx];
                     });
                     item = obj;
                   }
