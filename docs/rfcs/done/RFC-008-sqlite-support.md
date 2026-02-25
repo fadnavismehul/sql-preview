@@ -1,7 +1,7 @@
 # RFC-008: SQLite Support Strategy
 
 **Feature Name:** SQLite Support
-**Status:** Accepted
+**Status:** Implemented
 **Created:** 2026-02-13
 
 ## Summary

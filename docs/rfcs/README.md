@@ -54,7 +54,7 @@ Every RFC must include:
 | RFC-005 | Proposed    | `docs/rfcs/proposed/RFC-005-mcp-session-security.md`            | MCP Session Security                   |
 | RFC-006 | Implemented | `docs/rfcs/done/RFC-006-mcp-data-handling.md`                   | MCP Data Handling                      |
 | RFC-007 | Implemented | `docs/rfcs/done/RFC-007-multi-session-http.md`                  | Multi-Session HTTP Architecture        |
-| RFC-008 | Proposed    | `docs/rfcs/proposed/RFC-008-sqlite-support.md`                  | SQLite Support                         |
+| RFC-008 | Implemented | `docs/rfcs/done/RFC-008-sqlite-support.md`                      | SQLite Support                         |
 | RFC-009 | Implemented | `docs/rfcs/done/RFC-009-headless-mcp-server.md`                 | Headless MCP Server                    |
 | RFC-010 | Proposed    | `docs/rfcs/proposed/RFC-010-connection-profiles.md`             | Connection Profiles                    |
 | RFC-011 | Implemented | `docs/rfcs/done/RFC-011-node-independence-and-feature-flags.md` | Node.js Independence and Feature Flags |

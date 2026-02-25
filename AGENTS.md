@@ -5,13 +5,13 @@
 
 ## 🗺️ Repository Overview
 
-**SQL Preview** is a VS Code extension for connecting to Presto/Trino databases, executing queries, and visualizing results.
+**SQL Preview** is a VS Code extension for connecting to various databases (e.g., Trino, SQLite, DuckDB), executing queries, and visualizing results.
 
 ### Core Modules
 
 - **[Server & Daemon](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/server/AGENTS.md)**: The backend process handling database connections and MCP server.
 - **[UI & Webviews](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/ui/AGENTS.md)**: The frontend visualization layer (React + AG Grid).
-- **[Connectors](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/AGENTS.md)**: Database driver implementations (Trino, Postgres, SQLite).
+- **[Connectors](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/AGENTS.md)**: Database driver implementations (Trino, Postgres, SQLite, DuckDB).
 
 ### Key Locations
 
