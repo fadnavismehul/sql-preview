@@ -126,7 +126,7 @@ export class ConnectionManager {
   // --- Migration ---
 
   public async migrateLegacySettings(): Promise<void> {
-    const connections = await this.getConnections();
+    const connections = await this.daemonClient.listConnections();
     // If we already have connections, assume migration is done or not needed
     if (connections.length > 0) {
       return;
