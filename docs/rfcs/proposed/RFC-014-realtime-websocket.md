@@ -22,47 +22,36 @@ Currently, the system relies on standard HTTP REST calls or basic SSE (Server-Se
 
 ## Proposed Architecture
 
-We will implement a `ws://` and `wss://` endpoint on the existing headless Daemon, utilizing a standardized JSON-based event protocol (similar to the OpenAI Realtime API).
+Instead of inventing a custom JSON protocol, we will utilize the official **Model Context Protocol (MCP)** and run it over a WebSocket connection. The Daemon already implements a robust `DaemonMcpServer` and `DaemonMcpToolManager` containing tools like `run_query` and `get_tab_info` exposed via SSE and Stdio. We will enhance this by adding the `@modelcontextprotocol/sdk/server/ws.js` transport.
 
-### Connection Lifecycle
+### 1. WebSocket Transport for the Existing MCP Server (The Interface)
 
-1. **Handshake:** The agent connects to `ws://localhost:XXXX/v1/realtime`.
-2. **Authentication:** Initial frame contains session/auth tokens.
-3. **Session State:** The connection is pinned to a specific `sessionId` internally, retaining context across messages.
+- **Handshake:** The agent connects to `ws://localhost:XXXX/mcp`.
+- **Authentication:** Standard authentication tokens can be passed in initial headers or as a first initialization message.
+- **Bi-directional JSON-RPC:** The connection will transport standard MCP JSON-RPC 2.0 messages. Agents can instantly use existing tools (`run_query`, `list_sessions`) and subscribe to resource changes without any additional custom API client logic.
 
-### Message Protocol
+### 2. Dual-Track Data Plane (The Engine)
 
-Messages will flow in both directions using a strict JSON schema.
+For heavy analytical workloads, JSON-RPC (even over WebSockets) will choke on millions of rows. We must establish a dual-track system working in tandem with RFC-013:
 
-**Client -> Server (Agent Requests):**
-
-- `session.update`: Modify active connection profile.
-- `query.execute`: Start streaming a SQL query.
-- `query.abort`: Cancel an actively running query.
-- `schema.introspect`: Request current database structure.
-
-**Server -> Client (Daemon Responses):**
-
-- `query.data.chunk`: A streamed batch of rows (e.g., 1000 rows at a time).
-- `query.data.done`: Indicates the query finished successfully.
-- `error`: Standardized error reporting.
-- `system.event`: Unsolicited events (e.g., connector restarted).
+- **Control Plane (MCP over WebSockets):** Agents use the WebSocket MCP connection to tell the Daemon to start a query.
+- **Data Plane (Apache Arrow IPC):** For actual row data, rather than sending JSON arrays over the WebSocket, the underlying database connector (RFC-013) should return a URI pointing to a local Named Pipe, Shared Memory segment, or a gRPC stream containing binary **Apache Arrow** data. The Daemon can then stream this binary data directly to the client (or the client can connect to the pipe directly), ensuring zero-copy, high-throughput delivery.
 
 ## Implementation Steps
 
-1. **Websocket Server Integration:** Add a lightweight WebSockets library (e.g., `ws`) to the existing Node.js Daemon HTTP server.
-2. **Protocol Definition:** Formalize the JSON schemas for all client and server events.
-3. **Session Manager Update:** Bind the Websocket lifecycle (`on('close')`, `on('error')`) to the existing `SessionManager` so that disconnecting automatically cleans up temporary tables or running queries.
-4. **Streaming Adaptor:** Pipe the `AsyncGenerator` output from the MCP Connectors (RFC-013) directly into Websocket `query.data.chunk` frames.
+1. **WebSocket Server Integration:** Integrate the `ws` package into the existing `Daemon.ts` Express/HTTP server setup.
+2. **Mount MCP Transport:** Create an instance of `WebSocketServerTransport` from the official MCP SDK.
+3. **Shared MCP Logic:** Mount the existing `DaemonMcpServer` onto this new WebSocket transport. Ensure session state is maintained across the WebSocket lifecycle.
+4. **Data Plane Spike (Follow-up):** Prototype streaming DuckDB/Postgres results to a local named pipe format using Apache Arrow, and have the MCP `run_query` tool return the URI to that pipe instead of JSON data.
 
 ## Relationship to RFC-013 (MCP Connectors)
 
 This RFC (RFC-014) handles the "Northbound" traffic: **Agent <-> Daemon**.
 RFC-013 handles the "Southbound" traffic: **Daemon <-> Database Connectors**.
 
-By implementing these in stages, we achieve a highly scalable, event-driven architecture. Agents talk to the Daemon instantly over Websockets, and the Daemon orchestrates out-of-process MCP Connectors to do the heavy lifting safely.
+By standardizing both ends on the Model Context Protocol, we achieve a highly scalable, event-driven architecture. Agents talk to the Daemon instantly over standard MCP WebSockets, and the Daemon orchestrates out-of-process MCP Connectors to do the heavy lifting safely.
 
 ## Unresolved Questions
 
-- Do we support binary websocket frames for dense analytical data (e.g., Apache Arrow format) to save JSON parsing overhead on massive exports?
-- How do we handle backpressure if the Database Connector is streaming rows faster than the Agent's websocket connection can receive them?
+- Do we want to completely replace the existing HTTP SSE (`/mcp`) endpoint with WebSockets, or run them side-by-side as dual transports?
+- How complex is it to generate temporary Unix named pipes cross-platform (Windows vs macOS/Linux) for the binary Apache Arrow stream?
