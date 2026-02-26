@@ -2,5 +2,5 @@ export {
   ConnectorError as BaseError,
   ConnectionError,
   QueryError,
-  AuthenticationError
+  AuthenticationError,
 } from '@sql-preview/connector-api';

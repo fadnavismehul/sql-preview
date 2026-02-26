@@ -13,7 +13,7 @@ export class DaemonQueryExecutor {
     private readonly connectionManager: ConnectionManager,
     private readonly logger: ILogger,
     private readonly driverManager: DriverManager
-  ) { }
+  ) {}
 
   private async getConnectorForProfile(profile: ConnectionProfile): Promise<IConnector> {
     if (profile.type === 'custom') {
@@ -24,7 +24,7 @@ export class DaemonQueryExecutor {
         const driverPath = await this.driverManager.getDriver(pkgName);
 
         let ImportedModule;
-        // Use require or dynamic import based on module type. 
+        // Use require or dynamic import based on module type.
         // We'll try dynamic import first.
         try {
           // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -36,7 +36,9 @@ export class DaemonQueryExecutor {
         const ConnectorClass = ImportedModule.default || ImportedModule.Connector || ImportedModule;
 
         if (typeof ConnectorClass !== 'function') {
-          throw new Error(`Custom connector package '${pkgName}' does not export a constructor. It must export a default class or a 'Connector' class.`);
+          throw new Error(
+            `Custom connector package '${pkgName}' does not export a constructor. It must export a default class or a 'Connector' class.`
+          );
         }
 
         // Try to pass driver manager just in case, but custom connectors might not expect it
@@ -44,13 +46,17 @@ export class DaemonQueryExecutor {
         const connector = new ConnectorClass(this.driverManager) as IConnector;
 
         if (!connector.id || !connector.runQuery) {
-          throw new Error(`Custom connector '${pkgName}' does not properly implement the IConnector interface.`);
+          throw new Error(
+            `Custom connector '${pkgName}' does not properly implement the IConnector interface.`
+          );
         }
 
         return connector;
       } catch (e) {
         this.logger.error(`Failed to load custom connector [${pkgName}]`, e);
-        throw new Error(`Failed to initialize custom connector '${pkgName}': ${e instanceof Error ? e.message : String(e)}`);
+        throw new Error(
+          `Failed to initialize custom connector '${pkgName}': ${e instanceof Error ? e.message : String(e)}`
+        );
       }
     }
 
@@ -214,7 +220,11 @@ export class DaemonQueryExecutor {
     try {
       // In testConnection, config is a ConnectorConfig, which contains type but may lack full profile structure.
       // Let's create a temporary profile for loading.
-      const tempProfile = { ...config, type: type as any, id: 'test' } as unknown as ConnectionProfile;
+      const tempProfile = {
+        ...config,
+        type: type as any,
+        id: 'test',
+      } as unknown as ConnectionProfile;
       const connector = await this.getConnectorForProfile(tempProfile);
       // Validate before running
       const valError = connector.validateConfig(config);
