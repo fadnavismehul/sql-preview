@@ -1,0 +1,13 @@
+{
+    "name": "@sql-preview/connector-api",
+    "version": "1.0.0",
+    "description": "API for writing custom database connectors for the SQL Preview VS Code Extension",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0"
+    }
+}

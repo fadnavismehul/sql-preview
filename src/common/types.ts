@@ -1,23 +1,28 @@
-export interface ColumnDef {
-  name: string;
-  type: string;
-}
+import type {
+  ColumnDef,
+  QueryPage,
+  ConnectorType,
+  BaseConnectionProfile,
+  TrinoConnectionProfile,
+  PostgresConnectionProfile,
+  SQLiteConnectionProfile,
+  CustomConnectionProfile,
+  ConnectionProfile,
+  ConnectorConfig,
+} from '@sql-preview/connector-api';
 
-export interface QueryPage {
-  columns?: ColumnDef[] | undefined;
-  data: unknown[][];
-  nextUri?: string | undefined;
-  infoUri?: string | undefined;
-  id?: string | undefined;
-  remoteTabId?: string | undefined; // To link local tab to remote daemon tab
-  stats?:
-    | {
-        state: string;
-        [key: string]: unknown;
-      }
-    | undefined;
-  supportsPagination?: boolean | undefined;
-}
+export type {
+  ColumnDef,
+  QueryPage,
+  ConnectorType,
+  BaseConnectionProfile,
+  TrinoConnectionProfile,
+  PostgresConnectionProfile,
+  SQLiteConnectionProfile,
+  CustomConnectionProfile,
+  ConnectionProfile,
+  ConnectorConfig,
+};
 
 export interface QueryResults {
   columns: ColumnDef[];
@@ -63,69 +68,7 @@ export interface TabData {
   supportsPagination?: boolean | undefined;
 }
 
-/**
- * Configuration for a connector.
- */
-/**
- * Connection Configuration Types
- */
-export type ConnectorType = 'trino' | 'postgres' | 'sqlite';
-
-export interface BaseConnectionProfile {
-  id: string;
-  name: string;
-  type: ConnectorType;
-  host: string;
-  port: number;
-  user: string;
-  password?: string; // Optional: runtime only, not persisted plain-text in some contexts
-  ssl: boolean;
-  sslVerify?: boolean; // Defaults to true
-  driverPath?: string; // Optional: local path to the driver package
-}
-
-export interface TrinoConnectionProfile extends BaseConnectionProfile {
-  type: 'trino';
-  catalog?: string;
-  schema?: string;
-  customAuthHeader?: string;
-}
-
-export interface PostgresConnectionProfile extends BaseConnectionProfile {
-  type: 'postgres';
-  database: string;
-}
-
-export interface SQLiteConnectionProfile {
-  id: string;
-  name: string;
-  type: 'sqlite';
-  databasePath: string;
-  password?: string; // Optional: some sqlite builds support encryption
-  driverPath?: string; // Optional: local path to the driver package
-}
-
-export type ConnectionProfile =
-  | TrinoConnectionProfile
-  | PostgresConnectionProfile
-  | SQLiteConnectionProfile;
-
-/**
- * Legacy Configuration for backward compatibility (maps to Trino)
- */
-export interface ConnectorConfig {
-  host: string;
-  port: number;
-  user: string;
-  catalog?: string;
-  schema?: string;
-  ssl: boolean;
-  sslVerify: boolean;
-  maxRows: number;
-  password?: string;
-  // New: Source Profile ID
-  connectionId?: string;
-}
+// (Connector types are now exported from @sql-preview/connector-api above)
 
 // --- Messages ---
 
@@ -138,11 +81,11 @@ export type WebviewToExtensionMessage =
   | { command: 'webviewLoaded' }
   | { command: 'tabClosed'; tabId: string }
   | {
-      command: 'updateTabState';
-      tabId: string;
-      title?: string | undefined;
-      query?: string | undefined;
-    }
+    command: 'updateTabState';
+    tabId: string;
+    title?: string | undefined;
+    query?: string | undefined;
+  }
   | { command: 'tabSelected'; tabId: string }
   | { command: 'cancelQuery'; tabId: string }
   | { command: 'refreshConnections' }
@@ -160,43 +103,43 @@ export type WebviewToExtensionMessage =
 
 export type ExtensionToWebviewMessage =
   | {
-      type: 'createTab';
-      tabId: string;
-      query: string;
-      title: string;
-      sourceFileUri?: string | undefined;
-      preserveFocus?: boolean;
-      index?: number;
-    }
+    type: 'createTab';
+    tabId: string;
+    query: string;
+    title: string;
+    sourceFileUri?: string | undefined;
+    preserveFocus?: boolean;
+    index?: number;
+  }
   | { type: 'resultData'; tabId: string; data: QueryResults; title: string }
   | {
-      type: 'queryError';
-      tabId: string;
-      error: { message: string; details?: string | undefined };
-      query?: string | undefined;
-      title?: string | undefined;
-    }
+    type: 'queryError';
+    tabId: string;
+    error: { message: string; details?: string | undefined };
+    query?: string | undefined;
+    title?: string | undefined;
+  }
   | {
-      type: 'queryCancelled';
-      tabId: string;
-      message?: string;
-    }
+    type: 'queryCancelled';
+    tabId: string;
+    message?: string;
+  }
   | {
-      type: 'showLoading';
-      tabId: string;
-      query?: string | undefined;
-      title?: string | undefined;
-      preserveFocus?: boolean;
-    }
+    type: 'showLoading';
+    tabId: string;
+    query?: string | undefined;
+    title?: string | undefined;
+    preserveFocus?: boolean;
+  }
   | { type: 'statusMessage'; message: string }
   | {
-      type: 'reuseOrCreateActiveTab';
-      tabId: string;
-      query: string;
-      title: string;
-      sourceFileUri?: string | undefined;
-      preserveFocus?: boolean;
-    }
+    type: 'reuseOrCreateActiveTab';
+    tabId: string;
+    query: string;
+    title: string;
+    sourceFileUri?: string | undefined;
+    preserveFocus?: boolean;
+  }
   | { type: 'closeActiveTab' }
   | { type: 'closeTab'; tabId: string }
   | { type: 'closeOtherTabs' }
@@ -207,14 +150,14 @@ export type ExtensionToWebviewMessage =
   | { type: 'updateConnections'; connections: ConnectionProfile[] }
   | { type: 'testConnectionResult'; success: boolean; error?: string }
   | {
-      type: 'testMcpResult';
-      success: boolean;
-      error?: string | undefined;
-      message?: string | undefined;
-    }
+    type: 'testMcpResult';
+    success: boolean;
+    error?: string | undefined;
+    message?: string | undefined;
+  }
   | { type: 'updateConfig'; config: unknown }
   | {
-      type: 'updateVersionInfo';
-      currentVersion: string;
-      latestVersion: string | null;
-    };
+    type: 'updateVersionInfo';
+    currentVersion: string;
+    latestVersion: string | null;
+  };

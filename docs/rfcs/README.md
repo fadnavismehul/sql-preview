@@ -58,3 +58,4 @@ Every RFC must include:
 | RFC-009 | Implemented | `docs/rfcs/done/RFC-009-headless-mcp-server.md`                 | Headless MCP Server                    |
 | RFC-010 | Proposed    | `docs/rfcs/proposed/RFC-010-connection-profiles.md`             | Connection Profiles                    |
 | RFC-011 | Implemented | `docs/rfcs/done/RFC-011-node-independence-and-feature-flags.md` | Node.js Independence and Feature Flags |
+| RFC-012 | Proposed    | `docs/rfcs/proposed/RFC-012-pluggable-connectors.md`            | Pluggable Connector Architecture       |

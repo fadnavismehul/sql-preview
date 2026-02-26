@@ -1,14 +1,13 @@
-import { IConnector, ConnectorConfig } from '../base/IConnector';
-import { PostgresConnectionProfile, QueryPage, ColumnDef } from '../../common/types';
-import { DriverManager } from '../../services/DriverManager';
-import { AuthenticationError, ConnectionError, QueryError } from '../../common/errors';
+import { IConnector, ConnectorConfig } from '../../../src/connectors/base/IConnector';
+import { PostgresConnectionProfile, QueryPage, ColumnDef } from '../../../src/common/types';
+import { AuthenticationError, ConnectionError, QueryError } from '../../../src/common/errors';
 import type { Client, ClientConfig, QueryResult } from 'pg';
 
-export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
+export default class PostgreSQLConnector implements IConnector<ConnectorConfig> {
   readonly id = 'postgres';
   readonly supportsPagination = false; // Postgres returns all results at once (currently)
 
-  constructor(private readonly driverManager: DriverManager) {}
+  constructor(private readonly driverManager: any) { }
 
   validateConfig(config: ConnectorConfig): string | undefined {
     const pgConfig = config as unknown as PostgresConnectionProfile;
@@ -37,7 +36,8 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
     const driverPath = await this.driverManager.getDriver('pg');
 
     // Dynamically require pg
-    const pg = await import(driverPath);
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const pg = require(driverPath);
     const { Client } = pg;
 
     const clientConfig: ClientConfig = {
@@ -48,8 +48,8 @@ export class PostgreSQLConnector implements IConnector<ConnectorConfig> {
       database: pgConfig.database,
       ssl: pgConfig.ssl
         ? {
-            rejectUnauthorized: pgConfig.sslVerify ?? true,
-          }
+          rejectUnauthorized: pgConfig.sslVerify ?? true,
+        }
         : false,
       connectionTimeoutMillis: 10000, // 10s connection timeout
     };

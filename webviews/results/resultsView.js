@@ -1789,6 +1789,8 @@ function saveAllSettings() {
         // Connector Settings
         defaultConnector: document.getElementById('cfg-defaultConnector').value,
         databasePath: document.getElementById('cfg-databasePath').value,
+        connectorPackage: document.getElementById('cfg-connectorPackage')?.value,
+        connectorConfig: document.getElementById('cfg-connectorConfig')?.value,
 
         // Trino Settings
         host: document.getElementById('cfg-host').value,
@@ -1876,7 +1878,9 @@ if (testConnectionBtn) {
             ssl: document.getElementById('cfg-ssl').checked,
             sslVerify: document.getElementById('cfg-sslVerify').checked,
             databasePath: document.getElementById('cfg-databasePath').value,
-            defaultConnector: document.getElementById('cfg-defaultConnector').value
+            defaultConnector: document.getElementById('cfg-defaultConnector').value,
+            connectorPackage: document.getElementById('cfg-connectorPackage')?.value,
+            connectorConfig: document.getElementById('cfg-connectorConfig')?.value
         };
 
         testConnectionBtn.textContent = 'Testing...';
@@ -1969,6 +1973,12 @@ function populateSettings(config) {
     // Connector
     document.getElementById('cfg-defaultConnector').value = config.defaultConnector || 'trino';
     document.getElementById('cfg-databasePath').value = config.databasePath || '';
+    if (document.getElementById('cfg-connectorPackage')) {
+        document.getElementById('cfg-connectorPackage').value = config.connectorPackage || '';
+    }
+    if (document.getElementById('cfg-connectorConfig')) {
+        document.getElementById('cfg-connectorConfig').value = config.connectorConfig || '';
+    }
 
     // Trino
     document.getElementById('cfg-host').value = config.host || '';
@@ -2013,13 +2023,20 @@ function updateConnectorVisibility() {
     const connector = document.getElementById('cfg-defaultConnector').value;
     const trinoGroup = document.getElementById('cfg-group-trino');
     const sqliteGroup = document.getElementById('cfg-group-sqlite');
+    const customGroup = document.getElementById('cfg-group-custom');
 
     if (connector === 'sqlite') {
         trinoGroup.style.display = 'none';
         sqliteGroup.style.display = 'block';
+        if (customGroup) customGroup.style.display = 'none';
+    } else if (connector === 'custom') {
+        trinoGroup.style.display = 'none';
+        sqliteGroup.style.display = 'none';
+        if (customGroup) customGroup.style.display = 'block';
     } else {
         trinoGroup.style.display = 'block';
         sqliteGroup.style.display = 'none';
+        if (customGroup) customGroup.style.display = 'none';
     }
 }
 // --- Version Info ---

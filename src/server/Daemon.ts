@@ -21,9 +21,7 @@ import { DaemonMcpToolManager } from './DaemonMcpToolManager';
 import { DaemonMcpServer } from './DaemonMcpServer';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { TrinoConnector } from '../connectors/trino/TrinoConnector';
-import { SQLiteConnector } from '../connectors/sqlite/SQLiteConnector';
-// Feature flagged
-// import { DuckDbConnector } from '../connectors/duckdb/DuckDbConnector';
+import { DriverManager } from '../services/DriverManager';
 
 import { logger, ConsoleLogger } from './ConsoleLogger';
 
@@ -85,29 +83,16 @@ export class Daemon {
 
     // 2. Register Connectors
     this.connectorRegistry.register(new TrinoConnector());
-    this.connectorRegistry.register(new SQLiteConnector());
-    // Feature Flag: DuckDB
-    if (process.env['SQL_PREVIEW_ENABLE_DUCKDB'] === 'true') {
-      try {
-        // Dynamic import/require to avoid loading native module if disabled
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { DuckDbConnector } = require('../connectors/duckdb/DuckDbConnector');
-        this.connectorRegistry.register(new DuckDbConnector());
-        logger.info('[Daemon] DuckDB Connector enabled and registered.');
-      } catch (e) {
-        logger.error('[Daemon] Failed to load DuckDB Connector:', e);
-      }
-    } else {
-      logger.info('[Daemon] DuckDB Connector disabled (feature flag off).');
-    }
 
     // this.connectorRegistry.register(new PostgreSQLConnector(new DaemonDriverManager()));
 
     // 3. Initialize Executor
+    const driverManager = new DriverManager(this.CONFIG_DIR);
     this.queryExecutor = new DaemonQueryExecutor(
       this.connectorRegistry,
       this.connectionManager,
-      ConsoleLogger.getInstance()
+      ConsoleLogger.getInstance(),
+      driverManager
     );
 
     // 4. Initialize Tool Manager

@@ -5,18 +5,58 @@ import { ConnectionManager } from './connection/ConnectionManager';
 import { ILogger } from '../common/logger';
 
 import { isFileQuery } from '../common/routing';
+import { DriverManager } from '../services/DriverManager';
 
 export class DaemonQueryExecutor {
   constructor(
     private readonly connectorRegistry: ConnectorRegistry,
     private readonly connectionManager: ConnectionManager,
-    private readonly logger: ILogger
-  ) {}
+    private readonly logger: ILogger,
+    private readonly driverManager: DriverManager
+  ) { }
 
-  private getConnector(type: string): IConnector {
-    const connector = this.connectorRegistry.get(type);
+  private async getConnectorForProfile(profile: ConnectionProfile): Promise<IConnector> {
+    if (profile.type === 'custom') {
+      const pkgName = profile.connectorPackage;
+
+      try {
+        this.logger.info(`Loading custom connector from package: ${pkgName}`);
+        const driverPath = await this.driverManager.getDriver(pkgName);
+
+        let ImportedModule;
+        // Use require or dynamic import based on module type. 
+        // We'll try dynamic import first.
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          ImportedModule = require(driverPath);
+        } catch (e) {
+          ImportedModule = await import(driverPath);
+        }
+
+        const ConnectorClass = ImportedModule.default || ImportedModule.Connector || ImportedModule;
+
+        if (typeof ConnectorClass !== 'function') {
+          throw new Error(`Custom connector package '${pkgName}' does not export a constructor. It must export a default class or a 'Connector' class.`);
+        }
+
+        // Try to pass driver manager just in case, but custom connectors might not expect it
+        // We follow standard JS constructor patterns
+        const connector = new ConnectorClass(this.driverManager) as IConnector;
+
+        if (!connector.id || !connector.runQuery) {
+          throw new Error(`Custom connector '${pkgName}' does not properly implement the IConnector interface.`);
+        }
+
+        return connector;
+      } catch (e) {
+        this.logger.error(`Failed to load custom connector [${pkgName}]`, e);
+        throw new Error(`Failed to initialize custom connector '${pkgName}': ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    const connector = this.connectorRegistry.get(profile.type);
     if (!connector) {
-      throw new Error(`Connector '${type}' not registered`);
+      throw new Error(`Connector '${profile.type}' not registered`);
     }
     return connector;
   }
@@ -46,7 +86,13 @@ export class DaemonQueryExecutor {
 
         if (isSqliteFile) {
           try {
-            this.getConnector('sqlite');
+            const tempProfile: ConnectionProfile = {
+              id: 'adhoc-sqlite',
+              name: 'Adhoc SQLite',
+              type: 'sqlite',
+              databasePath: '', // Will update
+            };
+            await this.getConnectorForProfile(tempProfile);
             this.logger.info(
               'Detected local sqlite file query pattern, switching to Adhoc SQLite profile'
             );
@@ -62,7 +108,7 @@ export class DaemonQueryExecutor {
               name: 'Adhoc SQLite',
               type: 'sqlite',
               databasePath: databasePath,
-            } as any;
+            };
           } catch (e) {
             this.logger.error('SQLite connector failed during auto-routing', e);
             throw new Error(
@@ -72,17 +118,24 @@ export class DaemonQueryExecutor {
         } else {
           try {
             // Check availability
-            this.getConnector('duckdb');
+            const tempProfile: ConnectionProfile = {
+              id: 'adhoc-duckdb',
+              name: 'Adhoc DuckDB',
+              type: 'duckdb' as any,
+              databasePath: ':memory:',
+              sslVerify: true,
+            };
+            await this.getConnectorForProfile(tempProfile);
             this.logger.info(
               'Detected local file query pattern, switching to Adhoc DuckDB profile'
             );
             profile = {
               id: 'adhoc-duckdb',
               name: 'Adhoc DuckDB',
-              type: 'duckdb',
+              type: 'duckdb' as any,
               databasePath: ':memory:', // Default to memory, CWD set by process
               sslVerify: true,
-            } as any;
+            };
           } catch (e) {
             this.logger.error('DuckDB connector failed during auto-routing', e);
             throw new Error(
@@ -123,7 +176,7 @@ export class DaemonQueryExecutor {
     };
 
     // Validation
-    const connector = this.getConnector(profile.type);
+    const connector = await this.getConnectorForProfile(profile);
     const validationError = connector.validateConfig(connectorConfig);
     if (validationError) {
       this.logger.error(`Configuration validation failed`, { error: validationError });
@@ -159,7 +212,10 @@ export class DaemonQueryExecutor {
     authHeader?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const connector = this.getConnector(type);
+      // In testConnection, config is a ConnectorConfig, which contains type but may lack full profile structure.
+      // Let's create a temporary profile for loading.
+      const tempProfile = { ...config, type: type as any, id: 'test' } as unknown as ConnectionProfile;
+      const connector = await this.getConnectorForProfile(tempProfile);
       // Validate before running
       const valError = connector.validateConfig(config);
       if (valError) {

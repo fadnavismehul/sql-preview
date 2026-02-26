@@ -1,0 +1,19 @@
+{
+    "name": "sql-preview-sqlite",
+    "version": "1.0.0",
+    "description": "SQLite connector for SQL Preview",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --format=cjs --external:sql.js"
+    },
+    "dependencies": {
+        "sql.js": "^1.14.0",
+        "@sql-preview/connector-api": "file:../sql-preview-connector-api"
+    },
+    "devDependencies": {
+        "@types/sql.js": "^1.4.9",
+        "esbuild": "^0.19.0",
+        "typescript": "^5.0.0"
+    }
+}

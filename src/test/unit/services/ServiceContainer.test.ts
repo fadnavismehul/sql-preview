@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { ServiceContainer } from '../../../services/ServiceContainer';
-import { SQLiteConnector } from '../../../connectors/sqlite/SQLiteConnector';
 
 jest.mock('vscode', () => ({
   workspace: {
@@ -43,14 +42,13 @@ describe('ServiceContainer', () => {
     (ServiceContainer as any).instance = undefined;
   });
 
-  it('should initialize and contain SQLiteConnector in ConnectorRegistry', () => {
+  it('should initialize and contain TrinoConnector in ConnectorRegistry', () => {
     const container = ServiceContainer.initialize(mockContext);
 
     expect(container).toBeDefined();
 
-    // Check if the ConnectorRegistry has SQLiteConnector
-    const sqliteConnector = container.connectorRegistry.get('sqlite');
-    expect(sqliteConnector).toBeDefined();
-    expect(sqliteConnector).toBeInstanceOf(SQLiteConnector);
+    // Check if the ConnectorRegistry has TrinoConnector
+    const trinoConnector = container.connectorRegistry.get('trino');
+    expect(trinoConnector).toBeDefined();
   });
 });

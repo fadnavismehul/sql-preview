@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 
 interface ResultsGridProps {
     rows: any[];

@@ -5,34 +5,34 @@ import { getNonce } from '../../../utils/nonce';
  * Responsible for generating the HTML content for the Results Webview.
  */
 export class ResultsHtmlGenerator {
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+    constructor(private readonly _extensionUri: vscode.Uri) { }
 
-  public getHtmlForWebview(webview: vscode.Webview): string {
-    const nonce = getNonce();
-    // Local Vendor Assets for AG Grid (Community)
-    const agGridScriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(
-        this._extensionUri,
-        'media',
-        'vendor',
-        'ag-grid',
-        'ag-grid-community.min.js'
-      )
-    );
-    const agGridStylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'vendor', 'ag-grid', 'ag-grid.min.css')
-    );
-    const agGridThemeStylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(
-        this._extensionUri,
-        'media',
-        'vendor',
-        'ag-grid',
-        'ag-theme-quartz.min.css'
-      )
-    );
+    public getHtmlForWebview(webview: vscode.Webview): string {
+        const nonce = getNonce();
+        // Local Vendor Assets for AG Grid (Community)
+        const agGridScriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(
+                this._extensionUri,
+                'media',
+                'vendor',
+                'ag-grid',
+                'ag-grid-community.min.js'
+            )
+        );
+        const agGridStylesUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'vendor', 'ag-grid', 'ag-grid.min.css')
+        );
+        const agGridThemeStylesUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(
+                this._extensionUri,
+                'media',
+                'vendor',
+                'ag-grid',
+                'ag-theme-quartz.min.css'
+            )
+        );
 
-    const csp = `
+        const csp = `
         default-src 'none'; 
         script-src 'nonce-${nonce}' ${webview.cspSource};
         style-src ${webview.cspSource} 'unsafe-inline';
@@ -41,27 +41,27 @@ export class ResultsHtmlGenerator {
         connect-src https://sentry.io ${webview.cspSource};
     `;
 
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'resultsView.js')
-    );
-    const stylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'resultsView.css')
-    );
-    const themeStylesUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'theme.css')
-    );
-    const customFontSize = vscode.workspace
-      .getConfiguration('sqlPreview')
-      .get<number>('fontSize', 0);
-    const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
-    // Strict Mode: Ignore user config, only allow Env Var override or default 8414
-    const mcpPort = envPort ? parseInt(envPort, 10) : 8414;
+        const scriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'resultsView.js')
+        );
+        const stylesUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'resultsView.css')
+        );
+        const themeStylesUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'webviews', 'results', 'theme.css')
+        );
+        const customFontSize = vscode.workspace
+            .getConfiguration('sqlPreview')
+            .get<number>('fontSize', 0);
+        const envPort = process.env['SQL_PREVIEW_MCP_PORT'];
+        // Strict Mode: Ignore user config, only allow Env Var override or default 8414
+        const mcpPort = envPort ? parseInt(envPort, 10) : 8414;
 
-    // Detect OS for keyboard shortcuts
-    const isMac = process.platform === 'darwin';
-    const modifierKey = isMac ? 'Cmd' : 'Ctrl';
+        // Detect OS for keyboard shortcuts
+        const isMac = process.platform === 'darwin';
+        const modifierKey = isMac ? 'Cmd' : 'Ctrl';
 
-    return `<!DOCTYPE html>
+        return `<!DOCTYPE html>
 		<html lang="en">
 		<head>
 			<meta charset="UTF-8">
@@ -172,6 +172,7 @@ export class ResultsHtmlGenerator {
                                         <select id="cfg-defaultConnector">
                                             <option value="trino">Trino / Presto</option>
                                             <option value="sqlite">SQLite</option>
+                                            <option value="custom">Custom (Plugin)</option>
                                         </select>
                                     </div>
 
@@ -225,6 +226,19 @@ export class ResultsHtmlGenerator {
                                             <label for="cfg-databasePath">Database Path</label>
                                             <input type="text" id="cfg-databasePath" placeholder="/path/to/database.db">
                                             <small style="color:var(--vscode-descriptionForeground);display:block;margin-top:4px;">Absolute path to the SQLite file.</small>
+                                        </div>
+                                    </div>
+
+                                    <!-- Custom Fields -->
+                                    <div id="cfg-group-custom" class="connector-group" style="display:none;">
+                                        <div class="form-group" style="margin-bottom: 12px;">
+                                            <label for="cfg-connectorPackage">Connector Package</label>
+                                            <input type="text" id="cfg-connectorPackage" placeholder="e.g. @my-org/sql-preview-mysql">
+                                            <small style="color:var(--vscode-descriptionForeground);display:block;margin-top:4px;">NPM package name or absolute path to local connector.</small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="cfg-connectorConfig">Configuration JSON</label>
+                                            <textarea id="cfg-connectorConfig" placeholder='{\n  "host": "localhost",\n  "port": 3306\n}' style="width: 100%; height: 100px; font-family: var(--vscode-editor-font-family); resize: vertical; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); padding: 4px; box-sizing: border-box;"></textarea>
                                         </div>
                                     </div>
 
@@ -295,5 +309,5 @@ export class ResultsHtmlGenerator {
 			<script nonce="${nonce}" src="${scriptUri}"></script>
 		</body>
 		</html>`;
-  }
+    }
 }
