@@ -22,6 +22,7 @@ describe('DaemonMcpToolManager', () => {
     queryExecutor = new DaemonQueryExecutor(
       null as any,
       null as any,
+      null as any,
       null as any
     ) as jest.Mocked<DaemonQueryExecutor>;
     connectionManager = new ConnectionManager([], null as any) as jest.Mocked<ConnectionManager>;

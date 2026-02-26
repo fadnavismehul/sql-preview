@@ -37,7 +37,12 @@ describe('DaemonQueryExecutor', () => {
 
     connectorRegistry.register(mockConnector);
 
-    executor = new DaemonQueryExecutor(connectorRegistry, connectionManager, mockLogger);
+    executor = new DaemonQueryExecutor(
+      connectorRegistry,
+      connectionManager,
+      mockLogger,
+      null as any
+    );
   });
 
   const mockProfile: TrinoConnectionProfile = {
