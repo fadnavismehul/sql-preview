@@ -174,7 +174,7 @@
         },
         "sqlPreview.port": {
           "type": "number",
-          "default": 443,
+          "default": 8080,
           "description": "Database server port.",
           "order": 2
         },

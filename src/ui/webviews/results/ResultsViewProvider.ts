@@ -33,7 +33,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     private readonly _tabManager: TabManager,
     private readonly _exportService: ExportService,
     _querySessionRegistry: QuerySessionRegistry,
-    _connectionManager: ConnectionManager,
+    private readonly _connectionManager: ConnectionManager,
     _queryExecutor: QueryExecutor,
     private readonly _daemonClient: { closeTab: (tabId: string) => Promise<void> } // Inject DaemonClient interface
   ) {
@@ -175,7 +175,28 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     }
 
     const config = vscode.workspace.getConfiguration('sqlPreview', resource);
-    const hasPassword = false;
+    let hasPassword = false;
+
+    // Fetch the active profile from ConnectionManager
+    const connections = await this._connectionManager.getConnections();
+    const defaultType = config.get<string>('defaultConnector', 'trino');
+    let activeProfile: any = null;
+
+    if (connections.length > 0) {
+      const matching = connections.find((c: any) => c.type === defaultType);
+      const active = matching || connections[0];
+      if (active) {
+        activeProfile = await this._connectionManager.getConnection(active.id);
+      }
+    }
+
+    if (!activeProfile) {
+      activeProfile = await this._connectionManager.getWorkspaceFallbackProfile();
+    }
+
+    if (activeProfile && activeProfile.password) {
+      hasPassword = true;
+    }
 
     this.postMessage({
       type: 'updateConfig',
@@ -184,17 +205,20 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
         fontSize: config.get('fontSize'),
         rowHeight: config.get('rowHeight'),
         tabNaming: config.get('tabNaming'),
-        host: config.get('host'),
-        port: config.get('port'),
-        user: config.get('user'),
-        catalog: config.get('catalog'),
-        schema: config.get('schema'),
-        ssl: config.get('ssl'),
-        sslVerify: config.get('sslVerify'),
+
+        // Use active profile fields for UI representation, fallback to config
+        host: activeProfile?.host ?? config.get('host'),
+        port: activeProfile?.port ?? config.get('port'),
+        user: activeProfile?.user ?? config.get('user'),
+        catalog: activeProfile?.catalog ?? config.get('catalog'),
+        schema: activeProfile?.schema ?? config.get('schema'),
+        ssl: activeProfile?.ssl ?? config.get('ssl'),
+        sslVerify: activeProfile?.sslVerify ?? config.get('sslVerify'),
+
         mcpEnabled: config.get('mcpEnabled'),
 
         defaultConnector: config.get('defaultConnector'),
-        databasePath: config.get('databasePath'),
+        databasePath: activeProfile?.databasePath ?? config.get('databasePath'),
 
         hasPassword,
         mcpStatus: {
