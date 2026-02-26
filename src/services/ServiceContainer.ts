@@ -30,7 +30,7 @@ export class ServiceContainer {
   private constructor(context: vscode.ExtensionContext) {
     this.daemonClient = new DaemonClient(context);
     this.connectionManager = new ConnectionManager(context, this.daemonClient);
-    this.driverManager = new DriverManager(context);
+    this.driverManager = new DriverManager();
 
     // Initialize Registry and Connectors
     this.connectorRegistry = new ConnectorRegistry();
@@ -40,8 +40,7 @@ export class ServiceContainer {
     this.queryExecutor = new QueryExecutor(
       this.connectorRegistry,
       this.connectionManager,
-      this.daemonClient,
-      this.driverManager
+      this.daemonClient
     );
     this.tabManager = new TabManager();
     this.exportService = new ExportService(this.queryExecutor);

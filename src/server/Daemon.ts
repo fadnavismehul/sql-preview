@@ -87,7 +87,7 @@ export class Daemon {
     // this.connectorRegistry.register(new PostgreSQLConnector(new DaemonDriverManager()));
 
     // 3. Initialize Executor
-    const driverManager = new DriverManager(this.CONFIG_DIR);
+    const driverManager = new DriverManager();
     this.queryExecutor = new DaemonQueryExecutor(
       this.connectorRegistry,
       this.connectionManager,
@@ -605,8 +605,7 @@ export class Daemon {
         this.connectedMcpServers.delete(server);
         logger.info('Client disconnected from Socket');
       });
-      socket.on('data', () => this.refreshActivity());
-
+      // removed early data listener to prevent swallowing stream data
       try {
         await server.connect(transport);
       } catch (error) {

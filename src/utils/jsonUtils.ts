@@ -55,14 +55,22 @@ function convertBigNumbers(obj: unknown): unknown {
  * This is crucial for Trino/Presto query results which often contain 64-bit integers.
  */
 export function safeJsonParse<T = unknown>(text: string): T {
+  if (!text || text.trim() === '') {
+    return {} as T;
+  }
   try {
     const parsed = jsonBig.parse(text);
     return convertBigNumbers(parsed) as T;
   } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`JSON Parse Error: ${error.message}`);
-    }
-    throw new Error('JSON Parse Error: Unknown error');
+    const isObj = error !== null && typeof error === 'object';
+    const msg =
+      error instanceof Error
+        ? error.message
+        : isObj && 'message' in error
+          ? String((error as Error).message)
+          : String(error);
+    const snippet = text.length > 100 ? text.substring(0, 100) + '...' : text;
+    throw new Error(`JSON Parse Error: ${msg}\nText: ${snippet}`);
   }
 }
 

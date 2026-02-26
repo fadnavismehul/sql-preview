@@ -7,6 +7,8 @@ import { ILogger } from '../common/logger';
 import { isFileQuery } from '../common/routing';
 import { DriverManager } from '../services/DriverManager';
 
+import { SubProcessConnectorClient } from '../connectors/base/SubProcessConnectorClient';
+
 export class DaemonQueryExecutor {
   constructor(
     private readonly connectorRegistry: ConnectorRegistry,
@@ -16,55 +18,47 @@ export class DaemonQueryExecutor {
   ) {}
 
   private async getConnectorForProfile(profile: ConnectionProfile): Promise<IConnector> {
+    // If it's a built-in profile type but we want to run it out-of-process
+    // or if it's explicitly a 'custom' type.
+
+    let executablePath: string;
+    let connectorId = profile.type as string;
+
     if (profile.type === 'custom') {
-      const pkgName = profile.connectorPackage;
-
+      const customProfile = profile as any;
+      connectorId = `custom-${customProfile.name}`;
       try {
-        this.logger.info(`Loading custom connector from package: ${pkgName}`);
-        const driverPath = await this.driverManager.getDriver(pkgName);
-
-        let ImportedModule;
-        // Use require or dynamic import based on module type.
-        // We'll try dynamic import first.
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          ImportedModule = require(driverPath);
-        } catch (e) {
-          ImportedModule = await import(driverPath);
-        }
-
-        const ConnectorClass = ImportedModule.default || ImportedModule.Connector || ImportedModule;
-
-        if (typeof ConnectorClass !== 'function') {
-          throw new Error(
-            `Custom connector package '${pkgName}' does not export a constructor. It must export a default class or a 'Connector' class.`
-          );
-        }
-
-        // Try to pass driver manager just in case, but custom connectors might not expect it
-        // We follow standard JS constructor patterns
-        const connector = new ConnectorClass(this.driverManager) as IConnector;
-
-        if (!connector.id || !connector.runQuery) {
-          throw new Error(
-            `Custom connector '${pkgName}' does not properly implement the IConnector interface.`
-          );
-        }
-
-        return connector;
-      } catch (e) {
-        this.logger.error(`Failed to load custom connector [${pkgName}]`, e);
-        throw new Error(
-          `Failed to initialize custom connector '${pkgName}': ${e instanceof Error ? e.message : String(e)}`
+        executablePath = await this.driverManager.getConnectorExecutablePath(
+          'custom',
+          customProfile.connectorPath
         );
+      } catch (e) {
+        throw new Error(
+          `Failed to locate custom connector: ${e instanceof Error ? e.message : String(e)}`
+        );
+      }
+    } else {
+      // Attempt to run built-in connectors as sub-processes (RFC-013)
+      try {
+        executablePath = await this.driverManager.getConnectorExecutablePath(profile.type);
+      } catch (e) {
+        this.logger.warn(
+          `Could not find external executable for ${profile.type}, falling back to in-process registry`
+        );
+        const connector = this.connectorRegistry.get(profile.type);
+        if (!connector) {
+          throw new Error(
+            `Connector '${profile.type}' not registered natively and executable not found.`
+          );
+        }
+        return connector;
       }
     }
 
-    const connector = this.connectorRegistry.get(profile.type);
-    if (!connector) {
-      throw new Error(`Connector '${profile.type}' not registered`);
-    }
-    return connector;
+    this.logger.info(
+      `Spawning out-of-process connector client for [${connectorId}] at ${executablePath}`
+    );
+    return new SubProcessConnectorClient(connectorId, executablePath);
   }
 
   /**

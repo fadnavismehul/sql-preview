@@ -69,7 +69,7 @@ export interface DuckDbConnectionProfile {
 
 export interface CustomConnectionProfile extends BaseConnectionProfile {
   type: 'custom';
-  connectorPackage: string;
+  connectorPath: string;
   config: Record<string, unknown>;
 }
 

@@ -14,8 +14,7 @@ export class QueryExecutor {
   constructor(
     private readonly connectorRegistry: ConnectorRegistry,
     private readonly connectionManager: ConnectionManager,
-    private readonly daemonClient: DaemonClient,
-    private readonly driverManager: import('../../services/DriverManager').DriverManager
+    private readonly daemonClient: DaemonClient
   ) {}
 
   /**
@@ -58,18 +57,8 @@ export class QueryExecutor {
       }
     }
 
-    // Inject Driver Path if needed (Extension Host Side)
-    if (profile && profile.type === 'postgres') {
-      try {
-        const packageName = 'pg';
-        const driverPath = await this.driverManager.getDriver(packageName);
-        // Inject into profile for Daemon to use
-        (profile as any).driverPath = driverPath;
-      } catch (e) {
-        this.logger.error(`Failed to resolve driver for ${profile.type}`, e);
-        // We let it proceed, maybe it works if globally installed or bundled (fallback)
-      }
-    }
+    // In RFC-013, we no longer need to dynamically inject NPM driver paths into the profile.
+    // The Daemon will independently spawn out-of-process connectors (Custom or Built-in).
 
     let remoteTabId: string | undefined;
     try {

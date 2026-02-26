@@ -43,5 +43,24 @@ describe('jsonUtils', () => {
       expect(typeof result.row.amount).toBe('number');
       expect(result.row.currency).toBe('USD');
     });
+
+    it('should return empty object for empty or whitespace strings', () => {
+      expect(safeJsonParse('')).toEqual({});
+      expect(safeJsonParse('   ')).toEqual({});
+    });
+
+    it('should throw detailed error with text snippet for invalid JSON', () => {
+      const invalidJson = '<!DOCTYPE html><html><body><h1>502 Bad Gateway</h1></body></html>';
+      expect(() => {
+        safeJsonParse(invalidJson);
+      }).toThrow(/JSON Parse Error:.*Unexpected.*\nText: <!DOCTYPE html>.+/);
+    });
+
+    it('should truncate error snippet for very long invalid inputs', () => {
+      const longInvalidJson = 'X'.repeat(200);
+      expect(() => {
+        safeJsonParse(longInvalidJson);
+      }).toThrow(/Text: X{100}\.\.\./);
+    });
   });
 });

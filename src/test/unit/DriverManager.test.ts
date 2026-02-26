@@ -1,138 +1,64 @@
-import * as vscode from 'vscode';
 import * as fs from 'fs';
-import * as cp from 'child_process';
-import * as path from 'path';
 import { DriverManager } from '../../services/DriverManager';
 import { Logger } from '../../core/logging/Logger';
 
 // Dependencies are mocked in setup.ts or explicitly here if needed logic differs
 jest.mock('fs', () => ({
   existsSync: jest.fn(),
-  mkdirSync: jest.fn(),
-  writeFileSync: jest.fn(),
 }));
 
 jest.mock('../../core/logging/Logger');
-jest.mock('child_process');
 
 describe('DriverManager', () => {
   let driverManager: DriverManager;
-  let mockContext: vscode.ExtensionContext;
-  let mockChildProcess: any;
-
-  const mockStoragePath = '/mock/globalStorage';
-
   beforeEach(() => {
     jest.clearAllMocks();
 
-    mockContext = {
-      globalStorageUri: { fsPath: mockStoragePath },
-    } as any;
-
-    driverManager = new DriverManager(mockContext);
+    driverManager = new DriverManager();
 
     // Mock Logger
     (Logger.getInstance as jest.Mock).mockReturnValue({
       info: jest.fn(),
       error: jest.fn(),
     });
-
-    // Mock Child Process
-    mockChildProcess = {
-      on: jest.fn((event, cb) => {
-        if (event === 'close') {
-          cb(0);
-        } // Default success
-      }),
-      stdout: { on: jest.fn() },
-      stderr: { on: jest.fn() },
-    };
-    (cp.spawn as jest.Mock).mockImplementation((_cmd, args) => {
-      // Handle 'npm --version' check separately if needed, or assume all succeed by default
-      if (args && args[0] === '--version') {
-        const mockCheckProcess: any = {
-          on: jest.fn((event, cb) => {
-            if (event === 'close') {
-              cb(0);
-            } // Success for version check
-            if (event === 'error') {
-              // no-op
-            }
-          }),
-          stdout: { on: jest.fn() },
-          stderr: { on: jest.fn() },
-        };
-        return mockCheckProcess;
-      }
-      return mockChildProcess;
-    });
   });
 
-  describe('getDriver', () => {
-    it('should return driver path if already installed', async () => {
+  describe('getConnectorExecutablePath', () => {
+    it('should return custom absolute path if it exists', async () => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
 
-      const driverPath = await driverManager.getDriver('pg');
+      const customPath = '/absolute/path/to/my-connector';
+      const result = await driverManager.getConnectorExecutablePath('custom', customPath);
 
-      expect(driverPath).toContain(path.join(mockStoragePath, 'node_modules', 'pg'));
-      expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
+      expect(result).toBe(customPath);
+      expect(fs.existsSync).toHaveBeenCalledWith(customPath);
     });
 
-    it('should prompt for installation if not installed', async () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(false); // First check fails
-      (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue('Install');
+    it('should throw error if custom absolute path does not exist', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
 
-      // withProgress mock implementation
-      (vscode.window.withProgress as jest.Mock).mockImplementation((_opts, task) => {
-        return task();
-      });
+      const customPath = '/absolute/path/to/my-connector';
 
-      await driverManager.getDriver('mysql');
-
-      expect(vscode.window.showInformationMessage).toHaveBeenCalled();
-      expect(cp.spawn).toHaveBeenCalledWith(
-        expect.stringContaining('npm'),
-        ['install', 'mysql', '--no-save'],
-        expect.objectContaining({ cwd: mockStoragePath })
+      await expect(driverManager.getConnectorExecutablePath('custom', customPath)).rejects.toThrow(
+        `Custom connector executable not found at path: ${customPath}`
       );
     });
 
-    it('should throw if user cancels installation', async () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
-      (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue('Cancel');
+    it('should resolve built-in connector path in dev fallback locations', async () => {
+      // Setup the mock such that the second probed path returns true
+      (fs.existsSync as jest.Mock).mockImplementation((probePath: string) => {
+        return probePath.includes('sql-preview-duckdb');
+      });
 
-      await expect(driverManager.getDriver('mysql')).rejects.toThrow('was not installed');
-      expect(cp.spawn).not.toHaveBeenCalled();
+      const result = await driverManager.getConnectorExecutablePath('duckdb');
+      expect(result).toContain('sql-preview-duckdb');
+      expect(result).toContain('cli.js');
     });
-  });
 
-  describe('installDriver failure', () => {
-    it('should reject if npm install fails', async () => {
-      (fs.existsSync as jest.Mock).mockReturnValue(false);
-      (vscode.window.showInformationMessage as jest.Mock).mockResolvedValue('Install');
-
-      (vscode.window.withProgress as jest.Mock).mockImplementation((_opts, task) => {
-        return task();
-      });
-
-      // Mock spawn failure
-      mockChildProcess.on.mockImplementation((event: string, cb: any) => {
-        if (event === 'close') {
-          // Assume the first call was version check (success) and second was install (fail)
-          // But here we are mocking the returned process object's method.
-          // Since getDriver calls 'isNpmAvailable' first, that spawns a process.
-          // Then 'installDriver' spawns another.
-          // We need simpler mocking strategy or inspect calls.
-          // Let's assume the test sets up mockChildProcess to fail, and we want that failure to apply to the INSTALL command.
-          // BUT the version check must succeed first.
-
-          // Simplified approach: make version check succeed (handled in spawn mock above),
-          // and this mockChildProcess (returned for install) fail.
-          cb(1);
-        } // Error code
-      });
-
-      await expect(driverManager.getDriver('pg')).rejects.toThrow('Failed to install driver');
+    it('should throw if built-in connector is unknown', async () => {
+      await expect(driverManager.getConnectorExecutablePath('unknown-db')).rejects.toThrow(
+        `Unknown built-in connector type: unknown-db`
+      );
     });
   });
 });

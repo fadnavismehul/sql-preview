@@ -59,3 +59,5 @@ Every RFC must include:
 | RFC-010 | Proposed    | `docs/rfcs/proposed/RFC-010-connection-profiles.md`             | Connection Profiles                    |
 | RFC-011 | Implemented | `docs/rfcs/done/RFC-011-node-independence-and-feature-flags.md` | Node.js Independence and Feature Flags |
 | RFC-012 | Proposed    | `docs/rfcs/proposed/RFC-012-pluggable-connectors.md`            | Pluggable Connector Architecture       |
+| RFC-013 | Proposed    | `docs/rfcs/proposed/RFC-013-agentic-mcp-connectors.md`          | Agentic MCP-Based Pluggable Connectors |
+| RFC-014 | Proposed    | `docs/rfcs/proposed/RFC-014-realtime-websocket.md`              | Realtime Websocket Interface           |

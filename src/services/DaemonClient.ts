@@ -291,6 +291,15 @@ export class DaemonClient {
   }
 
   private async connect() {
+    if (this.client) {
+      try {
+        await this.client.close();
+      } catch (e) {
+        // Ignore close errors
+      }
+    }
+    this.client = new Client({ name: 'vscode-extension', version: '1.0.0' }, { capabilities: {} });
+
     return new Promise<void>((resolve, reject) => {
       const socket = net.createConnection(this.socketPath);
 
