@@ -46,10 +46,10 @@ describe('DaemonMcpToolManager', () => {
   });
 
   describe('getTools', () => {
-    it('should not list close_tab tool (hidden)', () => {
+    it('should list close_tab tool', () => {
       const tools = manager.getTools();
       const closeTab = tools.find(t => t.name === 'close_tab');
-      expect(closeTab).toBeUndefined();
+      expect(closeTab).toBeDefined();
     });
 
     it('should list run_query and get_tab_info', () => {

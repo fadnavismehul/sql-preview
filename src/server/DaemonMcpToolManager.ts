@@ -172,7 +172,6 @@ export class DaemonMcpToolManager {
           required: ['session', 'tabId'],
         },
       },
-      /*
       {
         name: 'close_tab',
         description: 'Close a tab and remove it from the session.',
@@ -185,7 +184,6 @@ export class DaemonMcpToolManager {
           required: ['session', 'tabId'],
         },
       },
-      */
     ];
   }
 
