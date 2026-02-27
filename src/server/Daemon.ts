@@ -8,9 +8,10 @@ import * as path from 'path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { PassThrough } from 'stream';
 
 import { SocketTransport } from './SocketTransport';
+import { WebSocketServerTransport } from './WebSocketServerTransport';
+import * as WebSocket from 'ws';
 import { SessionManager } from './SessionManager';
 import { ConnectionManager } from './connection/ConnectionManager';
 import { FileProfileStore } from './connection/FileProfileStore';
@@ -29,6 +30,7 @@ export class Daemon {
   private app: express.Express;
   private httpServer: http.Server | null = null;
   private socketServer: net.Server | null = null;
+  private wss: WebSocket.Server | null = null;
   private toolManager: DaemonMcpToolManager;
   private mcpSessions = new Map<
     string,
@@ -173,53 +175,6 @@ export class Daemon {
         // 2. Get existing session
         let mcpSession = this.mcpSessions.get(sessionId);
 
-        // 3. Peek at body logic (Using buffering to preserve stream for transport)
-        let requestToHandle = req;
-
-        if (req.method === 'POST') {
-          try {
-            // Buffer the stream
-            const bodyBuffer = await new Promise<Buffer>((resolve, reject) => {
-              const chunks: Buffer[] = [];
-              req.on('data', chunk => chunks.push(chunk));
-              req.on('end', () => resolve(Buffer.concat(chunks)));
-              req.on('error', reject);
-            });
-
-            // Inspect
-            const bodyStr = bodyBuffer.toString('utf-8');
-            if (bodyStr.includes('"method":"initialize"')) {
-              // Simple string check is safer/faster
-              if (this.mcpSessions.has(sessionId)) {
-                logger.info(`[Daemon] Resetting session ${sessionId} (initialize detected)`);
-                this.mcpSessions.delete(sessionId);
-                mcpSession = undefined;
-              }
-            }
-
-            // Create Proxy Request for Transport
-            // Create a custom object that extends the buffer stream
-            // but inherits all Express request properties so the SDK
-            // doesn't crash on undefined 'url', 'method', 'headers', 'headers["content-length"]'
-            const proxyReq = new PassThrough();
-            proxyReq.end(bodyBuffer);
-
-            requestToHandle = new Proxy(proxyReq as unknown as express.Request, {
-              get(target, prop) {
-                if (prop in target) {
-                  return (target as any)[prop];
-                }
-                return req[prop as keyof express.Request];
-              },
-            });
-          } catch (e) {
-            logger.warn('[Daemon] Error buffering request:', e);
-            // If buffering failed, we might be in a bad state, but try to proceed with original req?
-            // Original req is consumed though.
-            // In practice, this catch block implies we can't proceed with this request easily.
-          }
-        }
-
         // 4. Get or Create Session
         if (!mcpSession) {
           logger.info(`[Daemon] Creating new MCP session: ${sessionId}`);
@@ -251,18 +206,19 @@ export class Daemon {
           mcpSession.lastActive = Date.now();
         }
 
-        // 5. Delegate to Transport
-        await mcpSession.transport.handleRequest(requestToHandle, res);
+        // 4. Delegate to Transport
+        const transportPromise = mcpSession.transport.handleRequest(req, res);
 
-        // 4. Force-announce endpoint (StreamableHTTPServerTransport doesn't do it automatically)
-        // Only write if the response is still open (i.e. successful SSE connection)
-        if (
-          !res.writableEnded &&
-          req.method === 'GET' &&
-          req.headers.accept?.includes('text/event-stream')
-        ) {
-          res.write(`event: endpoint\ndata: /mcp?sessionId=${sessionId}\n\n`);
+        // 5. Force-announce endpoint AFTER transport sets headers
+        if (req.method === 'GET' && req.headers.accept?.includes('text/event-stream')) {
+          setTimeout(() => {
+            if (!res.writableEnded) {
+              res.write(`event: endpoint\ndata: /mcp?sessionId=${sessionId}\n\n`);
+            }
+          }, 10);
         }
+
+        await transportPromise;
       } catch (err) {
         logger.error('[Daemon] Error in mcpHandler:', err);
         if (!res.headersSent) {
@@ -537,10 +493,77 @@ export class Daemon {
       this.httpServer.on('error', reject);
     });
 
+    // Start WebSocket Server here, now that httpServer is definitively bound
+    try {
+      this.wss = new WebSocket.Server({ noServer: true });
+      this.wss.on('connection', async ws => {
+        logger.info('Client connected via WebSocket');
+        this.connectedSocketCount++;
+        this.refreshActivity();
+
+        const transport = new WebSocketServerTransport(ws);
+
+        transport.onerror = err => {
+          logger.error('[Daemon] WebSocketTransport Error:', err);
+        };
+
+        transport.onclose = () => {
+          logger.info('[Daemon] WebSocketTransport Closed');
+        };
+
+        // Create a dedicated MCP server for this WS connection
+        const server = new Server(
+          { name: 'sql-preview-daemon-ws', version: '1.0.0' },
+          { capabilities: { resources: {}, tools: {} } }
+        );
+        this.connectedMcpServers.add(server);
+
+        // Register Handlers
+        new DaemonMcpServer(server, this.sessionManager, this.toolManager);
+
+        ws.on('close', () => {
+          this.connectedSocketCount--;
+          this.connectedMcpServers.delete(server);
+          logger.info('Client disconnected from WebSocket');
+        });
+
+        try {
+          await transport.start();
+          await server.connect(transport);
+        } catch (error) {
+          logger.error('[Daemon] Failed to connect MCP server to WS transport', error);
+        }
+      });
+
+      if (this.httpServer) {
+        this.httpServer.on('upgrade', (request, socket, head) => {
+          try {
+            logger.info(`[Daemon] WS Upgrade Request Received: ${request.url}`);
+            const urlStr = request.url || '';
+
+            // Broad match for /mcp/ws to avoid any parsing edge cases
+            if (urlStr.includes('/mcp/ws')) {
+              logger.info(`[Daemon] WS Upgrade matched, handling upgrade...`);
+              this.wss?.handleUpgrade(request as any, socket, head, ws => {
+                this.wss?.emit('connection', ws, request);
+              });
+            } else {
+              logger.warn(`[Daemon] WS Upgrade rejected (did not match /mcp/ws): ${urlStr}`);
+              socket.destroy();
+            }
+          } catch (err) {
+            logger.error('[Daemon] Error in WS upgrade handler', err);
+            socket.destroy();
+          }
+        });
+      }
+    } catch (e) {
+      logger.error('[Daemon] Failed to attach WebSocket server', e);
+      throw e;
+    }
+
     // Start Socket Server
     await this.startSocketServer();
-
-    // MCP Server connection is now handled on-demand per session in /mcp route
   }
 
   public async startStdio() {
@@ -645,6 +668,17 @@ export class Daemon {
         }
       });
       this.socketServer = null;
+    }
+
+    if (this.wss) {
+      this.wss.close(err => {
+        if (err) {
+          logger.error('[Daemon] Error closing WebSocket server:', err);
+        } else {
+          logger.info('[Daemon] WebSocket server closed.');
+        }
+      });
+      this.wss = null;
     }
 
     if (this.idleCheckInterval) {
