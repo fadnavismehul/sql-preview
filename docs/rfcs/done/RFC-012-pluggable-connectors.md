@@ -11,7 +11,7 @@ This RFC proposes an architecture to allow third-party developers and users to a
 
 ## Motivation
 
-Our users want to connect to a wider variety of databases. Currently, every new database requires modifying the core extension, creating a new implementation in `src/connectors/`, and managing its dependencies. Some drivers (like `pg` for Postgres, SQLite WASM binaries, or DuckDB native modules) are quite large and sometimes require native bindings. 
+Our users want to connect to a wider variety of databases. Currently, every new database requires modifying the core extension, creating a new implementation in `src/connectors/`, and managing its dependencies. Some drivers (like `pg` for Postgres, SQLite WASM binaries, or DuckDB native modules) are quite large and sometimes require native bindings.
 To avoid bloating the VSIX package and to empower the community, we need a pluggable architecture where connectors are separate, opt-in entities.
 
 ## Proposed Options
@@ -19,11 +19,13 @@ To avoid bloating the VSIX package and to empower the community, we need a plugg
 ### Option 1: VS Code Extension API (Recommended for deep integration)
 
 SQL Preview exposes an extension API in `activate()`:
+
 ```typescript
 export interface SQLPreviewAPI {
   registerConnector(id: string, modulePath: string): void;
 }
 ```
+
 Other extensions declare an extension dependency on `sql-preview` and call this API, providing an absolute path to their connector implementation `.js` file. The Daemon dynamically `import()`s this script.
 
 - **Pros:** Native VSCode ecosystem experience. Extensions can provide dedicated UI/commands.
@@ -49,6 +51,7 @@ The Daemon dynamically `require()`s the file.
 ## Proposed Architecture (Hybrid approach)
 
 We will proceed with a combination of **Option 2** and **Option 1**.
+
 1. We will formalize `IConnector` as an external `@sql-preview/connector-api` NPM package so authors can type-check against it.
 2. We will expand `ConnectionProfile` to support a `custom` type that includes a `connectorPackage` field and a generic `config` JSON object.
 3. The UI will be updated to allow creating these custom profiles. The UI will rely on a generic key-value block for configuration properties, keeping the implementation simple.

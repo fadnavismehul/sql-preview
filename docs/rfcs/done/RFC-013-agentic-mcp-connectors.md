@@ -1,7 +1,7 @@
 # RFC-013: Agentic MCP-Based Pluggable Connectors
 
 **Feature Name:** Agentic MCP-Based Pluggable Connectors
-**Status:** Proposed
+**Status:** Implemented
 **Created:** 2026-02-26
 **Owner:** Core Team
 
