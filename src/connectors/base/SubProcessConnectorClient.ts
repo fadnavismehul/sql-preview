@@ -14,7 +14,7 @@ export class SubProcessConnectorClient implements IConnector {
   constructor(
     public readonly id: string,
     private readonly executablePath: string
-  ) { }
+  ) {}
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   validateConfig(_config: ConnectorConfig): string | undefined {

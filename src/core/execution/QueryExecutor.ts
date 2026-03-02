@@ -15,7 +15,7 @@ export class QueryExecutor {
     private readonly connectorRegistry: ConnectorRegistry,
     private readonly connectionManager: ConnectionManager,
     private readonly daemonClient: DaemonClient
-  ) { }
+  ) {}
 
   /**
    * Orchestrates the query execution via Daemon.

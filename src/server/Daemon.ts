@@ -541,9 +541,14 @@ export class Daemon {
             // Broad match for /mcp/ws to avoid any parsing edge cases
             if (urlStr.includes('/mcp/ws')) {
               logger.info(`[Daemon] WS Upgrade matched, handling upgrade...`);
-              this.wss?.handleUpgrade(request as import('http').IncomingMessage, socket, head, ws => {
-                this.wss?.emit('connection', ws, request);
-              });
+              this.wss?.handleUpgrade(
+                request as import('http').IncomingMessage,
+                socket,
+                head,
+                ws => {
+                  this.wss?.emit('connection', ws, request);
+                }
+              );
             } else {
               logger.warn(`[Daemon] WS Upgrade rejected (did not match /mcp/ws): ${urlStr}`);
               socket.destroy();
