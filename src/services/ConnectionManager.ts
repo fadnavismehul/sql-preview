@@ -9,7 +9,7 @@ export class ConnectionManager {
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly daemonClient: DaemonClient
-  ) { }
+  ) {}
 
   public async getConnections(): Promise<ConnectionProfile[]> {
     // Fetch from Daemon
