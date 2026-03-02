@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { LogLevel } from '../common/types';
 import { ILogger } from '../common/logger';
 

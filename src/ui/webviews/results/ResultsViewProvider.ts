@@ -180,10 +180,11 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider, MessageH
     // Fetch the active profile from ConnectionManager
     const connections = await this._connectionManager.getConnections();
     const defaultType = config.get<string>('defaultConnector', 'trino');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let activeProfile: any = null;
 
     if (connections.length > 0) {
-      const matching = connections.find((c: any) => c.type === defaultType);
+      const matching = connections.find(c => c.type === defaultType);
       const active = matching || connections[0];
       if (active) {
         activeProfile = await this._connectionManager.getConnection(active.id);

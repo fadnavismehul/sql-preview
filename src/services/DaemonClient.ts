@@ -371,7 +371,7 @@ export class DaemonClient {
 
     // Parse result content for Tab ID
     const content = result.content as { type: string; text: string }[];
-    if (!content || content.length === 0 || !content[0]!.text) {
+    if (!content || content.length === 0 || !content[0]?.text) {
       throw new Error('Invalid response from daemon');
     }
 

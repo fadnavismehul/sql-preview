@@ -14,7 +14,7 @@ export class SubProcessConnectorClient implements IConnector {
   constructor(
     public readonly id: string,
     private readonly executablePath: string
-  ) {}
+  ) { }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   validateConfig(_config: ConnectorConfig): string | undefined {
@@ -68,6 +68,7 @@ export class SubProcessConnectorClient implements IConnector {
         } catch (e) {
           // If it's not JSON, it might be raw text output (e.g. CLI mode just dumping results)
           // For now, assume the dual-mode CLI outputs strictly JSON QueryPages when queried by Daemon
+          // eslint-disable-next-line no-console
           console.warn(`[SubProcess] Failed to parse stdout line as JSON: ${line}`);
         }
       }

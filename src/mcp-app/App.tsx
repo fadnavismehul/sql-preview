@@ -23,9 +23,10 @@ export function App() {
     const [view, setView] = useState<'query' | 'connections'>('query');
 
     useEffect(() => {
-        if (!app) return;
+        if (!app) { return; }
 
         app.ontoolresult = (toolResult) => {
+            // eslint-disable-next-line no-console
             console.log('Received tool result:', toolResult);
             setIsLoading(false);
             if (toolResult.data) {
@@ -38,11 +39,12 @@ export function App() {
     }, [app]);
 
     const handleRunQuery = async () => {
-        if (!app) return;
+        if (!app) { return; }
         setIsLoading(true);
         setError(null);
         try {
             const result = await app.callServerTool({ name: 'run_query', arguments: { sql: sql, waitForResult: true } });
+            // eslint-disable-next-line no-console
             console.log('Query Result:', result);
             if (result.data) {
                 const data = result.data as QueryResult;
@@ -84,6 +86,7 @@ export function App() {
                 setResult(data);
             }
         } catch (e) {
+            // eslint-disable-next-line no-console
             console.error('Query Error:', e);
             setError(String(e));
         } finally {

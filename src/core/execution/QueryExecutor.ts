@@ -15,7 +15,7 @@ export class QueryExecutor {
     private readonly connectorRegistry: ConnectorRegistry,
     private readonly connectionManager: ConnectionManager,
     private readonly daemonClient: DaemonClient
-  ) {}
+  ) { }
 
   /**
    * Orchestrates the query execution via Daemon.
@@ -37,7 +37,7 @@ export class QueryExecutor {
 
     // Resolve Connection Profile (Client Side) to pass to Daemon
     // Only do this if it's NOT a file query (or if we want to allow mixed mode, but for now strict separation is safer)
-    let profile: any = undefined;
+    let profile: ConnectorConfig | undefined = undefined;
 
     if (!localFileQuery) {
       const connections = await this.connectionManager.getConnections();

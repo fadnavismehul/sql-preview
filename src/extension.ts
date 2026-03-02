@@ -152,17 +152,18 @@ export function activate(context: vscode.ExtensionContext) {
       if (connections.length === 0) {
         profileId = 'default-' + Date.now();
         // Create minimal default profile
-        const defaultProfile: any = {
+        const defaultProfile: import('./common/types').TrinoConnectionProfile = {
           id: profileId,
           name: 'Default Connection',
           type: 'trino', // Default
           host: 'localhost',
           port: 8080,
           user: 'user',
+          ssl: false,
         };
         await manager.saveConnection(defaultProfile);
       } else {
-        profileId = connections[0]!.id;
+        profileId = connections[0]?.id ?? '';
       }
 
       const password = await vscode.window.showInputBox({
@@ -180,7 +181,7 @@ export function activate(context: vscode.ExtensionContext) {
       const manager = serviceContainer.connectionManager;
       const connections = await manager.getConnections();
       if (connections.length > 0) {
-        await manager.clearPasswordForConnection(connections[0]!.id);
+        await manager.clearPasswordForConnection(connections[0]?.id ?? '');
         vscode.window.showInformationMessage('Credentials cleared.');
       } else {
         vscode.window.showInformationMessage('No credentials found to clear.');
@@ -291,8 +292,10 @@ async function handleQueryCommand(sqlFromCodeLens: string | undefined, newTab: b
       if (page.data) {
         // Optimized: direct push loop avoids slice allocation and spread operator overhead
         for (let i = 0; i < page.data.length; i++) {
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          allRows.push(page.data[i]!);
+          const row = page.data[i];
+          if (row !== undefined) {
+            allRows.push(row);
+          }
         }
         totalRows += page.data.length;
       }

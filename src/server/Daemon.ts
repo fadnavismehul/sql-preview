@@ -135,12 +135,9 @@ export class Daemon {
   }
 
   private setupRoutes() {
-    // Request Logging
-    this.app.use((_req, res, next) => {
+    // Refresh inactivity timer on every request
+    this.app.use((_req, _res, next) => {
       this.refreshActivity();
-      res.on('finish', () => {
-        // Request finished
-      });
       next();
     });
 
@@ -246,8 +243,8 @@ export class Daemon {
         const controller = new AbortController();
 
         // Use array to collect all rows
-        const allRows: any[] = [];
-        let columns: any[] = [];
+        const allRows: unknown[] = [];
+        let columns: import('../common/types').ColumnDef[] = [];
 
         try {
           const generator = this.queryExecutor.execute(
@@ -544,7 +541,7 @@ export class Daemon {
             // Broad match for /mcp/ws to avoid any parsing edge cases
             if (urlStr.includes('/mcp/ws')) {
               logger.info(`[Daemon] WS Upgrade matched, handling upgrade...`);
-              this.wss?.handleUpgrade(request as any, socket, head, ws => {
+              this.wss?.handleUpgrade(request as import('http').IncomingMessage, socket, head, ws => {
                 this.wss?.emit('connection', ws, request);
               });
             } else {
@@ -637,11 +634,11 @@ export class Daemon {
     });
 
     return new Promise<void>((resolve, reject) => {
-      this.socketServer!.listen(this.SOCKET_PATH, () => {
+      this.socketServer?.listen(this.SOCKET_PATH, () => {
         logger.info(`Daemon IPC listening on ${this.SOCKET_PATH}`);
         resolve();
       });
-      this.socketServer!.on('error', reject);
+      this.socketServer?.on('error', reject);
     });
   }
 

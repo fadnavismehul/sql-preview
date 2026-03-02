@@ -27,7 +27,7 @@ describe('Profile Stores', () => {
 
       const profiles = await store.loadProfiles();
       expect(profiles).toHaveLength(1);
-      expect(profiles[0]!.id).toBe('1');
+      expect(profiles[0]?.id).toBe('1');
     });
 
     it('should save a new profile', async () => {
@@ -132,7 +132,7 @@ describe('Profile Stores', () => {
 
       const profiles = await store.loadProfiles();
       expect(profiles).toHaveLength(1);
-      expect(profiles[0]!.id).toBe('env1');
+      expect(profiles[0]?.id).toBe('env1');
     });
 
     it('should return empty array if env var is missing', async () => {

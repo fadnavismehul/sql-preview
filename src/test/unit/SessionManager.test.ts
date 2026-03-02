@@ -191,7 +191,7 @@ describe('SessionManager', () => {
 
       sessionManager.updateTab('session1', 'tab1', { title: 'New Title' });
 
-      expect(session.tabs.get('tab1')!.title).toBe('New Title');
+      expect(session.tabs.get('tab1')?.title).toBe('New Title');
       expect(emitSpy).toHaveBeenCalledWith({
         sessionId: 'session1',
         tabId: 'tab1',

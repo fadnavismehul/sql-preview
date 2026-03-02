@@ -9,7 +9,7 @@ export class ConnectionManager {
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly daemonClient: DaemonClient
-  ) {}
+  ) { }
 
   public async getConnections(): Promise<ConnectionProfile[]> {
     // Fetch from Daemon
@@ -18,12 +18,12 @@ export class ConnectionManager {
     // Add Fallback Profile from Workspace Settings
     const fallback = await this.getWorkspaceFallbackProfile();
     if (fallback) {
-      daemonConnections.push(fallback as any);
+      daemonConnections.push(fallback);
     }
 
     // Merge with local passwords
     const enriched = await Promise.all(
-      daemonConnections.map(async (c: any) => {
+      daemonConnections.map(async (c: ConnectionProfile) => {
         const password = await this.getPassword(c.id);
         if (password) {
           return { ...c, password };
