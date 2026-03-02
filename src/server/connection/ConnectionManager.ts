@@ -6,7 +6,7 @@ export class ConnectionManager {
   constructor(
     private readonly profileStores: IProfileStore[],
     private readonly credentialStore: ICredentialStore
-  ) {}
+  ) { }
 
   /**
    * Returns all available connection profiles.
@@ -18,7 +18,7 @@ export class ConnectionManager {
     // Iterate in reverse order so that earlier stores (higher priority) overwrite later ones
     for (let i = this.profileStores.length - 1; i >= 0; i--) {
       try {
-        const profiles = await this.profileStores[i]!.loadProfiles();
+        const profiles = await this.profileStores[i]?.loadProfiles() ?? [];
         for (const profile of profiles) {
           profileMap.set(profile.id, profile);
         }

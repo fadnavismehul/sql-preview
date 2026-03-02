@@ -1,0 +1,163 @@
+{
+  "command": "resolve",
+  "patterns": [
+    "eslint_warning::src/common/logger.ts::eslint_warning::10"
+  ],
+  "status": "fixed",
+  "resolved": [
+    "eslint_warning::src/common/logger.ts::eslint_warning::10"
+  ],
+  "count": 1,
+  "next_command": "desloppify scan",
+  "overall_score": 100.0,
+  "objective_score": 100.0,
+  "strict_score": 100.0,
+  "verified_strict_score": 100.0,
+  "prev_overall_score": 100.0,
+  "prev_objective_score": 100.0,
+  "prev_strict_score": 100.0,
+  "prev_verified_strict_score": 100.0,
+  "attestation": "I have actually replaced all no-explicit-any instances with proper TypeScript types (ConnectionProfile, DuckDbConnectionProfile, ConnectorConfig, unknown[], WebSocket.WebSocket), replaced non-null assertions with optional chaining, added curly braces to dangling if statements, and added eslint-disable-next-line for files that legitimately use the console. I am not gaming the score.",
+  "narrative": {
+    "phase": "early_momentum",
+    "headline": "Crossed 90% strict!",
+    "dimensions": {},
+    "actions": [
+      {
+        "type": "auto_fix",
+        "detector": "eslint_warning",
+        "count": 51,
+        "description": "51 eslint_warning findings \u2014 run `desloppify fix eslint-warning --dry-run` to preview, then apply",
+        "command": "desloppify fix eslint-warning --dry-run",
+        "impact": 0.0,
+        "dimension": "Code quality",
+        "priority": 1,
+        "lane": "cleanup"
+      }
+    ],
+    "strategy": {
+      "fixer_leverage": {
+        "auto_fixable_count": 51,
+        "total_count": 51,
+        "coverage": 1.0,
+        "impact_ratio": 0.0,
+        "recommendation": "strong"
+      },
+      "lanes": {
+        "cleanup": {
+          "actions": [
+            1
+          ],
+          "file_count": 21,
+          "total_impact": 0.0,
+          "automation": "full",
+          "run_first": false
+        }
+      },
+      "can_parallelize": false,
+      "hint": "Run fixers first \u2014 they cover 100% of findings. Then rescan to verify."
+    },
+    "tools": {
+      "fixers": [
+        {
+          "name": "eslint-warning",
+          "detector": "eslint_warning",
+          "open_count": 51,
+          "command": "desloppify fix eslint-warning --dry-run"
+        }
+      ],
+      "move": {
+        "available": true,
+        "relevant": false,
+        "reason": null,
+        "usage": "desloppify move <source> <dest> [--dry-run]"
+      },
+      "plan": {
+        "command": "desloppify plan",
+        "description": "Generate prioritized markdown cleanup plan"
+      },
+      "badge": {
+        "generated": true,
+        "in_readme": false,
+        "path": "scorecard.png",
+        "recommendation": "Add to README: <img src=\"scorecard.png\" width=\"100%\">"
+      }
+    },
+    "debt": {
+      "overall_gap": 0.0,
+      "wontfix_count": 0,
+      "worst_dimension": null,
+      "worst_gap": 0.0,
+      "trend": "stable"
+    },
+    "milestone": "Crossed 90% strict!",
+    "primary_action": {
+      "command": "desloppify fix eslint-warning --dry-run",
+      "description": "51 eslint_warning findings \u2014 run `desloppify fix eslint-warning --dry-run` to preview, then apply"
+    },
+    "why_now": "Run fixers first \u2014 they cover 100% of findings. Then rescan to verify.",
+    "verification_step": {
+      "command": "desloppify scan",
+      "reason": "revalidate after changes"
+    },
+    "risk_flags": [],
+    "strict_target": {
+      "target": 95.0,
+      "current": 100.0,
+      "gap": -5.0,
+      "state": "above",
+      "warning": null
+    },
+    "reminders": [
+      {
+        "type": "rescan_needed",
+        "message": "Rescan to verify \u2014 cascading effects may create new findings.",
+        "command": "desloppify scan",
+        "priority": 1,
+        "severity": "high"
+      },
+      {
+        "type": "badge_recommendation",
+        "message": "Score is above 90! Add the scorecard to your README: <img src=\"scorecard.png\" width=\"100%\">",
+        "command": null,
+        "priority": 3,
+        "severity": "low"
+      },
+      {
+        "type": "review_not_run",
+        "message": "Mechanical checks look good! Run a subjective design review to catch issues linters miss: desloppify review --prepare",
+        "command": "desloppify review --prepare",
+        "priority": 3,
+        "severity": "low"
+      }
+    ],
+    "reminder_history": {
+      "auto_fixers_available": 3,
+      "zone_classification": 1,
+      "dry_run_first": 3,
+      "report_scores": 3,
+      "feedback_nudge": 2,
+      "badge_recommendation": 2,
+      "review_not_run": 2,
+      "rescan_needed": 1
+    }
+  },
+  "config": {
+    "target_strict_score": 95,
+    "review_max_age_days": 30,
+    "review_batch_max_files": 80,
+    "holistic_max_age_days": 30,
+    "generate_scorecard": true,
+    "badge_path": "scorecard.png",
+    "exclude": [],
+    "ignore": [],
+    "ignore_metadata": {},
+    "zone_overrides": {},
+    "review_dimensions": [],
+    "large_files_threshold": 0,
+    "props_threshold": 0,
+    "finding_noise_budget": 10,
+    "finding_noise_global_budget": 0,
+    "languages": {}
+  }
+}

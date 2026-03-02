@@ -1,6 +1,7 @@
 import { IConnector, ConnectorConfig } from '../connectors/base/IConnector';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 import { QueryPage, ConnectionProfile } from '../common/types';
+import type { DuckDbConnectionProfile } from '@sql-preview/connector-api';
 import { ConnectionManager } from './connection/ConnectionManager';
 import { ILogger } from '../common/logger';
 
@@ -15,7 +16,7 @@ export class DaemonQueryExecutor {
     private readonly connectionManager: ConnectionManager,
     private readonly logger: ILogger,
     private readonly driverManager: DriverManager
-  ) {}
+  ) { }
 
   private async getConnectorForProfile(profile: ConnectionProfile): Promise<IConnector> {
     // If it's a built-in profile type but we want to run it out-of-process
@@ -25,7 +26,7 @@ export class DaemonQueryExecutor {
     let connectorId = profile.type as string;
 
     if (profile.type === 'custom') {
-      const customProfile = profile as any;
+      const customProfile = profile as ConnectionProfile & { connectorPath?: string; name?: string };
       connectorId = `custom-${customProfile.name}`;
       try {
         executablePath = await this.driverManager.getConnectorExecutablePath(
@@ -118,10 +119,10 @@ export class DaemonQueryExecutor {
         } else {
           try {
             // Check availability
-            const tempProfile: ConnectionProfile = {
+            const tempProfile: DuckDbConnectionProfile = {
               id: 'adhoc-duckdb',
               name: 'Adhoc DuckDB',
-              type: 'duckdb' as any,
+              type: 'duckdb',
               databasePath: ':memory:',
               sslVerify: true,
             };
@@ -132,10 +133,10 @@ export class DaemonQueryExecutor {
             profile = {
               id: 'adhoc-duckdb',
               name: 'Adhoc DuckDB',
-              type: 'duckdb' as any,
+              type: 'duckdb',
               databasePath: ':memory:', // Default to memory, CWD set by process
               sslVerify: true,
-            };
+            } as DuckDbConnectionProfile;
           } catch (e) {
             this.logger.error('DuckDB connector failed during auto-routing', e);
             throw new Error(
@@ -168,9 +169,12 @@ export class DaemonQueryExecutor {
     }
 
     // Generic Config Construction
+    const maxRows = process.env['SQL_PREVIEW_MAX_ROWS']
+      ? parseInt(process.env['SQL_PREVIEW_MAX_ROWS'], 10)
+      : 10000;
     const connectorConfig: ConnectorConfig = {
       ...profile,
-      maxRows: 1000, // TODO: Get from Daemon Config
+      maxRows,
       sslVerify:
         'sslVerify' in profile && profile.sslVerify !== undefined ? profile.sslVerify : true,
     };
@@ -216,7 +220,7 @@ export class DaemonQueryExecutor {
       // Let's create a temporary profile for loading.
       const tempProfile = {
         ...config,
-        type: type as any,
+        type: type as ConnectionProfile['type'],
         id: 'test',
       } as unknown as ConnectionProfile;
       const connector = await this.getConnectorForProfile(tempProfile);

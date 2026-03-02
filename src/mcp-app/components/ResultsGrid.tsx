@@ -1,6 +1,6 @@
 
 interface ResultsGridProps {
-    rows: any[];
+    rows: Record<string, unknown>[];
     columns: { name: string; type: string }[];
     theme: 'light' | 'dark';
 }

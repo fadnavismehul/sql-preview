@@ -74,7 +74,9 @@ export class ServiceContainer {
         logLevelStr = process.env['SQL_PREVIEW_LOG_LEVEL'];
       }
 
-      const logLevel = (LogLevel as any)[logLevelStr] || LogLevel.INFO;
+      const logLevel = (Object.values(LogLevel) as string[]).includes(logLevelStr)
+        ? (logLevelStr as LogLevel)
+        : LogLevel.INFO;
 
       Logger.initialize({
         outputChannelName: 'SQL Preview',

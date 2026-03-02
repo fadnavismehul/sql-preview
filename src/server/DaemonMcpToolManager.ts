@@ -9,7 +9,7 @@ export class DaemonMcpToolManager {
     private readonly sessionManager: SessionManager,
     private readonly queryExecutor: DaemonQueryExecutor,
     private readonly connectionManager: ConnectionManager
-  ) {}
+  ) { }
 
   public getTools() {
     return [
@@ -300,9 +300,9 @@ export class DaemonMcpToolManager {
           type: 'text',
           text: JSON.stringify(
             connections.map(c => {
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              const { password, ...safeProfile } = c as any;
-              return safeProfile;
+              const sanitized = { ...c } as Record<string, unknown>;
+              delete sanitized['password'];
+              return sanitized;
             }),
             null,
             2
@@ -313,7 +313,7 @@ export class DaemonMcpToolManager {
   }
 
   private async handleSaveConnection(args: unknown) {
-    const typedArgs = args as { connectionProfile?: any } | undefined;
+    const typedArgs = args as { connectionProfile?: import('../common/types').ConnectionProfile } | undefined;
     const profile = typedArgs?.connectionProfile;
 
     if (!profile || !profile.id || !profile.name || !profile.type) {
@@ -343,10 +343,10 @@ export class DaemonMcpToolManager {
 
     // Construct Config & Auth similar to runQuery logic
     // We should probably share this logic, but for now duplicate
-    const connectorConfig: any = {
+    const connectorConfig: import('../connectors/base/IConnector').ConnectorConfig = {
       ...profile,
       maxRows: 1,
-      sslVerify: 'sslVerify' in profile ? profile.sslVerify : true,
+      sslVerify: 'sslVerify' in profile ? (profile as { sslVerify?: boolean }).sslVerify ?? true : true,
     };
 
     let authHeader: string | undefined;
@@ -398,15 +398,15 @@ export class DaemonMcpToolManager {
     try {
       const typedArgs = args as
         | {
-            sql?: string;
-            session?: string;
-            displayName?: string;
-            newTab?: boolean;
-            connectionId?: string;
-            connectionProfile?: unknown;
-            tabId?: string;
-            waitForResult?: boolean;
-          }
+          sql?: string;
+          session?: string;
+          displayName?: string;
+          newTab?: boolean;
+          connectionId?: string;
+          connectionProfile?: unknown;
+          tabId?: string;
+          waitForResult?: boolean;
+        }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       // Default to a known session ID if not provided (e.g. from Inspector or App)
@@ -420,11 +420,6 @@ export class DaemonMcpToolManager {
       if (!sql) {
         throw new Error('SQL query is required');
       }
-      // Session ID is now guaranteed
-      // if (!sessionId) {
-      //   throw new Error('Session ID is required');
-      // }
-
       // Lazy session registration: auto-create if not found
       let session = this.sessionManager.getSession(sessionId);
       if (!session) {
@@ -599,11 +594,6 @@ export class DaemonMcpToolManager {
 
       let columns: import('../common/types').ColumnDef[] = [];
 
-      // Ensure rows is initialized
-      if (!tab.rows) {
-        tab.rows = [];
-      }
-
       for await (const page of generator) {
         if (page.columns) {
           columns = page.columns;
@@ -611,8 +601,8 @@ export class DaemonMcpToolManager {
         }
         if (page.data && page.data.length > 0) {
           this.sessionManager.updateTab(sessionId, tabId, {
-            columns: page.columns ? page.columns : tab.columns,
-            rows: page.data && page.data.length > 0 ? [...tab.rows, ...page.data] : tab.rows,
+            columns: page.columns ?? tab.columns,
+            rows: [...tab.rows, ...page.data],
             status: 'loading',
           });
         }
@@ -643,12 +633,12 @@ export class DaemonMcpToolManager {
   private async handleGetTabInfo(args: unknown) {
     const typedArgs = args as
       | {
-          session?: string;
-          tabId?: string;
-          mode?: 'preview' | 'page';
-          offset?: number;
-          limit?: number;
-        }
+        session?: string;
+        tabId?: string;
+        mode?: 'preview' | 'page';
+        offset?: number;
+        limit?: number;
+      }
       | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {

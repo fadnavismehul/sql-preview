@@ -34,7 +34,7 @@ export class ResultsMessageHandler {
     private readonly _connectionManager: ConnectionManager,
     private readonly _queryExecutor: QueryExecutor,
     private readonly _extensionUri: vscode.Uri
-  ) {}
+  ) { }
 
   public async handleMessage(data: WebviewToExtensionMessage) {
     switch (data.command) {
@@ -115,15 +115,24 @@ export class ResultsMessageHandler {
         return;
       }
       case 'testConnection': {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const config = data.config as any; // config is typed as unknown in message definition for flexibility
+        // config is typed as unknown in the message union; cast to the known settings shape
+        const config = data.config as {
+          defaultConnector?: string;
+          databasePath?: string;
+          host?: string;
+          port?: number | string;
+          user?: string;
+          catalog?: string;
+          schema?: string;
+          ssl?: boolean;
+          sslVerify?: boolean;
+        };
 
         const workspaceConfig = vscode.workspace.getConfiguration('sqlPreview');
         const connectorType =
           config.defaultConnector || workspaceConfig.get<string>('defaultConnector', 'trino');
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let testConfig: any;
+        let testConfig: Record<string, unknown>;
         let authHeader: string | undefined;
 
         if (connectorType === 'sqlite') {
@@ -189,8 +198,7 @@ export class ResultsMessageHandler {
         }
         const port = validatePort(rawPort);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const req = http.get(`http://localhost:${port}/status`, (res: any) => {
+        const req = http.get(`http://localhost:${port}/status`, (res: http.IncomingMessage) => {
           if (res.statusCode === 200) {
             this._delegate.postMessage({
               type: 'testMcpResult',
@@ -206,8 +214,7 @@ export class ResultsMessageHandler {
           }
         });
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        req.on('error', (e: any) => {
+        req.on('error', (e: Error) => {
           this._delegate.postMessage({
             type: 'testMcpResult',
             success: false,
@@ -219,8 +226,22 @@ export class ResultsMessageHandler {
         return;
       }
       case 'saveSettings': {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const s = data.settings as any;
+        const s = data.settings as {
+          maxRowsToDisplay?: number;
+          fontSize?: number;
+          rowHeight?: string;
+          tabNaming?: string;
+          host?: string;
+          port?: number | string;
+          user?: string;
+          catalog?: string;
+          schema?: string;
+          ssl?: boolean;
+          sslVerify?: boolean;
+          mcpEnabled?: boolean;
+          defaultConnector?: string;
+          databasePath?: string;
+        };
 
         let resource: vscode.Uri | undefined;
         const activeUri = this._delegate.getActiveEditorUri();
@@ -291,22 +312,14 @@ export class ResultsMessageHandler {
             host: s.host || '127.0.0.1',
             port: s.port ? validatePort(s.port) : 8080,
             user: s.user || 'user',
-            catalog: s.catalog,
-            schema: s.schema,
+            ...(s.catalog !== undefined ? { catalog: s.catalog } : {}),
+            ...(s.schema !== undefined ? { schema: s.schema } : {}),
             ssl: s.ssl || false,
             sslVerify: s.sslVerify !== false,
-          };
+          } as import('../../../common/types').TrinoConnectionProfile;
         }
         await this._connectionManager.saveConnection(profile);
-        // Note: saveConnection preserves existing password via simple merge check or secrets logic
-        // But here we construct a new object. saveConnection implementation handles merging?
-        // Checking ConnectionManager: it receives the profile. It does NOT merge "password" from retrieval unless provided.
-        // But we want to PRESERVE password if it exists.
-        // Wait, ConnectionManager.saveConnection splits password.
-        // If we pass a profile WITHOUT password field, does it delete it?
-        // "if (password !== undefined)" -> checks field presence.
-        // In our constructing above, 'password' key is missing (undefined).
-        // So saveConnection(profile) where password is undefined => It will NOT touch the secret. Correct.
+        // saveConnection will NOT touch the stored secret unless a password field is explicitly provided.
 
         // Refresh settings to confirm
         this._delegate.refreshSettings(); // This will fetch stored password status
@@ -326,8 +339,6 @@ export class ResultsMessageHandler {
           // Ensure a profile exists
           let profileId: string;
           if (existing.length === 0) {
-            // Should create one first?
-            // Quick fix: create a default one with default settings
             profileId = 'default-' + Date.now();
             // We need some minimal config.
             const defaultProfile: import('../../../common/types').TrinoConnectionProfile = {
@@ -410,15 +421,19 @@ export class ResultsMessageHandler {
         }
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const results = (response.data as any).results?.[0]?.extensions;
+      interface MarketplaceResult {
+        results: Array<{ extensions: Array<{ versions: Array<{ version: string }> }> }>;
+      }
+      const results = (response.data as MarketplaceResult).results?.[0]?.extensions;
       if (results && results.length > 0) {
-        const latestVersion = results[0].versions[0].version;
-        this._delegate.postMessage({
-          type: 'updateVersionInfo',
-          currentVersion,
-          latestVersion,
-        });
+        const latestVersion = results[0]?.versions?.[0]?.version;
+        if (latestVersion) {
+          this._delegate.postMessage({
+            type: 'updateVersionInfo',
+            currentVersion,
+            latestVersion,
+          });
+        }
       }
     } catch (e) {
       this.log(`Failed to check for updates: ${e}`);

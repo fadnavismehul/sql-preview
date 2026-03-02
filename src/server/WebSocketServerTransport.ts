@@ -7,7 +7,7 @@ export class WebSocketServerTransport implements Transport {
   public onerror?: (error: Error) => void;
   public onmessage?: (message: JSONRPCMessage) => void;
 
-  constructor(private socket: any) {}
+  constructor(private socket: WebSocket.WebSocket) { }
 
   async start(): Promise<void> {
     this.socket.on('message', (data: WebSocket.RawData) => {

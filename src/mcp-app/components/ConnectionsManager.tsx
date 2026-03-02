@@ -27,15 +27,17 @@ export const ConnectionsManager: React.FC<Props> = ({ app, theme }) => {
     const [testResult, setTestResult] = useState<string | null>(null);
 
     const fetchConnections = async () => {
-        if (!app) return;
+        if (!app) { return; }
         setIsLoading(true);
         try {
             const result = await app.callServerTool({ name: 'list_connections', arguments: {} });
-            if (result.content && result.content[0] && result.content[0].text) {
-                const list = JSON.parse(result.content[0].text);
+            const first = result.content?.[0];
+            if (first && first.type === 'text' && first.text) {
+                const list = JSON.parse(first.text);
                 setConnections(list);
             }
         } catch (e) {
+            // eslint-disable-next-line no-console
             console.error('Failed to fetch connections:', e);
         } finally {
             setIsLoading(false);
@@ -47,16 +49,18 @@ export const ConnectionsManager: React.FC<Props> = ({ app, theme }) => {
     }, [app]);
 
     const handleTestConnection = async (profile: ConnectionProfile) => {
-        if (!app) return;
+        if (!app) { return; }
         setTestResult(`Testing ${profile.name}...`);
         try {
             const result = await app.callServerTool({
                 name: 'test_connection',
                 arguments: { connectionId: profile.id }
             });
+            // eslint-disable-next-line no-console
             console.log('Test Result:', result);
-            if (result.content && result.content[0]) {
-                setTestResult(result.content[0].text);
+            const first = result.content?.[0];
+            if (first && first.type === 'text') {
+                setTestResult(first.text);
             } else {
                 setTestResult('No response content');
             }

@@ -64,9 +64,9 @@ describe('ConnectionManager', () => {
     const connections = await connectionManager.getConnections();
 
     expect(connections.length).toBe(2);
-    expect(connections[0]!.id).toBe('conn1');
-    expect((connections[0] as any).password).toBe('secretPassword');
-    expect(connections[1]!.id).toMatch(/^workspace-fallback-/);
+    expect(connections[0]?.id).toBe('conn1');
+    expect((connections[0] as { password?: string }).password).toBe('secretPassword');
+    expect(connections[1]?.id).toMatch(/^workspace-fallback-/);
     expect(mockDaemonClient.listConnections).toHaveBeenCalled();
   });
 
@@ -127,7 +127,7 @@ describe('ConnectionManager', () => {
     const connections = await connectionManager.getConnections();
 
     expect(connections.length).toBe(1);
-    expect(connections[0]!.id).toBe('workspace-fallback-trino');
-    expect((connections[0] as any).host).toBe('fallback-host');
+    expect(connections[0]?.id).toBe('workspace-fallback-trino');
+    expect((connections[0] as { host?: string }).host).toBe('fallback-host');
   });
 });

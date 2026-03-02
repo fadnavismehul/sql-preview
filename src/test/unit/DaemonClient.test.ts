@@ -517,9 +517,9 @@ describe('DaemonClient', () => {
       // If isConnected is true, it skips await start().
       // It goes to else if (this.readyPromise).
 
-      let resolveStart: () => void;
-      const startPromise = new Promise<void>(r => (resolveStart = r));
-      (client as any).readyPromise = startPromise;
+      let resolveStart: (() => void) | undefined;
+      const startPromise = new Promise<void>(r => { resolveStart = r; });
+      (client as unknown as { readyPromise: Promise<void> }).readyPromise = startPromise;
 
       // Mock the callTool response AHEAD of time
       mockClientInstance.callTool.mockResolvedValue({
@@ -535,7 +535,7 @@ describe('DaemonClient', () => {
 
       expect(mockClientInstance.callTool).not.toHaveBeenCalled();
 
-      resolveStart!();
+      resolveStart?.();
       // We must handle the promise
 
       await expect(queryPromise).resolves.toBe('tab-1');
