@@ -1,14 +1,5 @@
 {
-  "command": "resolve",
-  "patterns": [
-    "eslint_warning::src/common/logger.ts::eslint_warning::10"
-  ],
-  "status": "fixed",
-  "resolved": [
-    "eslint_warning::src/common/logger.ts::eslint_warning::10"
-  ],
-  "count": 1,
-  "next_command": "desloppify scan",
+  "command": "scan",
   "overall_score": 100.0,
   "objective_score": 100.0,
   "strict_score": 100.0,
@@ -17,10 +8,116 @@
   "prev_objective_score": 100.0,
   "prev_strict_score": 100.0,
   "prev_verified_strict_score": 100.0,
-  "attestation": "I have actually replaced all no-explicit-any instances with proper TypeScript types (ConnectionProfile, DuckDbConnectionProfile, ConnectorConfig, unknown[], WebSocket.WebSocket), replaced non-null assertions with optional chaining, added curly braces to dangling if statements, and added eslint-disable-next-line for files that legitimately use the console. I am not gaming the score.",
+  "profile": "objective",
+  "noise_budget": 10,
+  "noise_global_budget": 0,
+  "hidden_by_detector": {
+    "eslint_warning": 41
+  },
+  "hidden_total": 41,
+  "diff": {
+    "new": 0,
+    "auto_resolved": 0,
+    "reopened": 0,
+    "total_current": 0,
+    "suspect_detectors": [
+      "eslint_warning",
+      "responsibility_cohesion",
+      "signature",
+      "smells",
+      "unused"
+    ],
+    "chronic_reopeners": [],
+    "skipped_other_lang": 0,
+    "skipped_out_of_scope": 1412,
+    "ignored": 0,
+    "ignore_patterns": 0,
+    "raw_findings": 0,
+    "suppressed_pct": 0.0
+  },
+  "stats": {
+    "total": 52,
+    "open": 51,
+    "fixed": 1,
+    "auto_resolved": 0,
+    "wontfix": 0,
+    "false_positive": 0,
+    "by_tier": {
+      "2": {
+        "open": 51,
+        "fixed": 1,
+        "auto_resolved": 0,
+        "wontfix": 0,
+        "false_positive": 0
+      }
+    }
+  },
+  "open_scope": {
+    "in_scope": 51,
+    "out_of_scope": 1412,
+    "global": 1463
+  },
+  "warnings": [],
+  "dimension_scores": {},
+  "score_breakdown": {
+    "overall_score": 100.0,
+    "mechanical_fraction": 1.0,
+    "subjective_fraction": 0.0,
+    "mechanical_avg": 100.0,
+    "subjective_avg": null,
+    "entries": []
+  },
+  "subjective_integrity": {
+    "status": "pass",
+    "target_score": 95.0,
+    "matched_count": 0,
+    "matched_dimensions": [],
+    "reset_dimensions": []
+  },
+  "score_confidence": {
+    "status": "full",
+    "confidence": 1.0,
+    "detectors": [],
+    "dimensions": []
+  },
+  "potentials": {
+    "javascript": {
+      "structural": 0,
+      "flat_dirs": 0,
+      "security": 0,
+      "single_use": 0,
+      "cycles": 0,
+      "orphaned": 0,
+      "test_coverage": 0,
+      "boilerplate_duplication": 0,
+      "dupes": 0,
+      "stale_wontfix": 0
+    }
+  },
+  "scan_coverage": {
+    "javascript": {
+      "status": "full",
+      "confidence": 1.0,
+      "detectors": {
+        "security": {
+          "detector": "security",
+          "status": "full",
+          "confidence": 1.0,
+          "summary": "Security coverage complete for enabled detectors.",
+          "impact": "",
+          "remediation": "",
+          "tool": "",
+          "reason": ""
+        }
+      },
+      "warnings": [],
+      "updated_at": "2026-03-02T02:57:38+00:00"
+    }
+  },
+  "zone_distribution": {},
   "narrative": {
     "phase": "early_momentum",
-    "headline": "Crossed 90% strict!",
+    "headline": "Score 100.0/100 with 51 findings open. Keep the momentum going.",
     "dimensions": {},
     "actions": [
       {
@@ -90,7 +187,7 @@
       "worst_gap": 0.0,
       "trend": "stable"
     },
-    "milestone": "Crossed 90% strict!",
+    "milestone": null,
     "primary_action": {
       "command": "desloppify fix eslint-warning --dry-run",
       "description": "51 eslint_warning findings \u2014 run `desloppify fix eslint-warning --dry-run` to preview, then apply"
@@ -110,16 +207,24 @@
     },
     "reminders": [
       {
-        "type": "rescan_needed",
-        "message": "Rescan to verify \u2014 cascading effects may create new findings.",
-        "command": "desloppify scan",
-        "priority": 1,
-        "severity": "high"
-      },
-      {
         "type": "badge_recommendation",
         "message": "Score is above 90! Add the scorecard to your README: <img src=\"scorecard.png\" width=\"100%\">",
         "command": null,
+        "priority": 3,
+        "severity": "low"
+      },
+      {
+        "type": "feedback_nudge",
+        "message": "If you notice patterns desloppify doesn't detect, false positives, or findings that seem off, file an issue at https://github.com/peteromalley/desloppify/issues \u2014 include the file and what you expected. It helps improve the tool.",
+        "command": null,
+        "priority": 3,
+        "severity": "low"
+      },
+      {
+        "type": "report_scores",
+        "message": "ALWAYS share ALL scores with the user: overall, objective, and strict, plus every dimension score (lenient + strict), including subjective dimensions. The goal is to maximize strict scores.",
+        "command": null,
+        "no_decay": true,
         "priority": 3,
         "severity": "low"
       },
@@ -135,11 +240,10 @@
       "auto_fixers_available": 3,
       "zone_classification": 1,
       "dry_run_first": 3,
-      "report_scores": 3,
-      "feedback_nudge": 2,
+      "report_scores": 4,
+      "feedback_nudge": 3,
       "badge_recommendation": 2,
-      "review_not_run": 2,
-      "rescan_needed": 1
+      "review_not_run": 2
     }
   },
   "config": {
