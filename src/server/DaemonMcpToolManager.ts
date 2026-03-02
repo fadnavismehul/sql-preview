@@ -9,7 +9,7 @@ export class DaemonMcpToolManager {
     private readonly sessionManager: SessionManager,
     private readonly queryExecutor: DaemonQueryExecutor,
     private readonly connectionManager: ConnectionManager
-  ) { }
+  ) {}
 
   public getTools() {
     return [
@@ -313,7 +313,9 @@ export class DaemonMcpToolManager {
   }
 
   private async handleSaveConnection(args: unknown) {
-    const typedArgs = args as { connectionProfile?: import('../common/types').ConnectionProfile } | undefined;
+    const typedArgs = args as
+      | { connectionProfile?: import('../common/types').ConnectionProfile }
+      | undefined;
     const profile = typedArgs?.connectionProfile;
 
     if (!profile || !profile.id || !profile.name || !profile.type) {
@@ -346,7 +348,8 @@ export class DaemonMcpToolManager {
     const connectorConfig: import('../connectors/base/IConnector').ConnectorConfig = {
       ...profile,
       maxRows: 1,
-      sslVerify: 'sslVerify' in profile ? (profile as { sslVerify?: boolean }).sslVerify ?? true : true,
+      sslVerify:
+        'sslVerify' in profile ? ((profile as { sslVerify?: boolean }).sslVerify ?? true) : true,
     };
 
     let authHeader: string | undefined;
@@ -398,15 +401,15 @@ export class DaemonMcpToolManager {
     try {
       const typedArgs = args as
         | {
-          sql?: string;
-          session?: string;
-          displayName?: string;
-          newTab?: boolean;
-          connectionId?: string;
-          connectionProfile?: unknown;
-          tabId?: string;
-          waitForResult?: boolean;
-        }
+            sql?: string;
+            session?: string;
+            displayName?: string;
+            newTab?: boolean;
+            connectionId?: string;
+            connectionProfile?: unknown;
+            tabId?: string;
+            waitForResult?: boolean;
+          }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       // Default to a known session ID if not provided (e.g. from Inspector or App)
@@ -633,12 +636,12 @@ export class DaemonMcpToolManager {
   private async handleGetTabInfo(args: unknown) {
     const typedArgs = args as
       | {
-        session?: string;
-        tabId?: string;
-        mode?: 'preview' | 'page';
-        offset?: number;
-        limit?: number;
-      }
+          session?: string;
+          tabId?: string;
+          mode?: 'preview' | 'page';
+          offset?: number;
+          limit?: number;
+        }
       | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {

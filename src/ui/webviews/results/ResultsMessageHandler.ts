@@ -34,7 +34,7 @@ export class ResultsMessageHandler {
     private readonly _connectionManager: ConnectionManager,
     private readonly _queryExecutor: QueryExecutor,
     private readonly _extensionUri: vscode.Uri
-  ) { }
+  ) {}
 
   public async handleMessage(data: WebviewToExtensionMessage) {
     switch (data.command) {

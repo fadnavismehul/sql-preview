@@ -16,7 +16,7 @@ export class DaemonQueryExecutor {
     private readonly connectionManager: ConnectionManager,
     private readonly logger: ILogger,
     private readonly driverManager: DriverManager
-  ) { }
+  ) {}
 
   private async getConnectorForProfile(profile: ConnectionProfile): Promise<IConnector> {
     // If it's a built-in profile type but we want to run it out-of-process
@@ -26,7 +26,10 @@ export class DaemonQueryExecutor {
     let connectorId = profile.type as string;
 
     if (profile.type === 'custom') {
-      const customProfile = profile as ConnectionProfile & { connectorPath?: string; name?: string };
+      const customProfile = profile as ConnectionProfile & {
+        connectorPath?: string;
+        name?: string;
+      };
       connectorId = `custom-${customProfile.name}`;
       try {
         executablePath = await this.driverManager.getConnectorExecutablePath(
