@@ -11,6 +11,7 @@ import type {
   ConnectorConfig,
   MSSQLConnectionProfile,
   SnowflakeConnectionProfile,
+  BigQueryConnectionProfile,
 } from '@sql-preview/connector-api';
 
 export type {
@@ -26,6 +27,7 @@ export type {
   ConnectorConfig,
   MSSQLConnectionProfile,
   SnowflakeConnectionProfile,
+  BigQueryConnectionProfile,
 };
 
 export interface QueryResults {

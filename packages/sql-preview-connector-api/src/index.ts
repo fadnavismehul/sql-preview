@@ -21,7 +21,7 @@ export interface QueryPage {
 }
 
 // Connection Profile Types
-export type ConnectorType = 'trino' | 'postgres' | 'sqlite' | 'custom' | 'duckdb' | 'mysql' | 'mssql' | 'snowflake';
+export type ConnectorType = 'trino' | 'postgres' | 'sqlite' | 'custom' | 'duckdb' | 'mysql' | 'mssql' | 'snowflake' | 'bigquery';
 
 export interface BaseConnectionProfile {
   id: string;
@@ -109,6 +109,25 @@ export interface SnowflakeConnectionProfile {
   driverPath?: string;
 }
 
+export interface BigQueryConnectionProfile {
+  id: string;
+  name: string;
+  type: 'bigquery';
+  projectId: string;    // GCP project ID (billing project)
+  location?: string;    // 'US' | 'EU' | 'us-central1' etc., default: 'US'
+  dataset?: string;     // default dataset for unqualified table refs
+  keyFilename?: string; // absolute path to service account JSON key
+  credentials?: {       // inline service account (overrides keyFilename)
+    client_email: string;
+    private_key: string;
+  };
+  maximumBytesBilled?: number | null; // bytes; null = unlimited
+  timeoutMs?: number;   // default: 60000
+  driverPath?: string;
+  password?: string;    // not used by BigQuery auth; included for ConnectionProfile union compatibility
+}
+
+
 export type ConnectionProfile =
   | TrinoConnectionProfile
   | PostgresConnectionProfile
@@ -117,7 +136,8 @@ export type ConnectionProfile =
   | CustomConnectionProfile
   | MySQLConnectionProfile
   | MSSQLConnectionProfile
-  | SnowflakeConnectionProfile;
+  | SnowflakeConnectionProfile
+  | BigQueryConnectionProfile;
 
 // Legacy Configuration for backward compatibility (maps to Trino)
 export interface ConnectorConfig {

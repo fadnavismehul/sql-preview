@@ -1,0 +1,29 @@
+{
+    "name": "sql-preview-bigquery",
+    "version": "1.0.0",
+    "description": "Google BigQuery connector for SQL Preview",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "bin": {
+        "sql-preview-bigquery": "./dist/cli.js"
+    },
+    "scripts": {
+        "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --format=cjs --external:@google-cloud/bigquery && esbuild src/cli.ts --bundle --outfile=dist/cli.js --platform=node --format=cjs --external:@google-cloud/bigquery --banner:js=\"#!/usr/bin/env node\"",
+        "test": "jest --testPathPattern='__tests__/BigQueryConnector\\.test\\.ts' --passWithNoTests",
+        "test:integration": "jest --testPathPattern='__tests__/BigQueryConnector\\.integration\\.test\\.ts' --testTimeout=120000 --passWithNoTests",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@google-cloud/bigquery": "^7.9.1",
+        "@modelcontextprotocol/sdk": "^1.27.1",
+        "@sql-preview/connector-api": "file:../sql-preview-connector-api"
+    },
+    "devDependencies": {
+        "@types/jest": "^29.0.0",
+        "@types/node": "^18.0.0",
+        "esbuild": "^0.19.0",
+        "jest": "^29.0.0",
+        "ts-jest": "^29.0.0",
+        "typescript": "^5.0.0"
+    }
+}

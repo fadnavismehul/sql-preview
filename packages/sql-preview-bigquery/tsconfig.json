@@ -1,0 +1,30 @@
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "module": "commonjs",
+        "lib": [
+            "ES2020"
+        ],
+        "outDir": "dist",
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "declaration": true,
+        "declarationMap": true,
+        "sourceMap": true,
+        "baseUrl": ".",
+        "paths": {
+            "@sql-preview/connector-api": [
+                "../../packages/sql-preview-connector-api/src/index.ts"
+            ]
+        }
+    },
+    "include": [
+        "src",
+        "../../packages/sql-preview-connector-api/src"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
+    ]
+}
