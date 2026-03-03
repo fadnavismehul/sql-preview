@@ -171,6 +171,19 @@ jest.mock('pg', () => ({
   Pool: jest.fn(),
 }));
 
+// Mock mysql2
+jest.mock(
+  'mysql2/promise',
+  () => ({
+    createConnection: jest.fn().mockResolvedValue({
+      query: jest.fn().mockResolvedValue([[], []]),
+      ping: jest.fn().mockResolvedValue(undefined),
+      end: jest.fn().mockResolvedValue(undefined),
+    }),
+  }),
+  { virtual: true }
+);
+
 // Mock axios
 jest.mock('axios', () => ({
   get: jest.fn(),

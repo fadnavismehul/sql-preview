@@ -21,7 +21,7 @@ export interface QueryPage {
 }
 
 // Connection Profile Types
-export type ConnectorType = 'trino' | 'postgres' | 'sqlite' | 'custom' | 'duckdb';
+export type ConnectorType = 'trino' | 'postgres' | 'sqlite' | 'custom' | 'duckdb' | 'mysql';
 
 export interface BaseConnectionProfile {
   id: string;
@@ -73,12 +73,21 @@ export interface CustomConnectionProfile extends BaseConnectionProfile {
   config: Record<string, unknown>;
 }
 
+export interface MySQLConnectionProfile extends BaseConnectionProfile {
+  type: 'mysql';
+  database: string;
+  timezone?: string;
+  connectTimeout?: number;
+  trustServerCertificate?: boolean;
+}
+
 export type ConnectionProfile =
   | TrinoConnectionProfile
   | PostgresConnectionProfile
   | SQLiteConnectionProfile
   | DuckDbConnectionProfile
-  | CustomConnectionProfile;
+  | CustomConnectionProfile
+  | MySQLConnectionProfile;
 
 // Legacy Configuration for backward compatibility (maps to Trino)
 export interface ConnectorConfig {

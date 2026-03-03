@@ -19,6 +19,8 @@ module.exports = {
     '/node_modules/',
     '/out/', // Ignore compiled JavaScript files
     '/src/test/suite/', // Ignore all integration tests in suite folder
+    '/packages/', // Each connector package runs its own jest independently
   ],
+
   modulePathIgnorePatterns: ['<rootDir>/.vscode-test'],
 };
