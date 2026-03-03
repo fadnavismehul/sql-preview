@@ -1,4 +1,4 @@
-# RFC-006: Context-Aware Toolsets (Modular MCP Architecture)
+# RFC-026: Context-Aware Toolsets (Modular MCP Architecture)
 
 **Status**: Proposed
 **Created**: 2026-02-17

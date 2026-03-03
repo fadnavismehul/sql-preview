@@ -8,15 +8,20 @@
     "sql-preview-postgres": "./dist/cli.js"
   },
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --format=cjs --external:pg && esbuild src/cli.ts --bundle --outfile=dist/cli.js --platform=node --format=cjs --external:pg --banner:js=\"#!/usr/bin/env node\""
+    "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --format=cjs --external:pg && esbuild src/cli.ts --bundle --outfile=dist/cli.js --platform=node --format=cjs --external:pg --banner:js=\"#!/usr/bin/env node\"",
+    "test": "jest --config jest.config.js --passWithNoTests",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "pg": "^8.11.3"
   },
   "devDependencies": {
+    "@types/jest": "^29.0.0",
     "@types/pg": "^8.11.0",
     "esbuild": "^0.19.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
     "typescript": "^5.0.0"
   }
 }

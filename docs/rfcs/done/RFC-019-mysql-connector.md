@@ -1,6 +1,6 @@
 # RFC-019: MySQL / MariaDB Connector
 
-**Status:** Proposed  
+**Status:** Implemented  
 **Created:** 2026-03-02  
 **Owner:** Core Team  
 **Related RFCs:** RFC-012 (Pluggable Connectors), RFC-013 (Agentic MCP Connectors), RFC-016 (Schema Metadata API)

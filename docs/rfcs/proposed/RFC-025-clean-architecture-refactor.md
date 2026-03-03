@@ -1,4 +1,4 @@
-# RFC-006: Clean Architecture Refactor
+# RFC-025: Clean Architecture Refactor
 
 **Status:** Proposed  
 **Created:** 2026-02-16  
