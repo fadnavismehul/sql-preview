@@ -21,7 +21,7 @@ export interface QueryPage {
 }
 
 // Connection Profile Types
-export type ConnectorType = 'trino' | 'postgres' | 'sqlite' | 'custom' | 'duckdb' | 'mysql' | 'mssql';
+export type ConnectorType = 'trino' | 'postgres' | 'sqlite' | 'custom' | 'duckdb' | 'mysql' | 'mssql' | 'snowflake';
 
 export interface BaseConnectionProfile {
   id: string;
@@ -91,6 +91,24 @@ export interface MSSQLConnectionProfile extends BaseConnectionProfile {
   domain?: string;             // NTLM domain (optional)
 }
 
+export interface SnowflakeConnectionProfile {
+  id: string;
+  name: string;
+  type: 'snowflake';
+  account: string;              // e.g. "myorg-myaccount"
+  username: string;
+  password?: string;
+  privateKeyPath?: string;      // absolute path to PEM private key
+  privateKeyPassphrase?: string;
+  warehouse?: string;
+  database?: string;
+  schema?: string;
+  role?: string;
+  loginTimeout?: number;        // seconds, default: 60
+  application?: string;         // reported to Snowflake, default: "sql-preview"
+  driverPath?: string;
+}
+
 export type ConnectionProfile =
   | TrinoConnectionProfile
   | PostgresConnectionProfile
@@ -98,7 +116,8 @@ export type ConnectionProfile =
   | DuckDbConnectionProfile
   | CustomConnectionProfile
   | MySQLConnectionProfile
-  | MSSQLConnectionProfile;
+  | MSSQLConnectionProfile
+  | SnowflakeConnectionProfile;
 
 // Legacy Configuration for backward compatibility (maps to Trino)
 export interface ConnectorConfig {

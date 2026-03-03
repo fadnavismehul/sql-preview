@@ -10,6 +10,7 @@ import type {
   ConnectionProfile,
   ConnectorConfig,
   MSSQLConnectionProfile,
+  SnowflakeConnectionProfile,
 } from '@sql-preview/connector-api';
 
 export type {
@@ -24,6 +25,7 @@ export type {
   ConnectionProfile,
   ConnectorConfig,
   MSSQLConnectionProfile,
+  SnowflakeConnectionProfile,
 };
 
 export interface QueryResults {
