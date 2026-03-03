@@ -12,16 +12,16 @@ export interface QueryPage {
   id?: string | undefined;
   remoteTabId?: string | undefined; // To link local tab to remote daemon tab
   stats?:
-    | {
-        state: string;
-        [key: string]: unknown;
-      }
-    | undefined;
+  | {
+    state: string;
+    [key: string]: unknown;
+  }
+  | undefined;
   supportsPagination?: boolean | undefined;
 }
 
 // Connection Profile Types
-export type ConnectorType = 'trino' | 'postgres' | 'sqlite' | 'custom' | 'duckdb' | 'mysql';
+export type ConnectorType = 'trino' | 'postgres' | 'sqlite' | 'custom' | 'duckdb' | 'mysql' | 'mssql';
 
 export interface BaseConnectionProfile {
   id: string;
@@ -81,13 +81,24 @@ export interface MySQLConnectionProfile extends BaseConnectionProfile {
   trustServerCertificate?: boolean;
 }
 
+export interface MSSQLConnectionProfile extends BaseConnectionProfile {
+  type: 'mssql';
+  database: string;
+  instance?: string;           // named instance, e.g. SQLEXPRESS
+  trustServerCertificate?: boolean; // true for local/dev self-signed certs
+  connectionTimeout?: number;  // ms, default 15000
+  requestTimeout?: number;     // ms, default 30000
+  domain?: string;             // NTLM domain (optional)
+}
+
 export type ConnectionProfile =
   | TrinoConnectionProfile
   | PostgresConnectionProfile
   | SQLiteConnectionProfile
   | DuckDbConnectionProfile
   | CustomConnectionProfile
-  | MySQLConnectionProfile;
+  | MySQLConnectionProfile
+  | MSSQLConnectionProfile;
 
 // Legacy Configuration for backward compatibility (maps to Trino)
 export interface ConnectorConfig {

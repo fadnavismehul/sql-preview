@@ -9,6 +9,7 @@ import type {
   CustomConnectionProfile,
   ConnectionProfile,
   ConnectorConfig,
+  MSSQLConnectionProfile,
 } from '@sql-preview/connector-api';
 
 export type {
@@ -22,6 +23,7 @@ export type {
   CustomConnectionProfile,
   ConnectionProfile,
   ConnectorConfig,
+  MSSQLConnectionProfile,
 };
 
 export interface QueryResults {
