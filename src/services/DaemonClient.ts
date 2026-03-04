@@ -442,6 +442,32 @@ export class DaemonClient {
     return [];
   }
 
+  public async testConnection(
+    type: string,
+    config: unknown,
+    authHeader?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!this.isConnected) {
+      await this.start();
+    }
+    const result = await this.client.callTool({
+      name: 'test_connection',
+      arguments: {
+        type,
+        connectionProfile: config,
+        authHeader,
+      },
+    });
+
+    if (result.isError) {
+      return {
+        success: false,
+        error: (result.content as { text?: string }[])?.[0]?.text || 'Test failed',
+      };
+    }
+    return { success: true };
+  }
+
   public async saveConnection(profile: unknown) {
     if (!this.isConnected) {
       await this.start();

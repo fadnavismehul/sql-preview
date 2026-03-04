@@ -1,5 +1,5 @@
 import axios, { isCancel, isAxiosError } from 'axios';
-import { TrinoConnector, TrinoConfig } from '../../connectors/trino/TrinoConnector';
+import { TrinoConnector, TrinoConfig } from '../src/TrinoConnector';
 
 jest.mock('axios', () => ({
   __esModule: true,

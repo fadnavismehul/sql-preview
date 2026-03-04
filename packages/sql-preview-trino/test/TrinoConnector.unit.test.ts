@@ -13,8 +13,8 @@
  */
 
 import axios, { isCancel, isAxiosError } from 'axios';
-import { TrinoConnector, TrinoConfig } from '../../connectors/trino/TrinoConnector';
-import { AuthenticationError, ConnectionError, QueryError } from '../../common/errors';
+import { TrinoConnector, TrinoConfig } from '../src/TrinoConnector';
+import { AuthenticationError, ConnectionError, QueryError } from '@sql-preview/connector-api';
 
 // ── Axios mock ───────────────────────────────────────────────────────────────
 jest.mock('axios', () => ({

@@ -139,10 +139,21 @@ export class DaemonMcpToolManager {
           properties: {
             connectionId: {
               type: 'string',
-              description: 'The Connection ID to test.',
+              description: 'Optional Connection ID to test.',
+            },
+            type: {
+              type: 'string',
+              description: 'Connector type (e.g., trino) when testing unsaved profile.',
+            },
+            connectionProfile: {
+              type: 'object',
+              description: 'The configuration object when testing unsaved profile.',
+            },
+            authHeader: {
+              type: 'string',
+              description: 'Optional auth header.',
             },
           },
-          required: ['connectionId'],
         },
       },
       {
@@ -331,39 +342,47 @@ export class DaemonMcpToolManager {
   }
 
   private async handleTestConnection(args: unknown) {
-    const typedArgs = args as { connectionId?: string } | undefined;
-    const connectionId = typedArgs?.connectionId;
+    const typedArgs = args as
+      | { connectionId?: string; type?: string; connectionProfile?: unknown; authHeader?: string }
+      | undefined;
 
-    if (!connectionId) {
-      throw new Error('Connection ID required');
+    let typeToTest: string;
+    let configToTest: import('../connectors/base/IConnector').ConnectorConfig;
+    let authHeaderToTest: string | undefined = typedArgs?.authHeader;
+
+    if (typedArgs?.connectionId) {
+      const profile = await this.connectionManager.getProfile(typedArgs.connectionId);
+      if (!profile) {
+        throw new Error(`Connection profile '${typedArgs.connectionId}' not found`);
+      }
+      typeToTest = profile.type;
+      configToTest = {
+        ...profile,
+        maxRows: 1,
+        sslVerify:
+          'sslVerify' in profile ? ((profile as { sslVerify?: boolean }).sslVerify ?? true) : true,
+      };
+      if (
+        !authHeaderToTest &&
+        'password' in profile &&
+        profile.password &&
+        'user' in profile &&
+        profile.user
+      ) {
+        authHeaderToTest =
+          'Basic ' + Buffer.from(`${profile.user}:${profile.password}`).toString('base64');
+      }
+    } else if (typedArgs?.type && typedArgs?.connectionProfile) {
+      typeToTest = typedArgs.type;
+      configToTest = typedArgs.connectionProfile;
+    } else {
+      throw new Error('Must provide either connectionId or (type, connectionProfile)');
     }
 
-    const profile = await this.connectionManager.getProfile(connectionId);
-    if (!profile) {
-      throw new Error(`Connection profile '${connectionId}' not found`);
-    }
-
-    // Construct Config & Auth similar to runQuery logic
-    // We should probably share this logic, but for now duplicate
-    const connectorConfig: import('../connectors/base/IConnector').ConnectorConfig = {
-      ...profile,
-      maxRows: 1,
-      sslVerify:
-        'sslVerify' in profile ? ((profile as { sslVerify?: boolean }).sslVerify ?? true) : true,
-    };
-
-    let authHeader: string | undefined;
-    if ('password' in profile && profile.password && 'user' in profile && profile.user) {
-      authHeader = 'Basic ' + Buffer.from(`${profile.user}:${profile.password}`).toString('base64');
-    }
-
-    // Call Executor Test
-    // Using 'any' cast on executor because testConnection might not be public in interface?
-    // It IS public in class.
     const result = await this.queryExecutor.testConnection(
-      profile.type,
-      connectorConfig,
-      authHeader
+      typeToTest,
+      configToTest,
+      authHeaderToTest
     );
 
     if (result.success) {

@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import axios from 'axios';
 import * as sinon from 'sinon';
-import { TrinoConnector } from '../../connectors/trino/TrinoConnector';
+import { TrinoConnector } from '../src/TrinoConnector';
 
 describe('TrinoConnector Host Sanitization', () => {
   let connector: TrinoConnector;

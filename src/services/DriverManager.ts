@@ -28,6 +28,9 @@ export class DriverManager {
     if (connectorType === 'postgres') {
       executableName = 'sql-preview-postgres';
     }
+    if (connectorType === 'trino') {
+      executableName = 'sql-preview-trino';
+    }
 
     if (!executableName) {
       throw new Error(`Unknown built-in connector type: ${connectorType}`);

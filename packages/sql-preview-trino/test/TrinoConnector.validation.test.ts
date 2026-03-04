@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { TrinoConnector, TrinoConfig } from '../../connectors/trino/TrinoConnector';
+import { TrinoConnector, TrinoConfig } from '../src/TrinoConnector';
 
 jest.mock('axios');
 const mockedAxios = axios as unknown as jest.Mocked<typeof axios>;

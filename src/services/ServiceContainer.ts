@@ -3,7 +3,6 @@ import { ResultsViewProvider } from '../ui/webviews/results/ResultsViewProvider'
 import { TabManager } from './TabManager';
 import { ExportService } from './ExportService';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
-import { TrinoConnector } from '../connectors/trino/TrinoConnector';
 import { QuerySessionRegistry } from './QuerySessionRegistry';
 import { Logger } from '../core/logging/Logger';
 import { LogLevel } from '../common/types';
@@ -34,14 +33,9 @@ export class ServiceContainer {
 
     // Initialize Registry and Connectors
     this.connectorRegistry = new ConnectorRegistry();
-    this.connectorRegistry.register(new TrinoConnector());
 
     // Pass DaemonClient to QueryExecutor
-    this.queryExecutor = new QueryExecutor(
-      this.connectorRegistry,
-      this.connectionManager,
-      this.daemonClient
-    );
+    this.queryExecutor = new QueryExecutor(this.connectionManager, this.daemonClient);
     this.tabManager = new TabManager();
     this.exportService = new ExportService(this.queryExecutor);
 
