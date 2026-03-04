@@ -1,46 +1,52 @@
-import { useEffect, useState, useRef } from 'react';
-import { App } from '@modelcontextprotocol/ext-apps';
+import { useEffect, useState } from 'react';
+import { App, applyDocumentTheme, applyHostStyleVariables, applyHostFonts } from '@modelcontextprotocol/ext-apps';
 
 export function useMcpApp() {
-  const appRef = useRef<App | null>(null);
+  const [app, setApp] = useState<App | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
-  // Initialize App on mount
-  if (!appRef.current) {
-    appRef.current = new App({
+  useEffect(() => {
+    // Create App instance
+    const newApp = new App({
       name: 'SQL Preview',
       version: '1.0.0',
     });
-  }
 
-  useEffect(() => {
-    const app = appRef.current;
-    if (!app) {
-      return;
-    }
-
-    app.connect();
-
-    // Handle theme changes
-    app.onhostcontextchanged = context => {
+    // Handle theme changes using official helpers
+    newApp.onhostcontextchanged = context => {
       if (context?.theme === 'dark' || context?.theme === 'light') {
         setTheme(context.theme);
+      }
+      if (context?.theme) applyDocumentTheme(context.theme);
+      if (context?.styles?.variables) applyHostStyleVariables(context.styles.variables);
+      if (context?.styles?.css?.fonts) applyHostFonts(context.styles.css.fonts);
+
+      if (context?.safeAreaInsets) {
+        const { top, right, bottom, left } = context.safeAreaInsets;
+        (globalThis as any).document.body.style.padding = `${top}px ${right}px ${bottom}px ${left}px`;
       }
     };
 
     // Initial theme check
-    const context = app.getHostContext();
+    const context = newApp.getHostContext();
     if (context?.theme === 'dark' || context?.theme === 'light') {
       setTheme(context.theme);
+      applyDocumentTheme(context.theme);
     }
+    if (context?.styles?.variables) applyHostStyleVariables(context.styles.variables);
+    if (context?.styles?.css?.fonts) applyHostFonts(context.styles.css.fonts);
+
+    // Call connect() AFTER setting up handlers
+    newApp.connect();
+    setApp(newApp);
 
     return () => {
-      app.close();
+      newApp.close();
     };
   }, []);
 
   return {
-    app: appRef.current,
+    app,
     theme,
   };
 }

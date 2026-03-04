@@ -15,7 +15,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 }) => {
     return (
         <div className="toolbar">
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>SQL Results</h3>
+            <h3 className="toolbar-title">SQL Results</h3>
             <div className="toolbar-actions">
                 <button
                     className="btn"

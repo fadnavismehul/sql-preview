@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { useMcpApp } from './hooks/useMcpApp';
+import { useRef, useState } from 'react';
+import type { App as McpApp, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
+import { useApp } from '@modelcontextprotocol/ext-apps/react';
 import { ResultsGrid } from './components/ResultsGrid';
 import { ConnectionsManager } from './components/ConnectionsManager';
 import { Toolbar } from './components/Toolbar';
@@ -18,179 +19,208 @@ interface QueryResult {
     connection: string;
 }
 
+function extractQueryResult(rawData: unknown): QueryResult | null {
+    if (!rawData || typeof rawData !== 'object') return null;
+    const d = rawData as Record<string, unknown>;
+    if (!Array.isArray(d.columns) || !Array.isArray(d.rows)) return null;
+    return d as unknown as QueryResult;
+}
+
+function normalizeQueryResult(data: QueryResult, sql: string): QueryResult {
+    if ((!data.columns || data.columns.length === 0) && data.rows.length > 0) {
+        const firstRow = data.rows[0];
+        if (Array.isArray(firstRow)) {
+            data.columns = (firstRow as unknown[]).map((_, i) => ({ name: `col${i}`, type: 'text' }));
+        } else if (typeof firstRow === 'object' && firstRow !== null) {
+            data.columns = Object.keys(firstRow as object).map(key => ({
+                name: key,
+                type: typeof (firstRow as Record<string, unknown>)[key] === 'number' ? 'number' : 'text',
+            }));
+        }
+    }
+    if (data.rows.length > 0 && Array.isArray(data.rows[0]) && data.columns.length > 0) {
+        const colNames = data.columns.map(c => c.name);
+        data.rows = data.rows.map(row => {
+            if (Array.isArray(row)) {
+                const obj: Record<string, unknown> = {};
+                (row as unknown[]).forEach((val, idx) => { if (idx < colNames.length) obj[colNames[idx]] = val; });
+                return obj;
+            }
+            return row as Record<string, unknown>;
+        });
+    }
+    data.query = sql;
+    return data;
+}
+
 export function App() {
-    const { app, theme } = useMcpApp();
+    const [hostContext, setHostContext] = useState<McpUiHostContext | undefined>();
     const [result, setResult] = useState<QueryResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [sql, setSql] = useState('SELECT 1');
     const [isLoading, setIsLoading] = useState(false);
     const [view, setView] = useState<'query' | 'connections'>('query');
+    const [isAppMode, setIsAppMode] = useState(false);
+    const appendDebug = (msg: string) => console.log(`[MCP UI Debug] ${msg}`);
 
-    useEffect(() => {
-        if (!app) { return; }
+    const appRef = useRef<McpApp | null>(null);
 
-        app.ontoolresult = (toolResult) => {
-            setIsLoading(false);
-            if (toolResult.data) {
-                setResult(toolResult.data as QueryResult);
+    const { app, error: appError } = useApp({
+        appInfo: { name: 'SQL Preview', version: '1.0.0' },
+        capabilities: {},
+        onAppCreated: (createdApp) => {
+            appRef.current = createdApp;
+            appendDebug('onAppCreated');
+
+            createdApp.onhostcontextchanged = (params) => {
+                appendDebug(`hostContextChanged: ${JSON.stringify(params).slice(0, 80)}`);
+                setHostContext(prev => ({ ...prev, ...params }));
+            };
+
+            createdApp.ontoolinput = async (params) => {
+                const args = params.arguments as Record<string, unknown> | undefined;
+                appendDebug(`ontoolinput: sql=${String(args?.sql ?? '').slice(0, 40)}`);
+                if (!args?.sql) return;
+                const toolSql = args.sql as string;
+                setIsAppMode(true);
+                setIsLoading(true);
                 setError(null);
-            } else if (toolResult.isError) {
-                setError(String(toolResult.content || 'Unknown error'));
-            }
-        };
-    }, [app]);
+                try {
+                    const callResult = await createdApp.callServerTool({
+                        name: 'run_query',
+                        arguments: {
+                            sql: toolSql,
+                            session: (args.session as string) || 'mcp-app-session',
+                            connectionId: args.connectionId as string | undefined,
+                        },
+                    });
+                    setIsLoading(false);
+                    if (callResult.isError) {
+                        const text = callResult.content?.find(c => c.type === 'text')?.text as string | undefined;
+                        setError(text ?? 'Query failed');
+                        return;
+                    }
+                    const qr = extractQueryResult(callResult.structuredContent);
+                    appendDebug(`callServerTool result: ${qr ? `${qr.rows.length} rows` : 'no data'}`);
+                    if (qr) { setResult(normalizeQueryResult(qr, toolSql)); setError(null); }
+                } catch (e) { setError(String(e)); setIsLoading(false); }
+            };
+
+            createdApp.ontoolresult = (params) => {
+                appendDebug(`ontoolresult: isError=${String(params.isError)} hasStructured=${String(!!params.structuredContent)}`);
+                setIsLoading(false);
+                setIsAppMode(true);
+                if (params.isError) {
+                    const text = params.content?.find(c => c.type === 'text')?.text as string | undefined;
+                    setError(text ?? 'Tool execution failed');
+                    return;
+                }
+                const qr = extractQueryResult(params.structuredContent);
+                if (qr) { setResult(normalizeQueryResult(qr, sql)); setError(null); }
+            };
+
+            createdApp.ontoolcancelled = () => {
+                appendDebug('ontoolcancelled');
+                setIsLoading(false);
+            };
+        },
+    });
+
+    // After app connects, capture first hostContext and log toolInfo
+    const [connected, setConnected] = useState(false);
+    if (app && !connected) {
+        setConnected(true);
+        const ctx = app.getHostContext();
+        if (ctx) {
+            setHostContext(ctx);
+            appendDebug(`connected toolInfo=${JSON.stringify(ctx.toolInfo ?? null).slice(0, 80)}`);
+        } else {
+            appendDebug('connected: no hostContext');
+        }
+    }
+
+    const theme = hostContext?.theme ?? 'light';
 
     const handleRunQuery = async () => {
-        if (!app) { return; }
+        if (!app) return;
         setIsLoading(true);
         setError(null);
         try {
-            const result = await app.callServerTool({ name: 'run_query', arguments: { sql: sql, waitForResult: true } });
-            if (result.data) {
-                const data = result.data as QueryResult;
-
-                if ((!data.columns || data.columns.length === 0) && data.rows.length > 0) {
-                    const firstRow = data.rows[0];
-                    if (Array.isArray(firstRow)) {
-                        data.columns = firstRow.map((_, index) => ({ name: `col${index}`, type: 'text' }));
-                    } else {
-                        data.columns = Object.keys(firstRow).map(key => ({
-                            name: key,
-                            type: typeof firstRow[key] === 'number' ? 'number' : 'text'
-                        }));
-                    }
-                }
-
-                if (data.rows.length > 0 && Array.isArray(data.rows[0]) && data.columns.length > 0) {
-                    const columnNames = data.columns.map(c => c.name);
-                    data.rows = data.rows.map((row) => {
-                        if (Array.isArray(row)) {
-                            const rowObj: Record<string, unknown> = {};
-                            row.forEach((val, idx) => {
-                                if (idx < columnNames.length) {
-                                    rowObj[columnNames[idx]] = val;
-                                }
-                            });
-                            return rowObj;
-                        }
-                        return row as Record<string, unknown>;
-                    });
-                }
-
-                data.query = sql; // Attach query for QueryPreview
-                setResult(data);
-            }
-        } catch (e) {
-            // eslint-disable-next-line no-console
-            console.error('Query Error:', e);
-            setError(String(e));
-        } finally {
+            const callResult = await app.callServerTool({ name: 'run_query', arguments: { sql, session: 'mcp-app-manual' } });
             setIsLoading(false);
-        }
+            if (callResult.isError) {
+                const text = callResult.content?.find(c => c.type === 'text')?.text as string | undefined;
+                setError(text ?? 'Query failed');
+                return;
+            }
+            const qr = extractQueryResult(callResult.structuredContent);
+            if (qr) { setResult(normalizeQueryResult(qr, sql)); setError(null); }
+        } catch (e) { setError(String(e)); setIsLoading(false); }
     };
 
     const handleExportCsv = () => {
         if (!result || result.rows.length === 0) return;
         const header = result.columns.map(c => c.name).join(',');
-        const csvRows = result.rows.map(row =>
-            result.columns.map(c => JSON.stringify(row[c.name] ?? '')).join(',')
-        );
-        const tsv = [header, ...csvRows].join('\n');
-
-        // Fallback to clipboard since iframe might block blob downloads
-        navigator.clipboard.writeText(tsv).then(() => {
-            // Can show a transient toast here in the future
-        });
+        const csvRows = result.rows.map(row => result.columns.map(c => JSON.stringify(row[c.name] ?? '')).join(','));
+        navigator.clipboard.writeText([header, ...csvRows].join('\n'));
     };
-
     const handleCopy = () => {
         if (!result || result.rows.length === 0) return;
         const header = result.columns.map(c => c.name).join('\t');
-        const tsvRows = result.rows.map(row =>
-            result.columns.map(c => String(row[c.name] ?? '')).join('\t')
-        );
-        const tsv = [header, ...tsvRows].join('\n');
-        navigator.clipboard.writeText(tsv);
+        const tsvRows = result.rows.map(row => result.columns.map(c => String(row[c.name] ?? '')).join('\t'));
+        navigator.clipboard.writeText([header, ...tsvRows].join('\n'));
     };
+
+    if (appError) return <div style={{ padding: 16, color: 'red' }}>Connection error: {appError.message}</div>;
+    if (!app) return <div style={{ padding: 16 }}>Connecting...</div>;
 
     return (
         <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`}>
-            {/* Header Navigation */}
-            <div className="nav-bar">
-                <button
-                    className={`nav-item ${view === 'query' ? 'active' : ''}`}
-                    onClick={() => setView('query')}
-                >
-                    Query
-                </button>
-                <button
-                    className={`nav-item ${view === 'connections' ? 'active' : ''}`}
-                    onClick={() => setView('connections')}
-                >
-                    Connections
-                </button>
-            </div>
+            {!isAppMode && (
+                <div className="nav-bar">
+                    <button className={`nav-item ${view === 'query' ? 'active' : ''}`} onClick={() => setView('query')}>Query</button>
+                    <button className={`nav-item ${view === 'connections' ? 'active' : ''}`} onClick={() => setView('connections')}>Connections</button>
+                </div>
+            )}
 
-            {/* Application Content */}
+
+
             <div className="content">
                 <ErrorToast message={error} onDismiss={() => setError(null)} />
-
-                {view === 'connections' ? (
-                    <ConnectionsManager app={app} theme={theme} />
-                ) : (
-                    <>
-                        {result || isLoading ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                                <Toolbar
-                                    onRerun={handleRunQuery}
-                                    onExportCsv={handleExportCsv}
-                                    onCopy={handleCopy}
-                                    isLoading={isLoading}
-                                />
-                                {result && (
-                                    <>
-                                        <StatusBar
-                                            rowCount={result.rowCount ?? result.rows.length}
-                                            executionTime={result.executionTime ?? 0}
-                                            connectionName={result.connection}
-                                        />
-                                        <QueryPreview sql={result.query} />
-                                    </>
-                                )}
-                                <div className="grid-wrapper">
-                                    <ResultsGrid
-                                        rows={result?.rows ?? []}
-                                        columns={result?.columns ?? []}
-                                        theme={theme}
-                                        isLoading={isLoading}
-                                    />
-                                </div>
-                            </div>
-                        ) : (
-                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div className="main-content">
+                    {view === 'query' ? (
+                        <div className="grid-wrapper">
+                            {!isAppMode && (
                                 <div style={{ marginBottom: 'var(--spacing-md)' }}>
                                     <textarea
                                         className="form-input sql-editor"
                                         placeholder="Type SQL manually or ask Claude to query..."
                                         value={sql}
-                                        onChange={(e) => setSql(e.target.value)}
+                                        onChange={e => setSql(e.target.value)}
+                                        style={{ marginBottom: 'var(--spacing-sm)' }}
                                     />
-                                    <button
-                                        className="btn btn-primary"
-                                        onClick={handleRunQuery}
-                                        disabled={isLoading || !app}
-                                        style={{ marginTop: 'var(--spacing-sm)' }}
-                                    >
+                                    <button className="btn btn-primary" onClick={handleRunQuery} disabled={isLoading || !app}>
                                         Run Query
                                     </button>
                                 </div>
-                                <div style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                            )}
+                            <Toolbar onRerun={handleRunQuery} onExportCsv={handleExportCsv} onCopy={handleCopy} isLoading={isLoading} />
+                            {result && <StatusBar rowCount={result.rowCount ?? result.rows.length} executionTime={result.executionTime ?? 0} connectionName={result.connection} />}
+                            <QueryPreview sql={result?.query ?? sql} />
+                            <div className="grid-container">
+                                {isLoading ? (
+                                    <div className="loading-state"><div className="spinner" /><p>Executing query...</p></div>
+                                ) : result ? (
+                                    <ResultsGrid rows={result.rows} columns={result.columns} theme={theme} />
+                                ) : (
                                     <EmptyState />
-                                </div>
+                                )}
                             </div>
-                        )}
-                    </>
-                )}
+                        </div>
+                    ) : (
+                        <ConnectionsManager app={app} theme={theme} />
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -11,7 +11,7 @@ export class DaemonMcpToolManager {
     private readonly queryExecutor: DaemonQueryExecutor,
     private readonly connectionManager: ConnectionManager,
     private readonly connectorRegistry: ConnectorRegistry
-  ) {}
+  ) { }
 
   public getTools() {
     return [
@@ -27,7 +27,7 @@ export class DaemonMcpToolManager {
       {
         name: 'run_query',
         description:
-          'Execute a SQL query for a specific session. Returns a tab ID immediately; use get_tab_info to check status and retrieve results. If the session does not exist, it will be auto-registered.',
+          'Execute a SQL query for a specific session. Waits for the query to complete and returns the full results including rows and column definitions. The tool result contains structured data (rows + columns) that will be rendered in the SQL Preview data grid UI. If the session does not exist, it will be auto-registered.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -42,10 +42,6 @@ export class DaemonMcpToolManager {
               description:
                 'Display name for a new session (only used when auto-registering). Defaults to "MCP Client".',
             },
-            newTab: {
-              type: 'boolean',
-              description: 'Whether to open in a new tab (default: true)',
-            },
             connectionId: {
               type: 'string',
               description:
@@ -55,11 +51,6 @@ export class DaemonMcpToolManager {
               type: 'object',
               description:
                 'Optional ad-hoc connection profile (including credentials) to use for this query.',
-            },
-            waitForResult: {
-              type: 'boolean',
-              description:
-                'Whether to wait for the query to complete and return results (default: false)',
             },
             tabId: {
               type: 'string',
@@ -453,15 +444,15 @@ export class DaemonMcpToolManager {
     try {
       const typedArgs = args as
         | {
-            sql?: string;
-            session?: string;
-            displayName?: string;
-            newTab?: boolean;
-            connectionId?: string;
-            connectionProfile?: unknown;
-            tabId?: string;
-            waitForResult?: boolean;
-          }
+          sql?: string;
+          session?: string;
+          displayName?: string;
+          newTab?: boolean;
+          connectionId?: string;
+          connectionProfile?: unknown;
+          tabId?: string;
+          waitForResult?: boolean;
+        }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       // Default to a known session ID if not provided (e.g. from Inspector or App)
@@ -470,7 +461,8 @@ export class DaemonMcpToolManager {
       const connectionId = typedArgs?.connectionId;
       const connectionProfile = typedArgs?.connectionProfile;
       const providedTabId = typedArgs?.tabId;
-      const waitForResult = typedArgs?.waitForResult === true;
+      // Always wait for results so that structuredContent is returned to the host.
+      const waitForResult = true;
 
       if (!sql) {
         throw new Error('SQL query is required');
@@ -577,22 +569,33 @@ export class DaemonMcpToolManager {
         // Re-fetch tab to get results
         const updatedTab = session.tabs.get(tabId);
         const rowCount = updatedTab?.rows?.length ?? 0;
+        const tabData = {
+          id: updatedTab?.id,
+          title: updatedTab?.title,
+          status: updatedTab?.status,
+          meta: {
+            totalRows: rowCount,
+            columns: updatedTab?.columns || [],
+          },
+          rows: updatedTab?.rows || [],
+          error: updatedTab?.error,
+        };
 
         return {
           content: [
             {
               type: 'text',
-              text: `Query returned ${rowCount} rows`,
+              text: `Query returned ${tabData.meta.totalRows} rows`,
             },
           ],
-          data: {
+          structuredContent: {
             query: sql,
-            columns: updatedTab?.columns || [],
-            rows: updatedTab?.rows || [],
-            rowCount: rowCount,
+            columns: tabData.meta.columns,
+            rows: tabData.rows,
+            rowCount: tabData.meta.totalRows,
             executionTime: 0,
             connection: connectionId || 'default',
-          },
+          }
         };
       } else {
         // Fire and forget (Extension behavior)
@@ -688,12 +691,12 @@ export class DaemonMcpToolManager {
   private async handleGetTabInfo(args: unknown) {
     const typedArgs = args as
       | {
-          session?: string;
-          tabId?: string;
-          mode?: 'preview' | 'page';
-          offset?: number;
-          limit?: number;
-        }
+        session?: string;
+        tabId?: string;
+        mode?: 'preview' | 'page';
+        offset?: number;
+        limit?: number;
+      }
       | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {

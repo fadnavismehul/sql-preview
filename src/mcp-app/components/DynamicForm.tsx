@@ -68,17 +68,17 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
     };
 
     return (
-        <form onSubmit={handleSubmit} className="dynamic-form" style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '500px' }}>
+        <form onSubmit={handleSubmit} className="dynamic-form" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)', maxWidth: '500px' }}>
             {/* Standard Profile Fields */}
-            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontWeight: 'bold' }}>Connection Name *</label>
+            <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                <label style={{ fontWeight: '500' }}>Connection Name *</label>
                 <input
                     type="text"
                     required
+                    className="form-input"
                     value={(formData.name as string) || ''}
                     onChange={(e) => handleChange('name', e.target.value)}
                     placeholder="My Production Database"
-                    style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color, #ccc)' }}
                 />
             </div>
 
@@ -87,12 +87,12 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                 const value = formData[key];
 
                 return (
-                    <div key={key} className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        <label style={{ fontWeight: 'bold' }}>
+                    <div key={key} className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xs)' }}>
+                        <label style={{ fontWeight: '500' }}>
                             {prop.title || key} {isRequired && '*'}
                         </label>
                         {prop.description && (
-                            <small style={{ color: 'var(--text-muted-color, #666)' }}>{prop.description}</small>
+                            <small style={{ color: 'var(--color-text-muted)' }}>{prop.description}</small>
                         )}
 
                         {prop.type === 'boolean' ? (
@@ -100,39 +100,39 @@ export const DynamicForm: React.FC<DynamicFormProps> = ({
                                 type="checkbox"
                                 checked={!!value}
                                 onChange={(e) => handleChange(key, e.target.checked)}
-                                style={{ alignSelf: 'flex-start', transform: 'scale(1.2)', margin: '5px 0' }}
+                                style={{ alignSelf: 'flex-start', transform: 'scale(1.2)', margin: 'var(--spacing-xs) 0' }}
                             />
                         ) : prop.type === 'number' ? (
                             <input
                                 type="number"
                                 required={isRequired}
+                                className="form-input"
                                 value={value !== undefined ? String(value) : ''}
                                 onChange={(e) => handleChange(key, e.target.value !== '' ? Number(e.target.value) : undefined)}
-                                style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color, #ccc)' }}
                             />
                         ) : (
                             <input
                                 type={prop.ui?.widget === 'password' ? 'password' : 'text'}
                                 required={isRequired}
+                                className="form-input"
                                 value={(value as string) || ''}
                                 onChange={(e) => handleChange(key, e.target.value)}
-                                style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color, #ccc)' }}
                             />
                         )}
                     </div>
                 );
             })}
 
-            <div className="form-actions" style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                <button type="button" onClick={onCancel} style={{ padding: '8px 16px' }} disabled={isSubmitting}>
+            <div className="form-actions" style={{ display: 'flex', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-sm)' }}>
+                <button type="button" className="btn" onClick={onCancel} disabled={isSubmitting}>
                     Cancel
                 </button>
                 {onTest && (
-                    <button type="button" onClick={handleTest} style={{ padding: '8px 16px' }} disabled={isSubmitting}>
+                    <button type="button" className="btn" onClick={handleTest} disabled={isSubmitting}>
                         Test Connection
                     </button>
                 )}
-                <button type="submit" style={{ padding: '8px 16px', fontWeight: 'bold' }} disabled={isSubmitting}>
+                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
                     {isSubmitting ? 'Saving...' : 'Save Connection'}
                 </button>
             </div>

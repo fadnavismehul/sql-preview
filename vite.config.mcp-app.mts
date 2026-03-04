@@ -7,10 +7,10 @@ export default defineConfig({
     plugins: [react(), viteSingleFile()],
     root: 'src/mcp-app',
     build: {
-        outDir: '../../out/webviews/daemon',
-        emptyOutDir: false, // Don't wipe existing dist files from other builds if any
+        outDir: '../../dist',
+        emptyOutDir: false,
         rollupOptions: {
-            input: 'src/mcp-app/index.html',
+            input: path.resolve(__dirname, 'src/mcp-app/mcp-app.html'),
             output: {
                 entryFileNames: 'mcp-app.js',
             },

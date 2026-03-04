@@ -76,6 +76,7 @@ Every RFC must include:
 | RFC-027 | Proposed    | `docs/rfcs/proposed/RFC-027-trino-connector.md`                   | Trino Connector Migration                   |
 | RFC-028 | Proposed    | `docs/rfcs/proposed/RFC-028-connection-setup-ux.md`               | Dynamic Connection Setup UX                 |
 | RFC-029 | Proposed    | `docs/rfcs/proposed/RFC-029-vscode-connection-ui.md`              | VS Code Dynamic Connection UI               |
+| RFC-030 | Proposed    | `docs/rfcs/proposed/RFC-030-marketing-video-remotion.md`          | Marketing Video using Remotion              |
 
 ---
 

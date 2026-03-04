@@ -22,8 +22,8 @@ export const ErrorToast: React.FC<ErrorToastProps> = ({
 
     return (
         <div className="error-toast" role="alert">
-            <div style={{ fontSize: '18px' }}>⚠️</div>
-            <div style={{ flex: 1, fontSize: '14px', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
+            <div className="error-toast-icon">⚠️</div>
+            <div className="error-toast-message">
                 {message}
             </div>
             <button className="error-toast-close" onClick={onDismiss} aria-label="Close error message">
