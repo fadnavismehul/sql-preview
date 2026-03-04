@@ -142,18 +142,6 @@ jest.mock(
   { virtual: true }
 );
 
-// Mock trino-client
-jest.mock('trino-client', () => ({
-  Trino: {
-    create: jest.fn(),
-  },
-  BasicAuth: jest.fn(),
-  Client: jest.fn().mockImplementation(() => ({
-    query: jest.fn(),
-    execute: jest.fn(),
-  })),
-}));
-
 // Mock sqlite3
 jest.mock(
   'sqlite3',
