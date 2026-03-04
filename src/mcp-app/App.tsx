@@ -1,8 +1,12 @@
-
 import { useEffect, useState } from 'react';
 import { useMcpApp } from './hooks/useMcpApp';
 import { ResultsGrid } from './components/ResultsGrid';
 import { ConnectionsManager } from './components/ConnectionsManager';
+import { Toolbar } from './components/Toolbar';
+import { StatusBar } from './components/StatusBar';
+import { EmptyState } from './components/EmptyState';
+import { ErrorToast } from './components/ErrorToast';
+import { QueryPreview } from './components/QueryPreview';
 import './styles/theme.css';
 
 interface QueryResult {
@@ -26,8 +30,6 @@ export function App() {
         if (!app) { return; }
 
         app.ontoolresult = (toolResult) => {
-            // eslint-disable-next-line no-console
-            console.log('Received tool result:', toolResult);
             setIsLoading(false);
             if (toolResult.data) {
                 setResult(toolResult.data as QueryResult);
@@ -44,21 +46,14 @@ export function App() {
         setError(null);
         try {
             const result = await app.callServerTool({ name: 'run_query', arguments: { sql: sql, waitForResult: true } });
-            // eslint-disable-next-line no-console
-            console.log('Query Result:', result);
             if (result.data) {
                 const data = result.data as QueryResult;
-                // Auto-generate columns if missing but rows exist
+
                 if ((!data.columns || data.columns.length === 0) && data.rows.length > 0) {
                     const firstRow = data.rows[0];
                     if (Array.isArray(firstRow)) {
-                        // Generate columns for array data
-                        data.columns = firstRow.map((_, index) => ({
-                            name: `col${index}`,
-                            type: 'text'
-                        }));
+                        data.columns = firstRow.map((_, index) => ({ name: `col${index}`, type: 'text' }));
                     } else {
-                        // Generate columns for object data
                         data.columns = Object.keys(firstRow).map(key => ({
                             name: key,
                             type: typeof firstRow[key] === 'number' ? 'number' : 'text'
@@ -66,7 +61,6 @@ export function App() {
                     }
                 }
 
-                // Normalization: Ensure rows are objects matching column names
                 if (data.rows.length > 0 && Array.isArray(data.rows[0]) && data.columns.length > 0) {
                     const columnNames = data.columns.map(c => c.name);
                     data.rows = data.rows.map((row) => {
@@ -83,6 +77,7 @@ export function App() {
                     });
                 }
 
+                data.query = sql; // Attach query for QueryPreview
                 setResult(data);
             }
         } catch (e) {
@@ -94,63 +89,107 @@ export function App() {
         }
     };
 
-    if (error) {
-        return (
-            <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`} style={{ padding: '20px' }}>
-                <div className="error-container" style={{ color: 'red', marginBottom: '10px' }}>Error: {error}</div>
-                <button onClick={() => setError(null)}>Back</button>
-            </div>
+    const handleExportCsv = () => {
+        if (!result || result.rows.length === 0) return;
+        const header = result.columns.map(c => c.name).join(',');
+        const csvRows = result.rows.map(row =>
+            result.columns.map(c => JSON.stringify(row[c.name] ?? '')).join(',')
         );
-    }
+        const tsv = [header, ...csvRows].join('\n');
+
+        // Fallback to clipboard since iframe might block blob downloads
+        navigator.clipboard.writeText(tsv).then(() => {
+            // Can show a transient toast here in the future
+        });
+    };
+
+    const handleCopy = () => {
+        if (!result || result.rows.length === 0) return;
+        const header = result.columns.map(c => c.name).join('\t');
+        const tsvRows = result.rows.map(row =>
+            result.columns.map(c => String(row[c.name] ?? '')).join('\t')
+        );
+        const tsv = [header, ...tsvRows].join('\n');
+        navigator.clipboard.writeText(tsv);
+    };
 
     return (
-        <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`} style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-            <div className="nav-bar" style={{ padding: '10px', display: 'flex', gap: '10px', borderBottom: '1px solid var(--border-color)' }}>
+        <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`}>
+            {/* Header Navigation */}
+            <div className="nav-bar">
                 <button
+                    className={`nav-item ${view === 'query' ? 'active' : ''}`}
                     onClick={() => setView('query')}
-                    style={{ fontWeight: view === 'query' ? 'bold' : 'normal' }}
                 >
                     Query
                 </button>
                 <button
+                    className={`nav-item ${view === 'connections' ? 'active' : ''}`}
                     onClick={() => setView('connections')}
-                    style={{ fontWeight: view === 'connections' ? 'bold' : 'normal' }}
                 >
                     Connections
                 </button>
             </div>
 
-            <div className="content" style={{ flex: 1, padding: '20px', overflow: 'auto' }}>
+            {/* Application Content */}
+            <div className="content">
+                <ErrorToast message={error} onDismiss={() => setError(null)} />
+
                 {view === 'connections' ? (
                     <ConnectionsManager app={app} theme={theme} />
                 ) : (
-                    // Query View
-                    result ? (
-                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                            <div className="toolbar" style={{ paddingBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>{result.rowCount} rows ({result.executionTime}ms)</span>
-                                <button onClick={() => setResult(null)} style={{ padding: '4px 8px' }}>New Query</button>
+                    <>
+                        {result || isLoading ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                <Toolbar
+                                    onRerun={handleRunQuery}
+                                    onExportCsv={handleExportCsv}
+                                    onCopy={handleCopy}
+                                    isLoading={isLoading}
+                                />
+                                {result && (
+                                    <>
+                                        <StatusBar
+                                            rowCount={result.rowCount ?? result.rows.length}
+                                            executionTime={result.executionTime ?? 0}
+                                            connectionName={result.connection}
+                                        />
+                                        <QueryPreview sql={result.query} />
+                                    </>
+                                )}
+                                <div className="grid-wrapper">
+                                    <ResultsGrid
+                                        rows={result?.rows ?? []}
+                                        columns={result?.columns ?? []}
+                                        theme={theme}
+                                        isLoading={isLoading}
+                                    />
+                                </div>
                             </div>
-                            <ResultsGrid rows={result.rows} columns={result.columns} theme={theme} />
-                        </div>
-                    ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <h2>SQL Preview</h2>
-                            <textarea
-                                value={sql}
-                                onChange={(e) => setSql(e.target.value)}
-                                rows={5}
-                                style={{ width: '100%', fontFamily: 'monospace' }}
-                            />
-                            <button
-                                onClick={handleRunQuery}
-                                disabled={isLoading || !app}
-                                style={{ padding: '8px 16px', alignSelf: 'flex-start', cursor: 'pointer' }}
-                            >
-                                {isLoading ? 'Running...' : 'Run Query'}
-                            </button>
-                        </div>
-                    )
+                        ) : (
+                            <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                                    <textarea
+                                        className="form-input sql-editor"
+                                        placeholder="Type SQL manually or ask Claude to query..."
+                                        value={sql}
+                                        onChange={(e) => setSql(e.target.value)}
+                                    />
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={handleRunQuery}
+                                        disabled={isLoading || !app}
+                                        style={{ marginTop: 'var(--spacing-sm)' }}
+                                    >
+                                        Run Query
+                                    </button>
+                                </div>
+                                <div style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                                    <EmptyState />
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>
