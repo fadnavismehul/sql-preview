@@ -40,6 +40,8 @@ export class Daemon {
     }
   >();
 
+  private isStdioMode = false;
+
   private sessionManager: SessionManager;
   private connectionManager: ConnectionManager;
   private connectorRegistry: ConnectorRegistry;
@@ -416,8 +418,8 @@ export class Daemon {
       const timeSinceActivity = now - this.lastActivityTime;
       const hasActiveSessions = this.connectedSocketCount > 0;
 
-      // Only shut down if no sockets connected AND timeout exceeded
-      if (!hasActiveSessions && timeSinceActivity > this.IDLE_TIMEOUT_MS) {
+      // Only shut down if no sockets connected AND timeout exceeded AND not in stdio mode
+      if (!this.isStdioMode && !hasActiveSessions && timeSinceActivity > this.IDLE_TIMEOUT_MS) {
         logger.info(`[Daemon] Idle timeout (${this.IDLE_TIMEOUT_MS}ms) reached. Shutting down.`);
         shutdown('IDLE_TIMEOUT');
       }
@@ -585,6 +587,8 @@ export class Daemon {
   }
 
   public async startStdio() {
+    this.isStdioMode = true;
+
     // 1. Configure Logging to fail-safe Stderr
     ConsoleLogger.getInstance().setUseStdErr(true);
     logger.info('Starting MCP Server in Stdio Mode...');
@@ -721,14 +725,4 @@ export class Daemon {
       }
     }
   }
-}
-
-// Auto-start if run directly
-// Auto-start if run directly
-if (require.main === module) {
-  const daemon = new Daemon();
-  daemon.start().catch(err => {
-    logger.error('Failed to start daemon:', err);
-    process.exit(1);
-  });
 }
