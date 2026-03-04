@@ -42,13 +42,16 @@ describe('ServiceContainer', () => {
     (ServiceContainer as any).instance = undefined;
   });
 
-  it('should initialize and contain TrinoConnector in ConnectorRegistry', () => {
+  it('should initialize successfully and have empty ConnectorRegistry', () => {
     const container = ServiceContainer.initialize(mockContext);
 
     expect(container).toBeDefined();
 
-    // Check if the ConnectorRegistry has TrinoConnector
+    // Check if the ConnectorRegistry is defined, it should not have Trino statically loaded now
+    expect(container.connectorRegistry).toBeDefined();
+
+    // As of RFC-012/RFC-027, Trino is dynamically loaded, so it won't be here statically
     const trinoConnector = container.connectorRegistry.get('trino');
-    expect(trinoConnector).toBeDefined();
+    expect(trinoConnector).toBeUndefined();
   });
 });

@@ -1,10 +1,14 @@
 import axios, { AxiosRequestConfig, isCancel, isAxiosError } from 'axios';
 import * as https from 'https';
-import { IConnector, ConnectorConfig } from '../base/IConnector'; // New path
-import { QueryPage } from '../../common/types';
-import { safeJsonParse } from '../../utils/jsonUtils'; // Need to check if utils moved
-import { ConnectionError, QueryError, AuthenticationError } from '../../common/errors'; // Need to check errors path
-
+import {
+  IConnector,
+  ConnectorConfig,
+  QueryPage,
+  ConnectionError,
+  QueryError,
+  AuthenticationError,
+} from '@sql-preview/connector-api';
+import { safeJsonParse } from './jsonUtils';
 interface TrinoResponse {
   id?: string;
   infoUri?: string;

@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { ConnectorRegistry } from '../../connectors/base/ConnectorRegistry';
 import { QueryPage } from '../../common/types';
 import { ConnectionManager } from '../../services/ConnectionManager';
 import { DaemonClient } from '../../services/DaemonClient';
@@ -12,7 +11,6 @@ export class QueryExecutor {
   private logger = Logger.getInstance();
 
   constructor(
-    private readonly connectorRegistry: ConnectorRegistry,
     private readonly connectionManager: ConnectionManager,
     private readonly daemonClient: DaemonClient
   ) {}
@@ -184,28 +182,10 @@ export class QueryExecutor {
     config: ConnectorConfig,
     authHeader?: string
   ): Promise<{ success: boolean; error?: string }> {
-    // Fallback to local check if possible, or fail
-    // For now, let's just return true/false dummy or try local if we have connectors loaded locally?
-    // ServiceContainer still loads connectors locally.
-    // So we can fallback to local test for now!
     try {
-      const connector = this.connectorRegistry.get(type);
-      if (!connector) {
-        throw new Error('Connector not found locally');
-      }
-
-      const valError = connector.validateConfig(config);
-      if (valError) {
-        return { success: false, error: valError };
-      }
-
-      if (connector.testConnection) {
-        return await connector.testConnection(config, authHeader);
-      }
-
-      const iterator = connector.runQuery('SELECT 1', config, authHeader);
-      await iterator.next();
-      return { success: true };
+      // Delegate to daemon for test connection
+      const daemonResult = await this.daemonClient.testConnection(type, config, authHeader);
+      return daemonResult;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       return { success: false, error: message };

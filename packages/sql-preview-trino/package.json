@@ -1,0 +1,29 @@
+{
+  "name": "sql-preview-trino",
+  "version": "1.0.0",
+  "description": "Trino connector for SQL Preview",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "sql-preview-trino": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --format=cjs --external:trino-client && esbuild src/cli.ts --bundle --outfile=dist/cli.js --platform=node --format=cjs --external:trino-client --banner:js=\"#!/usr/bin/env node\"",
+    "test": "jest --config jest.config.js --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@sql-preview/connector-api": "file:../sql-preview-connector-api",
+    "@types/json-bigint": "^1.0.4",
+    "json-bigint": "^1.0.0",
+    "trino-client": "^0.2.6"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.0.0",
+    "esbuild": "^0.19.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  }
+}

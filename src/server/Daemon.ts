@@ -21,7 +21,6 @@ import { DaemonQueryExecutor } from './DaemonQueryExecutor';
 import { DaemonMcpToolManager } from './DaemonMcpToolManager';
 import { DaemonMcpServer } from './DaemonMcpServer';
 import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
-import { TrinoConnector } from '../connectors/trino/TrinoConnector';
 import { DriverManager } from '../services/DriverManager';
 
 import { logger, ConsoleLogger } from './ConsoleLogger';
@@ -84,7 +83,6 @@ export class Daemon {
     this.connectorRegistry = new ConnectorRegistry();
 
     // 2. Register Connectors
-    this.connectorRegistry.register(new TrinoConnector());
 
     // this.connectorRegistry.register(new PostgreSQLConnector(new DaemonDriverManager()));
 
