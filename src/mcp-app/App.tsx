@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { App as McpApp, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import { useApp } from '@modelcontextprotocol/ext-apps/react';
-import { ResultsGrid } from './components/ResultsGrid';
+import { McpResultsView } from './components/McpResultsView';
 import { ConnectionsManager } from './components/ConnectionsManager';
 import { Toolbar } from './components/Toolbar';
 import { StatusBar } from './components/StatusBar';
@@ -13,7 +13,7 @@ import './styles/theme.css';
 interface QueryResult {
     query: string;
     columns: Array<{ name: string; type: string }>;
-    rows: Array<Record<string, unknown>>;
+    rows: Array<any[]>;
     rowCount: number;
     executionTime: number;
     connection: string;
@@ -38,15 +38,17 @@ function normalizeQueryResult(data: QueryResult, sql: string): QueryResult {
             }));
         }
     }
-    if (data.rows.length > 0 && Array.isArray(data.rows[0]) && data.columns.length > 0) {
+    if (data.rows.length > 0 && data.columns.length > 0) {
         const colNames = data.columns.map(c => c.name);
         data.rows = data.rows.map(row => {
             if (Array.isArray(row)) {
-                const obj: Record<string, unknown> = {};
-                (row as unknown[]).forEach((val, idx) => { if (idx < colNames.length) obj[colNames[idx]] = val; });
-                return obj;
+                return row; // Keep as array
             }
-            return row as Record<string, unknown>;
+            if (typeof row === 'object' && row !== null) {
+                // Convert object to array based on columns order
+                return colNames.map(name => (row as Record<string, unknown>)[name]);
+            }
+            return [row]; // Fallback
         });
     }
     data.query = sql;
@@ -161,13 +163,13 @@ export function App() {
     const handleExportCsv = () => {
         if (!result || result.rows.length === 0) return;
         const header = result.columns.map(c => c.name).join(',');
-        const csvRows = result.rows.map(row => result.columns.map(c => JSON.stringify(row[c.name] ?? '')).join(','));
+        const csvRows = result.rows.map(row => result.columns.map((c, i) => JSON.stringify(row[i] ?? '')).join(','));
         navigator.clipboard.writeText([header, ...csvRows].join('\n'));
     };
     const handleCopy = () => {
         if (!result || result.rows.length === 0) return;
         const header = result.columns.map(c => c.name).join('\t');
-        const tsvRows = result.rows.map(row => result.columns.map(c => String(row[c.name] ?? '')).join('\t'));
+        const tsvRows = result.rows.map(row => result.columns.map((c, i) => String(row[i] ?? '')).join('\t'));
         navigator.clipboard.writeText([header, ...tsvRows].join('\n'));
     };
 
@@ -211,7 +213,7 @@ export function App() {
                                 {isLoading ? (
                                     <div className="loading-state"><div className="spinner" /><p>Executing query...</p></div>
                                 ) : result ? (
-                                    <ResultsGrid rows={result.rows} columns={result.columns} theme={theme} />
+                                    <McpResultsView theme={theme as 'light' | 'dark'} latestResult={result} />
                                 ) : (
                                     <EmptyState />
                                 )}

@@ -52,7 +52,7 @@ html,
 body {
   margin: 0;
   padding: 0;
-  height: 100vh;
+  min-height: 100vh;
   box-sizing: border-box;
 }
 
@@ -224,23 +224,23 @@ body {
 }
 
 /* Query Preview Details */
-.query-preview {
+.sql-preview-details {
   margin-bottom: var(--spacing-md);
   font-size: 13px;
 }
 
-.query-preview summary {
+.sql-preview-details summary {
   cursor: pointer;
   color: var(--color-text-muted);
   font-weight: 500;
   user-select: none;
 }
 
-.query-preview summary:hover {
+.sql-preview-details summary:hover {
   color: var(--color-text);
 }
 
-.query-preview pre {
+.sql-preview-details pre {
   margin-top: var(--spacing-sm);
   padding: var(--spacing-sm);
   background-color: var(--color-surface);
@@ -249,7 +249,7 @@ body {
   overflow-x: auto;
 }
 
-.query-preview code {
+.sql-preview-details code {
   font-family: var(--font-mono);
   color: var(--color-text);
 }

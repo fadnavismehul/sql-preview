@@ -4,7 +4,16 @@
  */
 
 // Initialize VS Code API
-const vscode = acquireVsCodeApi();
+let vscode;
+try {
+    vscode = acquireVsCodeApi();
+} catch (e) {
+    vscode = {
+        postMessage: (msg) => {
+            window.dispatchEvent(new CustomEvent('mcp-outbound', { detail: msg }));
+        }
+    };
+}
 
 // --- Logging & Error Handling ---
 function logToHost(level, message) {
