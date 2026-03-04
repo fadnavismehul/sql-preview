@@ -1,13 +1,55 @@
-import { IConnector, ConnectorConfig } from '../../../src/connectors/base/IConnector';
-import { PostgresConnectionProfile, QueryPage, ColumnDef } from '../../../src/common/types';
-import { AuthenticationError, ConnectionError, QueryError } from '../../../src/common/errors';
+import {
+  IConnector,
+  ConnectorConfig,
+  QueryPage,
+  ColumnDef,
+  ConnectionError,
+  QueryError,
+  AuthenticationError,
+} from '@sql-preview/connector-api';
 import type { Client, ClientConfig, QueryResult } from 'pg';
+
+// We must manually define PostgresConnectionProfile here since it's used internally
+// but the shared api only exports BaseConnectionProfile
+export interface PostgresConnectionProfile extends ConnectorConfig {
+  type: 'postgres';
+  host: string;
+  port: number;
+  user: string;
+  password?: string;
+  database: string;
+  ssl: boolean;
+  sslVerify?: boolean;
+}
 
 export default class PostgreSQLConnector implements IConnector<ConnectorConfig> {
   readonly id = 'postgres';
   readonly supportsPagination = false; // Postgres returns all results at once (currently)
 
-  constructor(private readonly driverManager: any) { }
+  readonly configSchema = {
+    type: 'object',
+    properties: {
+      host: {
+        type: 'string',
+        title: 'Host',
+        description: 'Database server hostname or IP',
+        default: 'localhost',
+      },
+      port: { type: 'number', title: 'Port', description: 'Database server port', default: 5432 },
+      user: { type: 'string', title: 'User', description: 'Database username' },
+      password: {
+        type: 'string',
+        title: 'Password',
+        description: 'Database password (stored securely)',
+        ui: { widget: 'password' },
+      },
+      database: { type: 'string', title: 'Database', description: 'Database name' },
+      ssl: { type: 'boolean', title: 'Use SSL', default: false },
+    },
+    required: ['host', 'port', 'user', 'database'],
+  };
+
+  constructor(private readonly driverManager: any) {}
 
   validateConfig(config: ConnectorConfig): string | undefined {
     const pgConfig = config as unknown as PostgresConnectionProfile;
@@ -48,8 +90,8 @@ export default class PostgreSQLConnector implements IConnector<ConnectorConfig> 
       database: pgConfig.database,
       ssl: pgConfig.ssl
         ? {
-          rejectUnauthorized: pgConfig.sslVerify ?? true,
-        }
+            rejectUnauthorized: pgConfig.sslVerify ?? true,
+          }
         : false,
       connectionTimeoutMillis: 10000, // 10s connection timeout
     };

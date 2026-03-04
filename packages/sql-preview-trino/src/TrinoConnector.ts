@@ -39,6 +39,30 @@ export class TrinoConnector implements IConnector<TrinoConfig> {
   readonly id = 'trino';
   readonly supportsPagination = true; // Trino returns results incrementally via nextUri
 
+  readonly configSchema = {
+    type: 'object',
+    properties: {
+      host: {
+        type: 'string',
+        title: 'Coordinator Host',
+        description: 'Trino coordinator hostname',
+      },
+      port: { type: 'number', title: 'Port', description: 'Trino coordinator port', default: 443 },
+      user: { type: 'string', title: 'Username', default: 'admin' },
+      password: {
+        type: 'string',
+        title: 'Password',
+        description: '(Optional) stored securely',
+        ui: { widget: 'password' },
+      },
+      catalog: { type: 'string', title: 'Catalog', description: '(Optional) default catalog' },
+      schema: { type: 'string', title: 'Schema', description: '(Optional) default schema' },
+      ssl: { type: 'boolean', title: 'Use SSL', default: true },
+      sslVerify: { type: 'boolean', title: 'Verify SSL', default: true },
+    },
+    required: ['host', 'port', 'user'],
+  };
+
   validateConfig(config: TrinoConfig): string | undefined {
     if (!config.host) {
       return 'Host is required';

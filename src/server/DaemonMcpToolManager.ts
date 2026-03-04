@@ -3,16 +3,27 @@ import { DaemonQueryExecutor } from './DaemonQueryExecutor';
 import { ConnectionManager } from './connection/ConnectionManager';
 import { TabData } from '../common/types';
 import { logger } from './ConsoleLogger';
+import { ConnectorRegistry } from '../connectors/base/ConnectorRegistry';
 
 export class DaemonMcpToolManager {
   constructor(
     private readonly sessionManager: SessionManager,
     private readonly queryExecutor: DaemonQueryExecutor,
-    private readonly connectionManager: ConnectionManager
+    private readonly connectionManager: ConnectionManager,
+    private readonly connectorRegistry: ConnectorRegistry
   ) {}
 
   public getTools() {
     return [
+      {
+        name: 'list_connectors',
+        description:
+          'List all supported database connector types and their configuration JSON schemas. Use this to dynamically generate connection setup forms in the UI.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
       {
         name: 'run_query',
         description:
@@ -206,6 +217,8 @@ export class DaemonMcpToolManager {
         return this.handleGetTabInfo(args);
       case 'list_sessions':
         return this.handleListSessions();
+      case 'list_connectors':
+        return this.handleListConnectors();
       case 'list_connections':
         return this.handleListConnections();
       case 'save_connection':
@@ -294,6 +307,26 @@ export class DaemonMcpToolManager {
                 status: t.status,
                 query: t.query,
               })),
+            })),
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+
+  private handleListConnectors() {
+    const connectors = this.connectorRegistry.getConnectors();
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(
+            connectors.map(c => ({
+              id: c.id,
+              supportsPagination: c.supportsPagination,
+              schema: c.configSchema,
             })),
             null,
             2

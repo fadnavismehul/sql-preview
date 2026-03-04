@@ -14,4 +14,8 @@ export class ConnectorRegistry {
   public getAvailableConnectors(): string[] {
     return Array.from(this.connectors.keys());
   }
+
+  public getConnectors(): IConnector[] {
+    return Array.from(this.connectors.values());
+  }
 }

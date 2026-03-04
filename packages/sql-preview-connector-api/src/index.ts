@@ -12,16 +12,25 @@ export interface QueryPage {
   id?: string | undefined;
   remoteTabId?: string | undefined; // To link local tab to remote daemon tab
   stats?:
-  | {
-    state: string;
-    [key: string]: unknown;
-  }
-  | undefined;
+    | {
+        state: string;
+        [key: string]: unknown;
+      }
+    | undefined;
   supportsPagination?: boolean | undefined;
 }
 
 // Connection Profile Types
-export type ConnectorType = 'trino' | 'postgres' | 'sqlite' | 'custom' | 'duckdb' | 'mysql' | 'mssql' | 'snowflake' | 'bigquery';
+export type ConnectorType =
+  | 'trino'
+  | 'postgres'
+  | 'sqlite'
+  | 'custom'
+  | 'duckdb'
+  | 'mysql'
+  | 'mssql'
+  | 'snowflake'
+  | 'bigquery';
 
 export interface BaseConnectionProfile {
   id: string;
@@ -84,28 +93,28 @@ export interface MySQLConnectionProfile extends BaseConnectionProfile {
 export interface MSSQLConnectionProfile extends BaseConnectionProfile {
   type: 'mssql';
   database: string;
-  instance?: string;           // named instance, e.g. SQLEXPRESS
+  instance?: string; // named instance, e.g. SQLEXPRESS
   trustServerCertificate?: boolean; // true for local/dev self-signed certs
-  connectionTimeout?: number;  // ms, default 15000
-  requestTimeout?: number;     // ms, default 30000
-  domain?: string;             // NTLM domain (optional)
+  connectionTimeout?: number; // ms, default 15000
+  requestTimeout?: number; // ms, default 30000
+  domain?: string; // NTLM domain (optional)
 }
 
 export interface SnowflakeConnectionProfile {
   id: string;
   name: string;
   type: 'snowflake';
-  account: string;              // e.g. "myorg-myaccount"
+  account: string; // e.g. "myorg-myaccount"
   username: string;
   password?: string;
-  privateKeyPath?: string;      // absolute path to PEM private key
+  privateKeyPath?: string; // absolute path to PEM private key
   privateKeyPassphrase?: string;
   warehouse?: string;
   database?: string;
   schema?: string;
   role?: string;
-  loginTimeout?: number;        // seconds, default: 60
-  application?: string;         // reported to Snowflake, default: "sql-preview"
+  loginTimeout?: number; // seconds, default: 60
+  application?: string; // reported to Snowflake, default: "sql-preview"
   driverPath?: string;
 }
 
@@ -113,20 +122,20 @@ export interface BigQueryConnectionProfile {
   id: string;
   name: string;
   type: 'bigquery';
-  projectId: string;    // GCP project ID (billing project)
-  location?: string;    // 'US' | 'EU' | 'us-central1' etc., default: 'US'
-  dataset?: string;     // default dataset for unqualified table refs
+  projectId: string; // GCP project ID (billing project)
+  location?: string; // 'US' | 'EU' | 'us-central1' etc., default: 'US'
+  dataset?: string; // default dataset for unqualified table refs
   keyFilename?: string; // absolute path to service account JSON key
-  credentials?: {       // inline service account (overrides keyFilename)
+  credentials?: {
+    // inline service account (overrides keyFilename)
     client_email: string;
     private_key: string;
   };
   maximumBytesBilled?: number | null; // bytes; null = unlimited
-  timeoutMs?: number;   // default: 60000
+  timeoutMs?: number; // default: 60000
   driverPath?: string;
-  password?: string;    // not used by BigQuery auth; included for ConnectionProfile union compatibility
+  password?: string; // not used by BigQuery auth; included for ConnectionProfile union compatibility
 }
-
 
 export type ConnectionProfile =
   | TrinoConnectionProfile
@@ -157,6 +166,12 @@ export interface ConnectorConfig {
 export interface IConnector<TConfig extends ConnectorConfig = ConnectorConfig> {
   readonly id: string;
   readonly supportsPagination: boolean;
+
+  /**
+   * JSON Schema representation of the connector's required configuration.
+   * Used by MCP clients to dynamically render Connection Setup forms.
+   */
+  readonly configSchema?: Record<string, unknown>;
 
   validateConfig(config: TConfig): string | undefined;
 

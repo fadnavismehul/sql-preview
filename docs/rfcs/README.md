@@ -74,6 +74,7 @@ Every RFC must include:
 | RFC-025 | Proposed    | `docs/rfcs/proposed/RFC-025-clean-architecture-refactor.md`       | Clean Architecture Refactor (Logger DI)     |
 | RFC-026 | Proposed    | `docs/rfcs/proposed/RFC-026-context-aware-toolsets.md`            | Context-Aware Toolsets (MCP Profiles)       |
 | RFC-027 | Proposed    | `docs/rfcs/proposed/RFC-027-trino-connector.md`                   | Trino Connector Migration                   |
+| RFC-028 | Proposed    | `docs/rfcs/proposed/RFC-028-connection-setup-ux.md`               | Dynamic Connection Setup UX                 |
 
 ---
 

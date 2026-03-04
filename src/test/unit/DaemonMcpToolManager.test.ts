@@ -3,6 +3,7 @@ import { SessionManager } from '../../server/SessionManager';
 import { DaemonQueryExecutor } from '../../server/DaemonQueryExecutor';
 import { QueryPage } from '../../common/types';
 import { ConnectionManager } from '../../server/connection/ConnectionManager';
+import { ConnectorRegistry } from '../../connectors/base/ConnectorRegistry';
 
 // Mock dependencies
 jest.mock('../../server/SessionManager');
@@ -14,6 +15,7 @@ describe('DaemonMcpToolManager', () => {
   let sessionManager: jest.Mocked<SessionManager>;
   let queryExecutor: jest.Mocked<DaemonQueryExecutor>;
   let connectionManager: jest.Mocked<ConnectionManager>;
+  let connectorRegistry: jest.Mocked<ConnectorRegistry>;
   let mockSession: any;
 
   beforeEach(() => {
@@ -25,9 +27,25 @@ describe('DaemonMcpToolManager', () => {
       null as any,
       null as any
     ) as jest.Mocked<DaemonQueryExecutor>;
-    connectionManager = new ConnectionManager([], null as any) as jest.Mocked<ConnectionManager>;
+    connectionManager = {
+      ...new ConnectionManager([], null as any),
+      saveProfile: jest.fn(),
+      deleteProfile: jest.fn(),
+    } as unknown as jest.Mocked<ConnectionManager>;
 
-    manager = new DaemonMcpToolManager(sessionManager, queryExecutor, connectionManager);
+    connectorRegistry = {
+      register: jest.fn(),
+      get: jest.fn(),
+      getAvailableConnectors: jest.fn(),
+      getConnectors: jest.fn().mockReturnValue([]),
+    } as unknown as jest.Mocked<ConnectorRegistry>;
+
+    manager = new DaemonMcpToolManager(
+      sessionManager,
+      queryExecutor,
+      connectionManager,
+      connectorRegistry
+    );
 
     mockSession = {
       id: 'session1',
