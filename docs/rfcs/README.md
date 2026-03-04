@@ -69,7 +69,7 @@ Every RFC must include:
 | RFC-020 | Proposed    | `docs/rfcs/proposed/RFC-020-mssql-connector.md`                   | SQL Server (MSSQL) Connector — P0           |
 | RFC-021 | Proposed    | `docs/rfcs/proposed/RFC-021-snowflake-connector.md`               | Snowflake Connector — P0                    |
 | RFC-022 | Proposed    | `docs/rfcs/proposed/RFC-022-bigquery-connector.md`                | BigQuery Connector — P0                     |
-| RFC-023 | Proposed    | `docs/rfcs/proposed/RFC-023-distribution-claude-desktop.md`       | NPM Distribution & Claude Desktop — P0      |
+| RFC-023 | Implemented | `docs/rfcs/done/RFC-023-distribution-claude-desktop.md`           | NPM Distribution & Claude Desktop — P0      |
 | RFC-024 | Proposed    | `docs/rfcs/proposed/RFC-024-connector-testing-standards.md`       | Connector Testing Standards & Retrofit — P0 |
 | RFC-025 | Proposed    | `docs/rfcs/proposed/RFC-025-clean-architecture-refactor.md`       | Clean Architecture Refactor (Logger DI)     |
 | RFC-026 | Proposed    | `docs/rfcs/proposed/RFC-026-context-aware-toolsets.md`            | Context-Aware Toolsets (MCP Profiles)       |
