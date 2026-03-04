@@ -1,17 +1,19 @@
-# SQL Preview for VS Code
+# SQL Preview for VS Code & Claude Desktop
 
-A Visual Studio Code extension for connecting to **Trino** databases, running SQL queries, and visualizing results directly within your editor.
+A powerful tool for connecting to **PostgreSQL, Trino, MySQL, BigQuery, Snowflake, DuckDB**, and more.
+
+Use it as a **VS Code extension** to run SQL queries and visualize results interactively, or use it as a standalone **Model Context Protocol (MCP) server** to let Claude Desktop and Cursor securely query your databases.
 
 ## Features
 
-- **SQL Query Execution**: Run SQL queries against Trino databases directly from VS Code.
-- **Interactive Results View**: View query results in a high-performance AG Grid table with sorting, filtering, and resizing.
-- **Code Lens Integration**: Execute queries with a single click from your `.sql` files.
-- **Client-Server Architecture**: Uses a dedicated background daemon for reliable connection management and query execution.
+- **Multi-Database Support**: Connects to major SQL dialects via pluggable connector packages.
+- **VS Code Integration**: Run SQL queries directly from your `.sql` files with a single click and view results in a high-performance AG Grid table.
+- **AI Agent Native**: Includes a built-in MCP server that exposes database tools (`run_query`, `list_tables`, `describe_table`) to AI assistants.
+- **Client-Server Architecture**: Uses a dedicated background daemon for reliable connection management and crash isolation.
+- **Out-of-Process Connectors**: Database drivers run in separate processes, preventing heavy queries from crashing your editor.
 - **Secure Password Storage**: Passwords are encrypted using the OS keyring via VS Code's SecretStorage API.
-- **MCP Integration (Beta)**: Exposes database tools to AI agents via the Model Context Protocol.
 
-## Usage
+## Usage (VS Code)
 
 ### Running Queries
 
@@ -38,51 +40,56 @@ This extension uses a robust **Client-Server** model:
 
 This separation ensures that long-running queries do not block the VS Code UI and provides a stable environment for database interactions.
 
-## Configuration
+## Configuration (VS Code)
 
-Add the following configuration to your `settings.json`:
+To configure default connections in VS Code, add profiles to your settings. Note that different connectors take different parameters:
 
 ```json
 {
-  "sqlPreview.defaultConnector": "trino",
-  "sqlPreview.host": "trino-coordinator.example.com",
-  "sqlPreview.port": 443,
-  "sqlPreview.user": "your-username",
-  "sqlPreview.catalog": "hive",
-  "sqlPreview.schema": "default",
+  "sqlPreview.defaultConnector": "postgres",
+  "sqlPreview.host": "db.example.com",
+  "sqlPreview.port": 5432,
+  "sqlPreview.user": "analyst",
+  "sqlPreview.database": "analytics",
   "sqlPreview.ssl": true,
-  "sqlPreview.sslVerify": true,
-  "sqlPreview.maxRowsToDisplay": 1000,
-  "sqlPreview.logLevel": "INFO" // Options: DEBUG, INFO, WARN, ERROR
+  "sqlPreview.maxRowsToDisplay": 1000
 }
 ```
 
 ### Secure Password Management
 
-For security, passwords are never stored in plain text.
+For security, passwords are never stored in plain text in your `settings.json`.
 
 1.  **Set Password**: Run the command `SQL Preview: Set Database Password` or click "Set Password" in the Settings UI.
 2.  **Clear Password**: Run `SQL Preview: Clear Stored Password`.
 
-## 🤖 Model Context Protocol (MCP) Integration (Beta)
+## 🤖 Model Context Protocol (MCP) Integration
 
-This extension includes a built-in MCP server that allows AI assistants (like Claude) to interact with your database.
+SQL Preview isn't just a VS Code extension; it is also distributed as a standalone MCP server via NPM (`@sql-preview/server`). This allows AI assistants to interact safely with your databases.
 
-### Enabling MCP
+### 1. Claude Desktop, Cursor, & CLI Setup
+
+To use SQL Preview outside of VS Code (e.g., in Claude Desktop), you can run the standalone daemon in `stdio` mode.
+
+Please read our full [Claude Desktop Setup Guide](docs/guides/claude-desktop-setup.md) for copy-paste instructions covering Configuration Profiles and Claude/Cursor wiring.
+
+### 2. VS Code Assistant Integration (Beta)
+
+To enable tools for AI instances running _within_ your VS Code environment (like Claude or GitHub Copilot):
 
 1.  Open VS Code Settings.
 2.  Set `sqlPreview.mcpEnabled` to `true`.
-3.  (Optional) Set `sqlPreview.mcpSafeMode` to `true` (default) to restrict AI to read-only queries.
+3.  (Optional) Set `sqlPreview.mcpSafeMode` to `true` (default) to restrict AI to read-only `SELECT` queries.
 4.  Restart the extension or run `SQL Preview: Restart Background Server`.
 
 ### Available Tools
 
-When enabled, the following tools are available to MCP clients:
+When connected via MCP, your AI assistant gains these tools:
 
-- `run_query`: Execute a SQL query.
-- `list_tables`: List tables in a schema.
-- `describe_table`: Show table schema.
-- `get_ddl`: Get the CREATE TABLE statement.
+- `run_query`: Execute arbitrary SQL.
+- `list_tables`: Enumerate tables within a schema.
+- `describe_table`: Show table schema and column types.
+- `get_ddl`: Retrieve the CREATE TABLE statement.
 
 ## Project Structure
 

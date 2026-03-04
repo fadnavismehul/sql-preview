@@ -1,0 +1,37 @@
+{
+  "name": "@sql-preview/server",
+  "version": "0.5.12",
+  "description": "Standalone SQL Preview MCP server for Claude Desktop, Cursor, and other MCP clients",
+  "main": "dist/standalone.js",
+  "bin": {
+    "sql-preview-server": "dist/standalone.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "mkdir -p dist && cp ../../out/server/standalone.js dist/standalone.js",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "sql",
+    "mcp",
+    "claude",
+    "database",
+    "ai",
+    "trino",
+    "postgres",
+    "mysql",
+    "snowflake",
+    "duckdb",
+    "sqlite"
+  ],
+  "author": "mehul",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1"
+  }
+}

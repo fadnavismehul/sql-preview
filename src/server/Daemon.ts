@@ -152,6 +152,23 @@ export class Daemon {
       });
     });
 
+    // MCP App React UI Bundle
+    this.app.get('/mcp-app', async (_req, res) => {
+      try {
+        // Resolve relative to out/server/Daemon.js
+        const htmlPath = path.join(__dirname, '../../dist/mcp-app.html');
+        if (!fs.existsSync(htmlPath)) {
+          res.status(404).send('UI bundle not found. Please run "npm run build" first.');
+          return;
+        }
+        res.setHeader('Content-Type', 'text/html');
+        fs.createReadStream(htmlPath).pipe(res);
+      } catch (err) {
+        logger.error('[Daemon] Failed to serve /mcp-app:', err);
+        res.status(500).send('Internal Server Error');
+      }
+    });
+
     // MCP Endpoint (Multi-Session Support)
     const mcpHandler = async (req: express.Request, res: express.Response) => {
       logger.info(`[Daemon] /mcp request: ${req.method} ${req.url} (Original: ${req.originalUrl})`);
