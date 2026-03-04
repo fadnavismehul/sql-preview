@@ -283,6 +283,31 @@ describe('DaemonMcpToolManager', () => {
     });
   });
 
+  describe('list_connectors', () => {
+    it('should return available connectors and their schemas', async () => {
+      const mockConnectors = [
+        {
+          id: 'mockdb',
+          supportsPagination: true,
+          configSchema: {
+            type: 'object',
+            properties: { host: { type: 'string' } },
+            required: ['host'],
+          },
+        },
+      ] as any[];
+      connectorRegistry.getConnectors.mockReturnValue(mockConnectors);
+
+      const result: any = await manager.handleToolCall('list_connectors', {});
+
+      const list = JSON.parse(result.content[0].text);
+      expect(list).toHaveLength(1);
+      expect(list[0].id).toBe('mockdb');
+      expect(list[0].schema).toBeDefined();
+      expect(list[0].schema.properties.host).toBeDefined();
+    });
+  });
+
   describe('list_connections', () => {
     it('should list connections with full details excluding password', async () => {
       const mockProfiles = [
