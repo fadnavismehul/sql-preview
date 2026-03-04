@@ -335,6 +335,7 @@
     "test:all": "npm run test && npm run test:integration",
     "quality-check": "npm run type-check && npm run lint && npm run format:check",
     "quality-fix": "npm run lint:fix && npm run format",
+    "secretlint": "secretlint \"**/*\"",
     "verify-package": "node scripts/verify-package-content.js",
     "publish:vscode": "npm run verify-package && npx vsce publish",
     "publish:vscode:env": "npm run verify-package && dotenv -e .env.local -- npx vsce publish -p $VSCE_PAT",
@@ -349,6 +350,8 @@
     "postinstall": "node -e \"try { require('child_process').execSync('bash scripts/install-hooks.sh', {stdio:'inherit'}) } catch(e) {}\""
   },
   "devDependencies": {
+    "@secretlint/secretlint-rule-aws": "^11.3.1",
+    "@secretlint/secretlint-rule-preset-recommend": "^11.3.1",
     "@types/body-parser": "^1.19.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
@@ -380,6 +383,7 @@
     "mocha": "^11.1.0",
     "pg": "^8.17.2",
     "prettier": "^3.6.2",
+    "secretlint": "^11.3.1",
     "sinon": "^20.0.0",
     "ts-jest": "^29.3.1",
     "typescript": "^5.1.3",
@@ -391,8 +395,8 @@
     "@modelcontextprotocol/sdk": "^1.23.0",
     "@sql-preview/connector-api": "file:packages/sql-preview-connector-api",
     "@sql-preview/duckdb": "file:packages/sql-preview-duckdb",
-    "@sql-preview/trino": "file:packages/sql-preview-trino",
     "@sql-preview/server": "file:packages/sql-preview-server",
+    "@sql-preview/trino": "file:packages/sql-preview-trino",
     "@types/json-bigint": "^1.0.4",
     "ag-grid-react": "^35.1.0",
     "ajv": "^8.17.1",
@@ -412,6 +416,9 @@
     ],
     "*.{json,md}": [
       "prettier --write"
+    ],
+    "*": [
+      "secretlint"
     ]
   }
 }

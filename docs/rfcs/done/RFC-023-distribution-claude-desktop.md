@@ -1,6 +1,6 @@
 # RFC-023: NPM Distribution and Claude Desktop Setup
 
-**Status:** Proposed  
+**Status:** Done  
 **Created:** 2026-03-02  
 **Owner:** Core Team  
 **Related RFCs:** RFC-009 (Headless MCP Server), RFC-012 (Pluggable Connectors), RFC-016 (Schema Metadata API), RFC-018 (MCP UI Refinement)
