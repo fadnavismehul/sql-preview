@@ -6,9 +6,8 @@
 
 - **[base/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/base/)**:
   - `BaseConnector.ts`: Abstract base class defining the contract (connect, execute, test).
-  - `ConnectorFactory.ts`: Factory to instantiate the correct connector based on type.
-- **[trino/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/trino/)**: Trino/Presto implementation using `trino-client`.
-- **[postgres/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/postgres/)**: PostgreSQL implementation using `pg`.
+  - `ConnectorRegistry.ts`: Registry to keep track of natively supported connectors.
+- **[postgres/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/postgres/)**: PostgreSQL implementation using `pg`. Note: Trino, BigQuery and others have been migrated out of this directory and exist as pluggable `@sql-preview` packages.
 - **[sqlite/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/sqlite/)**: SQLite implementation.
 - **[duckdb/](file:///Users/mehul.fadnavis/Desktop/Work/Code/project-preview/src/connectors/duckdb/)**: DuckDB implementation using `@duckdb/node-api`.
   - **Note**: This connector is feature-flagged and disabled by default due to native module constraints.

@@ -400,7 +400,6 @@
     "json-bigint": "^1.0.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "trino-client": "^0.2.6",
     "ws": "^8.19.0"
   },
   "lint-staged": {
