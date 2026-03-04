@@ -328,13 +328,14 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 350px;
+  height: 600px;
+  /* Explicit height to force tall layout in Claude Desktop */
 }
 
 .grid-container {
-  flex: 1 1 350px;
+  flex: 1;
   overflow: hidden;
-  min-height: 350px;
+  height: 100%;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   display: flex;
