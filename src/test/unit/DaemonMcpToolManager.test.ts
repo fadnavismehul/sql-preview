@@ -89,14 +89,17 @@ describe('DaemonMcpToolManager', () => {
         session: 'session1',
       });
 
-      expect(result.content[0].text).toContain('Query started');
+      expect(result.content[0].text).toContain('Query returned 0 rows');
       expect(sessionManager.getSession).toHaveBeenCalledWith('session1');
 
       // Verify tab creation
-      expect(mockSession.tabs.size).toBe(1);
-      const tabId = mockSession.activeTabId;
-      expect(tabId).toBeDefined();
-
+      expect(sessionManager.addTab).toHaveBeenCalledWith(
+        'session1',
+        expect.objectContaining({
+          status: 'loading',
+          query: 'SELECT 1',
+        })
+      );
       // Wait a bit for async execution to likely finish (in real world it's detached promise)
       // Since we mocked execute to yield immediately, we just need to wait for microtasks?
       // The executeAndStore is called without await in handleRunQuery.

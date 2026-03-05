@@ -4,6 +4,13 @@ module.exports = {
       'ts-jest',
       {
         tsconfig: 'tsconfig.json',
+        diagnostics: {
+          ignoreCodes: [151001],
+        },
+        compilerOptions: {
+          jsx: 'react-jsx',
+          lib: ['dom', 'es2020'],
+        },
       },
     ],
   },

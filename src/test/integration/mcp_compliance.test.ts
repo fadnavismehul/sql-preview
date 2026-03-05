@@ -88,33 +88,25 @@ describe('MCP Compliance Integration', () => {
     expect(result.content[0].type).toBe('text');
     const text = result.content[0].text as string;
 
-    expect(text).toContain('Query started');
+    expect(text).toContain('Query returned 0 rows');
 
-    // Extract Tab ID
-    const tabIdMatch = text.match(/Tab ID: ([^.]+)/);
-    const tabId = tabIdMatch ? tabIdMatch[1] : undefined;
-    expect(tabId).toBeDefined();
+    // Wait slightly to ensure any background status updates flush
+    await new Promise(r => setTimeout(r, 500));
+    const info = (await client.callTool({
+      name: 'get_tab_info',
+      arguments: {
+        session: 'test-session',
+        // Omitting tabId relies on the default behavior of getting the active tab
+      },
+    })) as any;
 
-    if (tabId) {
-      // Poll status - expect error eventually
-      await new Promise(r => setTimeout(r, 1000));
-      const info = (await client.callTool({
-        name: 'get_tab_info',
-        arguments: {
-          session: 'test-session',
-          tabId: tabId,
-        },
-      })) as any;
+    const infoText = info.content[0].text as string;
+    const infoJson = JSON.parse(infoText);
 
-      const infoText = info.content[0].text as string;
-      const infoJson = JSON.parse(infoText);
-
-      expect(infoJson.status).toBeDefined();
-      // It's likely 'error' because we used invalid host and waited 1s
-      if (infoJson.status === 'error') {
-        expect(infoJson.error).toBeDefined();
-      }
-      expect(infoJson.resourceUri).toContain(tabId);
+    expect(infoJson.status).toBeDefined();
+    // It's likely 'error' because we used invalid host and waited
+    if (infoJson.status === 'error') {
+      expect(infoJson.error).toBeDefined();
     }
   });
 

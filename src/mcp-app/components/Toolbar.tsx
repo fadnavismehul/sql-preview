@@ -1,45 +1,21 @@
 import React from 'react';
 
 interface ToolbarProps {
-    onRerun: () => void;
-    onExportCsv: () => void;
     onCopy: () => void;
-    isLoading: boolean;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
-    onRerun,
-    onExportCsv,
-    onCopy,
-    isLoading
+    onCopy
 }) => {
     return (
-        <div className="toolbar">
-            <h3 className="toolbar-title">SQL Results</h3>
-            <div className="toolbar-actions">
+        <div className="toolbar" style={{ borderBottom: 'none', paddingBottom: 0, marginBottom: 0 }}>
+            <div className="toolbar-actions" style={{ paddingLeft: 'auto', marginLeft: 'auto' }}>
                 <button
                     className="btn"
                     onClick={onCopy}
-                    disabled={isLoading}
                     title="Copy full results to clipboard as TSV"
                 >
-                    Copy
-                </button>
-                <button
-                    className="btn"
-                    onClick={onExportCsv}
-                    disabled={isLoading}
-                    title="Export full results as CSV"
-                >
-                    Export CSV
-                </button>
-                <button
-                    className="btn btn-primary"
-                    onClick={onRerun}
-                    disabled={isLoading}
-                    title="Re-run the current SQL query"
-                >
-                    {isLoading ? 'Running...' : 'Re-run'}
+                    Copy All
                 </button>
             </div>
         </div>

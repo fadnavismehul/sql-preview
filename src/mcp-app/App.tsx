@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import type { App as McpApp, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import { useApp } from '@modelcontextprotocol/ext-apps/react';
 import { McpResultsView } from './components/McpResultsView';
@@ -141,7 +141,47 @@ export function App() {
         }
     }
 
-    const theme = hostContext?.theme ?? 'light';
+    // Get initial theme from URL to prevent FOUC before connection is fully established
+    const initialThemeParam = new URLSearchParams(window.location.search).get('theme');
+    const initialTheme = (initialThemeParam === 'dark' || initialThemeParam === 'light') ? initialThemeParam : 'light';
+    const theme = hostContext?.theme ?? initialTheme;
+
+    useEffect(() => {
+        if (theme === 'dark') {
+            document.body.classList.remove('light-theme', 'vscode-light');
+            document.body.classList.add('dark-theme', 'vscode-dark');
+        } else {
+            document.body.classList.remove('dark-theme', 'vscode-dark');
+            document.body.classList.add('light-theme', 'vscode-light');
+        }
+    }, [theme]);
+
+    const copyTextSafe = async (text: string) => {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+        } catch (e) {
+            console.warn('navigator.clipboard failed, using fallback', e);
+        }
+
+        // Fallback for non-secure contexts (like Claude Desktop local iframe sometimes)
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+        } catch (error) {
+            console.error('Fallback copy failed', error);
+        }
+        textArea.remove();
+    };
 
     const handleRunQuery = async () => {
         if (!app) return;
@@ -160,24 +200,18 @@ export function App() {
         } catch (e) { setError(String(e)); setIsLoading(false); }
     };
 
-    const handleExportCsv = () => {
-        if (!result || result.rows.length === 0) return;
-        const header = result.columns.map(c => c.name).join(',');
-        const csvRows = result.rows.map(row => result.columns.map((c, i) => JSON.stringify(row[i] ?? '')).join(','));
-        navigator.clipboard.writeText([header, ...csvRows].join('\n'));
-    };
     const handleCopy = () => {
         if (!result || result.rows.length === 0) return;
         const header = result.columns.map(c => c.name).join('\t');
         const tsvRows = result.rows.map(row => result.columns.map((c, i) => String(row[i] ?? '')).join('\t'));
-        navigator.clipboard.writeText([header, ...tsvRows].join('\n'));
+        copyTextSafe([header, ...tsvRows].join('\n'));
     };
 
     if (appError) return <div style={{ padding: 16, color: 'red' }}>Connection error: {appError.message}</div>;
     if (!app) return <div style={{ padding: 16 }}>Connecting...</div>;
 
     return (
-        <div className={`app-container ${theme === 'dark' ? 'dark-theme' : ''}`}>
+        <div className="app-container">
             {!isAppMode && (
                 <div className="nav-bar">
                     <button className={`nav-item ${view === 'query' ? 'active' : ''}`} onClick={() => setView('query')}>Query</button>
@@ -206,7 +240,7 @@ export function App() {
                                     </button>
                                 </div>
                             )}
-                            <Toolbar onRerun={handleRunQuery} onExportCsv={handleExportCsv} onCopy={handleCopy} isLoading={isLoading} />
+                            <Toolbar onCopy={handleCopy} />
                             {result && <StatusBar rowCount={result.rowCount ?? result.rows.length} executionTime={result.executionTime ?? 0} connectionName={result.connection} />}
                             <QueryPreview sql={result?.query ?? sql} />
                             <div className="grid-container">

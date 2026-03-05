@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { App, applyDocumentTheme, applyHostStyleVariables, applyHostFonts } from '@modelcontextprotocol/ext-apps';
+import {
+  App,
+  applyDocumentTheme,
+  applyHostStyleVariables,
+  applyHostFonts,
+} from '@modelcontextprotocol/ext-apps';
 
 export function useMcpApp() {
   const [app, setApp] = useState<App | null>(null);
@@ -17,13 +22,20 @@ export function useMcpApp() {
       if (context?.theme === 'dark' || context?.theme === 'light') {
         setTheme(context.theme);
       }
-      if (context?.theme) applyDocumentTheme(context.theme);
-      if (context?.styles?.variables) applyHostStyleVariables(context.styles.variables);
-      if (context?.styles?.css?.fonts) applyHostFonts(context.styles.css.fonts);
+      if (context?.theme) {
+        applyDocumentTheme(context.theme);
+      }
+      if (context?.styles?.variables) {
+        applyHostStyleVariables(context.styles.variables);
+      }
+      if (context?.styles?.css?.fonts) {
+        applyHostFonts(context.styles.css.fonts);
+      }
 
       if (context?.safeAreaInsets) {
         const { top, right, bottom, left } = context.safeAreaInsets;
-        (globalThis as any).document.body.style.padding = `${top}px ${right}px ${bottom}px ${left}px`;
+        (globalThis as any).document.body.style.padding =
+          `${top}px ${right}px ${bottom}px ${left}px`;
       }
     };
 
@@ -33,8 +45,12 @@ export function useMcpApp() {
       setTheme(context.theme);
       applyDocumentTheme(context.theme);
     }
-    if (context?.styles?.variables) applyHostStyleVariables(context.styles.variables);
-    if (context?.styles?.css?.fonts) applyHostFonts(context.styles.css.fonts);
+    if (context?.styles?.variables) {
+      applyHostStyleVariables(context.styles.variables);
+    }
+    if (context?.styles?.css?.fonts) {
+      applyHostFonts(context.styles.css.fonts);
+    }
 
     // Call connect() AFTER setting up handlers
     newApp.connect();

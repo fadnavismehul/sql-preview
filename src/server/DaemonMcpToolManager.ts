@@ -11,7 +11,7 @@ export class DaemonMcpToolManager {
     private readonly queryExecutor: DaemonQueryExecutor,
     private readonly connectionManager: ConnectionManager,
     private readonly connectorRegistry: ConnectorRegistry
-  ) { }
+  ) {}
 
   public getTools() {
     return [
@@ -444,15 +444,15 @@ export class DaemonMcpToolManager {
     try {
       const typedArgs = args as
         | {
-          sql?: string;
-          session?: string;
-          displayName?: string;
-          newTab?: boolean;
-          connectionId?: string;
-          connectionProfile?: unknown;
-          tabId?: string;
-          waitForResult?: boolean;
-        }
+            sql?: string;
+            session?: string;
+            displayName?: string;
+            newTab?: boolean;
+            connectionId?: string;
+            connectionProfile?: unknown;
+            tabId?: string;
+            waitForResult?: boolean;
+          }
         | undefined;
       const sql = typedArgs?.sql?.trim();
       // Default to a known session ID if not provided (e.g. from Inspector or App)
@@ -595,7 +595,7 @@ export class DaemonMcpToolManager {
             rowCount: tabData.meta.totalRows,
             executionTime: 0,
             connection: connectionId || 'default',
-          }
+          },
         };
       } else {
         // Fire and forget (Extension behavior)
@@ -691,12 +691,12 @@ export class DaemonMcpToolManager {
   private async handleGetTabInfo(args: unknown) {
     const typedArgs = args as
       | {
-        session?: string;
-        tabId?: string;
-        mode?: 'preview' | 'page';
-        offset?: number;
-        limit?: number;
-      }
+          session?: string;
+          tabId?: string;
+          mode?: 'preview' | 'page';
+          offset?: number;
+          limit?: number;
+        }
       | undefined;
     const sessionId = typedArgs?.session;
     if (!sessionId) {
